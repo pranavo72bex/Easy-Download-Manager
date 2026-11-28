@@ -1,13 +1,13 @@
-# The benchmark: dm against reference A's frozen baseline
+# The benchmark: EDM against reference A's frozen baseline
 
-Reference A was measured beside dm on one Windows laptop on 2026-11-09 and 2026-11-10: 84 runs
+Reference A was measured beside EDM on one Windows laptop on 2026-11-09 and 2026-11-10: 84 runs
 over seven scenarios, every parameter written down. Its numbers are frozen in
-[reference-a-baseline.json](reference-a-baseline.json). They are the **bottom line** for dm on
-every system: dm must beat every judged parameter, on Windows, macOS and Linux. The baseline
-never changes. Only dm has to get better.
+[reference-a-baseline.json](reference-a-baseline.json). They are the **bottom line** for EDM on
+every system: EDM must beat every judged parameter, on Windows, macOS and Linux. The baseline
+never changes. Only EDM has to get better.
 
 Reference A runs only on Windows, and only on the maintainer's computer has it been measured.
-Elsewhere dm runs the same harness alone and `compare.mjs` judges it against the frozen numbers.
+Elsewhere EDM runs the same harness alone and `compare.mjs` judges it against the frozen numbers.
 So work on macOS or Linux can aim at the same target as work on Windows.
 
 ## Files
@@ -15,9 +15,9 @@ So work on macOS or Linux can aim at the same target as work on Windows.
 | File | What it is |
 |------|------------|
 | `reference-a-baseline.json` | The frozen baseline: the machine, both apps' settings, the harness's every parameter, the floors, the ceiling and all 84 of reference A's runs. **Never edited.** |
-| `bench.mjs` | The harness: the local server, the scenarios, the sampler. It drives dm (and reference A where `local.json` names it). |
-| `compare.mjs` | Judges a results folder against the baseline, parameter by parameter. Exit 0 only when dm is better everywhere. |
-| `against-last.mjs` | Judges a results folder against an earlier run of dm's own (CI's weekly run, `.github/workflows/bench.yml`; `docs/testing.md`). It never reads the floors. |
+| `bench.mjs` | The harness: the local server, the scenarios, the sampler. It drives EDM (and reference A where `local.json` names it). |
+| `compare.mjs` | Judges a results folder against the baseline, parameter by parameter. Exit 0 only when EDM is better everywhere. |
+| `against-last.mjs` | Judges a results folder against an earlier run of EDM's own (CI's weekly run, `.github/workflows/bench.yml`; `docs/testing.md`). It never reads the floors. |
 | `ceiling-client.mjs` | The reference client, used by the `ceiling` scenario to measure what the computer itself allows. |
 | `shaper.mjs` | The line of the `wan` and `lossy` cases: a delaying proxy, and the TLS certificate made at run time. The slow name of the `slowname` case: a DNS server that answers late. `node bench/shaper.mjs --self-test` measures them. |
 | `refa-windows.ps1` | Answers reference A's windows during a run (Windows only). |
@@ -30,37 +30,37 @@ Use a release build. The baseline was measured against one, and a debug build is
 slower.
 
 ```sh
-cargo build --release -p dm-gpui      # the window dm ships, on every system
+cargo build --release -p edm-gpui      # the window EDM ships, on every system
 cd ..
 node bench/bench.mjs                                 # idle fast per_conn flaky outage batch big40 ceiling
 node bench/compare.mjs                               # judges the newest folder in bench/results
 ```
 
-- **Any system, dm alone** (the usual case): the commands above. `DM_BINARY=/path/to/dm` runs an
-  installed or packaged dm instead. The whole run takes about 5 minutes.
+- **Any system, EDM alone** (the usual case): the commands above. `EDM_BINARY=/path/to/EDM` runs an
+  installed or packaged EDM instead. The whole run takes about 5 minutes.
 - **One scenario while you work on it**: `node bench/bench.mjs ceiling flaky`, then
   `node bench/compare.mjs`. A machine-bound scenario (`fast`, `big40`) is judged only when
   `ceiling` was run on the same computer into the same results folder.
-- **16 connections**: `BENCH_DM_CONNECTIONS=16 node bench/bench.mjs per_conn flaky fast`. Those
+- **16 connections**: `BENCH_EDM_CONNECTIONS=16 node bench/bench.mjs per_conn flaky fast`. Those
   results are judged against the `connections16` group.
 - **Beside reference A** (Windows, the maintainer's computer): copy `local.example.json` to
   `local.json` and fill it in. `bench.mjs` then runs both apps in turn. Each repetition swaps which
   goes first, and `compare.mjs` prints reference A's number from the same run beside each row.
   Those numbers are not the floor: the floor stays the frozen one.
-- **The baseline's own layout** (Windows): dm's home on the SSD (the default, under the temp
+- **The baseline's own layout** (Windows): EDM's home on the SSD (the default, under the temp
   folder), downloads on the hard disk:
-  `BENCH_DM_DOWNLOADS=D:\dm-bench\down-<n> BENCH_REFA_DIR=D:\dm-bench\refa-<n> BENCH_CEILING_DIR=D:\dm-bench\ceiling node bench/bench.mjs`.
+  `BENCH_EDM_DOWNLOADS=D:\edm-bench\down-<n> BENCH_REFA_DIR=D:\edm-bench\refa-<n> BENCH_CEILING_DIR=D:\edm-bench\ceiling node bench/bench.mjs`.
   Use a fresh download folder each run: names repeat between runs, and a second copy saved as
   `x (1).bin` reads as not whole.
 
 `node bench/compare.mjs --json` prints the same judgement for a program to read. Each parameter
-has its floor, dm's median, best and worst, and the verdict.
+has its floor, EDM's median, best and worst, and the verdict.
 
-## How dm is judged
+## How EDM is judged
 
 1. **Every file whole.** Each run's file is compared by SHA-256 with what the server served. A run
    that ends otherwise fails the scenario.
-2. **Every parameter with a direction is beaten.** dm's median over its runs must be lower than
+2. **Every parameter with a direction is beaten.** EDM's median over its runs must be lower than
    reference A's floor. Equal is not better ("faster, not just close"). The one exception is a
    floor of 0, which only a 0 can meet.
 3. **A floor is reference A's best.** For each scenario and group, a floor is the best value
@@ -79,7 +79,7 @@ has its floor, dm's median, best and worst, and the verdict.
 6. **Recorded, not judged:** throughput (judged through seconds), requests, connections, the most
    connections or files at once, bytes served, requests dropped in the outage. They show how an
    app goes about it. Reference A's are worth reading. In the outage it sent about 9,000 requests
-   in 15 s, dm about 100.
+   in 15 s, EDM about 100.
 
 ## The scenarios
 
@@ -88,7 +88,7 @@ harness process, which answers ranges (`bytes=a-b`, `a-`, `-n`) with 206, sends 
 Last-Modified, and writes in pieces of 1 MiB uncapped and 64 KiB capped (never under 16 KiB).
 Caps are token buckets: 128 KiB banked per connection, 256 KiB for a shared total. The bytes are
 a seeded xorshift block with each 4 KiB stamped with its MiB, so a piece in the wrong place
-changes the digest. **Do not change the server, the data or a scenario**: that makes dm's numbers
+changes the digest. **Do not change the server, the data or a scenario**: that makes EDM's numbers
 incomparable with the baseline. Add a scenario instead. The full description of each is in the
 baseline's `harness` and `scenarios`.
 
@@ -106,7 +106,7 @@ baseline's `harness` and `scenarios`.
 | `wan` | 32 MiB over an 80 ms line, 20 Mbit/s in all, over TLS | the line | 13.4 s; no baseline yet |
 | `lossy` | 32 MiB over the same line (plain HTTP), 1% of 16 KiB pieces stalled 250 ms | the line | 13.4 s; no baseline yet |
 | `slowname` | 64 MiB, each connection 1 MiB/s and cut after 1 to 4 MiB, under a name each lookup of which takes 300 ms | the caps and the name | 8.3 s; no baseline yet |
-| `tailstall` | 64 MiB, each connection 2 MiB/s; once 90% is served, one answer under way sends nothing for 20 s, its connection left open (gaps row K1) | the caps, and how soon the stall is seen | 4 s on 8 connections; no baseline yet. dm on the M1, 2026-11-24: 23.5 s before K1, 5.0 s after |
+| `tailstall` | 64 MiB, each connection 2 MiB/s; once 90% is served, one answer under way sends nothing for 20 s, its connection left open (gaps row K1) | the caps, and how soon the stall is seen | 4 s on 8 connections; no baseline yet. EDM on the M1, 2026-11-24: 23.5 s before K1, 5.0 s after |
 
 ## The line cases: `wan` and `lossy`
 
@@ -114,8 +114,8 @@ Every scenario above is a loopback server, so what a person's own connection add
 measured by them: a round trip for each new connection and another for its TLS, a cap shared by
 every connection, a line that loses packets (gaps row W2). `wan` and `lossy` put a line between
 the app and the same server. They were added after the baseline was frozen: reference A has no
-numbers on them yet, so `compare.mjs` shows dm's as "no baseline yet" (and, in a run beside
-reference A, whether dm's median was better than reference A's that run) and judges nothing.
+numbers on them yet, so `compare.mjs` shows EDM's as "no baseline yet" (and, in a run beside
+reference A, whether EDM's median was better than reference A's that run) and judges nothing.
 They are not in the default list; ask for them by name:
 
 ```sh
@@ -143,13 +143,13 @@ node bench/shaper.mjs --self-test               # the shaper alone: delays, byte
   (`line.late`), and `compare.mjs` prints it. Both apps run beside each other see the same line.
 - **TLS.** `wan`'s server certificate (ECDSA P-256, for 127.0.0.1 and localhost, not an authority)
   is made by `shaper.mjs` with Node's crypto the first time and kept in `<work>/tls` for a year.
-  dm is started with `DM_BENCH_CA` naming it, and trusts it beside the public roots for that run
-  alone (`dm_core::trust_bench_ca`, before its first client; a file it cannot read is noted on
-  standard error and dm keeps the public roots alone). `BENCH_WAN_TLS=0` measures the delay and
+  EDM is started with `EDM_BENCH_CA` naming it, and trusts it beside the public roots for that run
+  alone (`edm_core::trust_bench_ca`, before its first client; a file it cannot read is noted on
+  standard error and EDM keeps the public roots alone). `BENCH_WAN_TLS=0` measures the delay and
   the cap without TLS. Reference A takes the system's
   roots: on the Windows computer that has it, trust the certificate once for the user,
-  `certutil -user -addstore Root %TEMP%\dm-bench\tls\bench-server.pem`, and remove it when done
-  (`certutil -user -delstore Root "dm benchmark server"`).
+  `certutil -user -addstore Root %TEMP%\edm-bench\tls\bench-server.pem`, and remove it when done
+  (`certutil -user -delstore Root "EDM benchmark server"`).
 - **Reference A's numbers** on these, when they are measured, go in a baseline file of their own
   beside the frozen one, pinned the same way. `reference-a-baseline.json` does not change.
 
@@ -161,7 +161,7 @@ serves `per_conn`'s 64 MiB (each connection 1 MiB/s) under a name of the run's o
 (`BENCH_SLOWNAME_MS`), and cuts every connection after 1 to 4 MiB, so a download makes about 25
 connections. An app that keeps a name's answer pays the 300 ms once; one that asks again for each
 connection pays it about 25 times, that connection idle each time. Ideal: 8.3 s on 8 connections.
-Gaps row W2's last part. No baseline yet (`compare.mjs` says so, and prints how often dm asked);
+Gaps row W2's last part. No baseline yet (`compare.mjs` says so, and prints how often EDM asked);
 ask for it by name:
 
 ```sh
@@ -178,12 +178,12 @@ node bench/shaper.mjs --self-test               # its delay, its count, a refusa
   name (`lookups.a`, and `lookups.other` for other types such as IPv6) and the most an answer went
   later than asked (`lookups.lateMaxMs`, timers). A run's name is its own, so nothing an app kept
   from one run helps the next.
-- **dm** is started with `DM_BENCH_DNS=127.0.0.1:<port>`, a test switch (`dm_core::use_bench_dns`,
+- **EDM** is started with `EDM_BENCH_DNS=127.0.0.1:<port>`, a test switch (`edm_core::use_bench_dns`,
   before the first client). It then asks that server for names under `.test` alone, in place of
-  the system (`dm_net::dns`, which keeps each name's answer for a minute: gaps row S19), and asks
+  the system (`edm_net::dns`, which keeps each name's answer for a minute: gaps row S19), and asks
   the system for every other name as before. No administrator, and the hosts file is not touched.
 - **Reference A** looks names up through the system, which cannot be pointed at the harness's
-  server without changing the computer's DNS settings. Until a person does, the case runs for dm
+  server without changing the computer's DNS settings. Until a person does, the case runs for EDM
   alone, and a run beside reference A says so and leaves reference A out of it. To run both, each
   through the system:
   - Windows, in an administrator's PowerShell, send the names under `bench.test` alone to
@@ -198,7 +198,7 @@ node bench/shaper.mjs --self-test               # its delay, its count, a refusa
   - A computer pointed at the server as its only DNS server: `BENCH_SLOWNAME_UPSTREAM=<its usual
     server>:53` passes every other name on, and its answer back.
 
-  With `BENCH_SLOWNAME_SYSTEM=1` dm is not given `DM_BENCH_DNS`: both apps ask the system. The
+  With `BENCH_SLOWNAME_SYSTEM=1` EDM is not given `EDM_BENCH_DNS`: both apps ask the system. The
   harness first looks a name up through the system itself and stops if its server was not asked.
   Whether the system keeps an answer with a TTL of 0 anyway shows in `lookups.a`.
 - **A proxy** set for the computer is asked for `*.bench.test` where it is not for 127.0.0.1: run
@@ -207,7 +207,7 @@ node bench/shaper.mjs --self-test               # its delay, its count, a refusa
 ## The floors (group `standard`)
 
 Reference A's best in any whole run. In this group both apps use 8 connections (their default),
-dm's home is on the SSD (C:), both save to the hard disk (D:), and reference A keeps its parts on
+EDM's home is on the SSD (C:), both save to the hard disk (D:), and reference A keeps its parts on
 C:. The laptop has an Intel Core i5-6200U (2 cores, 4 threads), 11.9 GB of memory and Windows 11.
 
 | Parameter | `idle` | `fast` | `per_conn` | `flaky` | `outage` | `big40` |
@@ -230,13 +230,13 @@ The other groups are `connections16` (both apps at 16 connections: `per_conn` 7.
 8.753 s, `fast` 8.468 s), `allSsd` and `allSsdConnections16` (everything on the SSD, `fast`
 only). `batch` has no floor: reference A finished 3 and 4 of the 24 files in the 300 s allowed
 when its queue was started from its command line, which says more about the harness than about
-reference A (`docs/gaps.md` row 172). Until a fair run of it is frozen, dm's batch is judged
+reference A (`docs/gaps.md` row 172). Until a fair run of it is frozen, EDM's batch is judged
 against its ideal.
 
-## Where dm stood when it was frozen
+## Where EDM stood when it was frozen
 
-On the same laptop, with dm's release build of 2026-11-10 (the egui window), `compare.mjs` passed
-dm on end-to-end speed in `fast` (2.37 s against 3.68), `per_conn` (8.62 against 9.45), `flaky`
+On the same laptop, with EDM's release build of 2026-11-10 (the egui window), `compare.mjs` passed
+EDM on end-to-end speed in `fast` (2.37 s against 3.68), `per_conn` (8.62 against 9.45), `flaky`
 (8.71 against 8.76) and `outage` (23.64 against 23.82). It was worse in 22 parameters, each a row
 in `docs/gaps.md` (171, 175 to 177):
 

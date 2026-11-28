@@ -1,15 +1,15 @@
-# dm - Development rules
+# EDM - Development rules
 
 The app (the crates in `crates/`, one Cargo workspace at the repository's root) is the
 product and does the downloading; the browser extension
-(`crates/dm-catcher/`, Rust compiled to WebAssembly) catches downloads and hands them
+(`crates/edm-catcher/`, Rust compiled to WebAssembly) catches downloads and hands them
 to it. What is done, with the evidence for each line, is in
 [docs/feature-status.md](docs/feature-status.md); the behaviour checklist is
 [docs/parity.md](docs/parity.md).
 
 ## BEHAVIOUR CONTRACT (READ BEFORE ANY CHANGE)
 
-What a person does in dm and what then happens is fixed by
+What a person does in EDM and what then happens is fixed by
 [docs/behaviour-contract.md](docs/behaviour-contract.md). It overrides
 everything below, the work list included:
 
@@ -30,13 +30,13 @@ everything below, the work list included:
 
 ## THE BOTS IN GITHUB ACTIONS (the maintainer, 2026-11-24)
 
-dm is kept by free AI models in GitHub Actions, unattended: they triage issues, fix main's
+EDM is kept by free AI models in GitHub Actions, unattended: they triage issues, fix main's
 red runs and people's bugs, build requested features, write tests each night and merge
 their own pull requests (`.github/workflows/ai-*.yml`, `docs/testing.md`). A bot never
 waits for an answer. For a bot, the contract rule above reads: never change or remove a
 row; a feature adds a new row at the end; a behaviour that needs a row changed is not
 built. A bot's merge is gated by CI, Desktop and Android passing on Linux, Windows and
-macOS, the coverage floor, the privacy check, the contract's rows in dm's real window on
+macOS, the coverage floor, the privacy check, the contract's rows in EDM's real window on
 Linux (`contract-linux.yml`: every row main holds must hold, and the window must look as
 main's), the benchmark against main's numbers, code scanning (CodeQL) and three models'
 reviews, in place of the visible QA run; a change to what CI cannot check (YouTube) waits for

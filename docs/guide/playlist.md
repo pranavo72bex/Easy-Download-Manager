@@ -7,7 +7,7 @@ was given holds several videos. A feed's address (RSS or Atom: a podcast,
 a channel's uploads, an address ending in `.rss` or named `feed`) opens it
 too, listing the feed's items: each episode's file, or each item's link.
 
-While dm reads the list it says "Reading the playlist…". If it cannot, it
+While EDM reads the list it says "Reading the playlist…". If it cannot, it
 says "The playlist could not be read:" and why.
 
 ## Fields and buttons
@@ -27,7 +27,7 @@ says "The playlist could not be read:" and why.
 - **Start now:** adds the ticked videos and starts them.
 
 **Add for later** and **Start now** stay greyed until the list has been
-read. With no video ticked, dm says "Pick at least one video." and the
+read. With no video ticked, EDM says "Pick at least one video." and the
 window stays open. Once they are added the status bar says "Added …
 downloads."
 
@@ -35,14 +35,14 @@ downloads."
 
 - **Check again every … hours, adding what is new to …:** ticked, the
   playlist, channel or feed is followed once **Add for later** or **Start
-  now** adds its videos. Every so many hours (24 at first; 1 at least) dm
+  now** adds its videos. Every so many hours (24 at first; 1 at least) EDM
   reads it again and adds only the videos or files it did not list before,
   for later, to the queue chosen. A video you left unticked, or removed
   from the list, is not added again. The status bar says "Following …,
   checked again every … hours.", then after each reading "Added …
   downloads to …" or "… has nothing new."
 - **Only add new items whose titles have the words:** shown for a torrent
-  feed (one whose items are `.torrent` files or magnet links, which dm adds
+  feed (one whose items are `.torrent` files or magnet links, which EDM adds
   as torrents). While the feed is followed, only new items whose titles
   have every one of these words, in any case, are added; left empty, every
   new item is. An item left out is not counted as seen.
@@ -59,7 +59,7 @@ A torrent feed followed with words also says "Only items whose titles have
 the words … are added."
 
 If a reading fails, the status bar's problems say "the followed … could
-not be read:" and why (see [What dm's messages mean](failures.md)); it is
+not be read:" and why (see [What EDM's messages mean](failures.md)); it is
 tried again at its next time.
 
 ## Keys

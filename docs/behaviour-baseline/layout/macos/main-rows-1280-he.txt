@@ -1,7 +1,7 @@
-# dm's window, scene main-rows-1280-he (macos, 1280x720, he, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene main-rows-1280-he (macos, 1280x720, he, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "משימות" 983 8 1030 29
 "קובץ" 1046 8 1078 29
 "הורדות" 1094 8 1141 29
@@ -31,7 +31,7 @@
 "תור ראשי" 1177 351.5 1240 372.5
 "3" 1097 353 1104 371
 "בדוק מחדש את התור" 1107 379.5 1240 400.5
-"הוספת dm לדפדפן:" 894 95.5 1044 116.5
+"הוספת EDM לדפדפן:" 894 95.5 1044 116.5
 "Microsoft Edge" 761 95.5 871 116.5
 "Firefox" 668 95.5 723 116.5
 "Chrome ואחרים" 528 95.5 630 116.5

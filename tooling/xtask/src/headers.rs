@@ -1,9 +1,9 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! Every source file of dm's own says whose it is and under what licence, as
+//! Every source file of EDM's own says whose it is and under what licence, as
 //! the NOTICE's section 7(b) term asks to be kept: four comment lines at its
 //! top, in the comment style of its language.
 //!
@@ -18,9 +18,9 @@ use std::path::Path;
 /// What a header says, without its comment marks. No web address: the
 /// privacy check allows none in shipped code.
 pub const LINES: [&str; 4] = [
-    "Copyright (C) 2026 pranavo72bex and the dm contributors.",
+    "Copyright (C) 2026 pranavo72bex and the EDM contributors.",
     "SPDX-License-Identifier: GPL-3.0-or-later",
-    "Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,",
+    "Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,",
     "with the attribution term in NOTICE. See the LICENSE and NOTICE files.",
 ];
 
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn gradles_wrapper_script_is_gradles_and_takes_no_header() {
         assert_eq!(
-            style_of("crates/dm-android/android/gradlew", "#!/bin/sh\n"),
+            style_of("crates/edm-android/android/gradlew", "#!/bin/sh\n"),
             None
         );
         assert_eq!(
@@ -217,11 +217,11 @@ mod tests {
     fn someone_elses_code_test_data_and_other_formats_take_none() {
         assert_eq!(style_of("vendor/winit/src/lib.rs", ""), None);
         assert_eq!(
-            style_of("crates/dm-catcher/tests/fixtures/feed.html", ""),
+            style_of("crates/edm-catcher/tests/fixtures/feed.html", ""),
             None
         );
         assert_eq!(
-            style_of("crates/dm-core/tests/fixtures/media/hls/h264/seg0.ts", ""),
+            style_of("crates/edm-core/tests/fixtures/media/hls/h264/seg0.ts", ""),
             None
         );
         assert_eq!(style_of("docs/gaps.md", ""), None);

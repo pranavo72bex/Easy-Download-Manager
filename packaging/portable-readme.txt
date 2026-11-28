@@ -1,22 +1,22 @@
-dm, portable
+EDM, portable
 
-Unzip this folder anywhere (a USB stick is fine) and double-click dm-gpui.exe.
+Unzip this folder anywhere (a USB stick is fine) and double-click edm-gpui.exe.
 
-The file named "portable" beside dm-gpui.exe is what makes it portable: dm
-keeps its settings and its list of downloads in the "dm-data" folder next to
-it, and writes nothing else to the computer. Delete the folder and dm is gone.
-A portable dm does not start when you sign in to Windows.
+The file named "portable" beside edm-gpui.exe is what makes it portable: EDM
+keeps its settings and its list of downloads in the "edm-data" folder next to
+it, and writes nothing else to the computer. Delete the folder and EDM is gone.
+A portable EDM does not start when you sign in to Windows.
 
 Downloads go to your Downloads folder unless you choose another in Options.
 
 To let the browser extension hand downloads to this copy, open a Command Prompt
 in this folder and run:
 
-    dm-gpui.exe --register
+    edm-gpui.exe --register
 
 Run it again if you move the folder.
 
-dm checks for a newer version and says when one is out; it never installs
+EDM checks for a newer version and says when one is out; it never installs
 anything by itself. The installer, with a Start menu entry and the browser
 connection done for you, is on the same Releases page.
 

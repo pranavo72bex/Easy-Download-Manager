@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""The twenty everyday tasks of docs/tasks.md, done in dm's window and counted.
+"""The twenty everyday tasks of docs/tasks.md, done in EDM's window and counted.
 
     python -X utf8 scripts/task-steps.py            # every driven task
     python -X utf8 scripts/task-steps.py T05 T09    # some of them
 
-Each task marked "driven" in docs/tasks.md is done in dm's real window the way a
+Each task marked "driven" in docs/tasks.md is done in EDM's real window the way a
 person does it, through the control port (`ui.click` on the words, `ui.type`
 into the field that has the keyboard, `ui.key`), against a server on 127.0.0.1.
 Every click, key and typed field is counted, and every window that opens (from
@@ -17,22 +17,22 @@ Every click, key and typed field is counted, and every window that opens (from
 row gone, the setting kept). The tasks marked "by hand" need the browser or a
 real site, or would run a file or turn the computer off: their counts are read
 from docs/tasks.md. The table printed puts reference A's counts, as a person
-filled them in docs/tasks.md, beside dm's, and lists each task where dm takes
+filled them in docs/tasks.md, beside EDM's, and lists each task where EDM takes
 more: each such task is a row to propose in docs/gaps.md.
 
-Each task runs in a dm of its own, started with `--control 0` and DM_HOME in a
+Each task runs in an EDM of its own, started with `--control 0` and EDM_HOME in a
 work folder, as a new install has it (only the download folder set), so a
 download's progress window opens as it starts and is counted, as a person sees
 it. What a task needs beforehand (a finished download, a failed one, links on
 the clipboard) is set up first and not counted, and the windows that leaves are
-closed before counting begins. The work folder is DM_TASKS_WORK, or
-dm-task-steps under the system's temporary folder; the record is
+closed before counting begins. The work folder is EDM_TASKS_WORK, or
+edm-task-steps under the system's temporary folder; the record is
 task-steps.json there.
 
-Needs a debug build (`cargo build -p dm-gpui`); DM_BINARY names
-another. DM_TASKS_PACE (1.0 at first) sets how long each step stays on screen.
+Needs a debug build (`cargo build -p edm-gpui`); EDM_BINARY names
+another. EDM_TASKS_PACE (1.0 at first) sets how long each step stays on screen.
 Standard library only. On Windows, start it from PowerShell or Windows Terminal,
-not from Git Bash (from there dm's window is not shown as a person sees it),
+not from Git Bash (from there EDM's window is not shown as a person sees it),
 with `python -X utf8`; it also sets UTF-8 for its own output and files. It never
 imports scripts/human-qa.py (importing that runs it): what it needs of it is
 copied here.
@@ -48,11 +48,11 @@ for _stream in (sys.stdout, sys.stderr):
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TASKS_DOC = ROOT / "docs" / "tasks.md"
-SHIPPED = "dm-gpui"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug"
+SHIPPED = "edm-gpui"
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug"
                       / (SHIPPED + (".exe" if sys.platform == "win32" else "")))
-PACE = float(os.environ.get("DM_TASKS_PACE", "1.0"))
-WORK = pathlib.Path(os.environ.get("DM_TASKS_WORK") or pathlib.Path(tempfile.gettempdir()) / "dm-task-steps").resolve()
+PACE = float(os.environ.get("EDM_TASKS_PACE", "1.0"))
+WORK = pathlib.Path(os.environ.get("EDM_TASKS_WORK") or pathlib.Path(tempfile.gettempdir()) / "edm-task-steps").resolve()
 CMD = "cmd" if sys.platform == "darwin" else "ctrl"
 MiB = 1024 * 1024
 
@@ -185,10 +185,10 @@ def set_clipboard(text):
         return False
 
 
-# ---------------------------------------------------------------- dm, driven
+# ---------------------------------------------------------------- EDM, driven
 
 class Dm:
-    """dm started on a home of its own and spoken to over its control port, as
+    """EDM started on a home of its own and spoken to over its control port, as
     scripts/human-qa.py's Dm (copied, not imported: importing that runs it)."""
 
     def __init__(self, home):
@@ -196,9 +196,9 @@ class Dm:
 
     def start(self):
         (self.home / "control.port").unlink(missing_ok=True)
-        self.proc = subprocess.Popen([str(BINARY), "--control", "0"], env=dict(os.environ, DM_HOME=str(self.home)),
+        self.proc = subprocess.Popen([str(BINARY), "--control", "0"], env=dict(os.environ, EDM_HOME=str(self.home)),
                                      stdout=subprocess.DEVNULL,
-                                     stderr=open(self.home.parent / "dm-stderr.txt", "a", encoding="utf-8"))
+                                     stderr=open(self.home.parent / "edm-stderr.txt", "a", encoding="utf-8"))
         port = self.home / "control.port"
         for _ in range(200):
             if port.exists() and port.read_text(encoding="utf-8").strip():
@@ -270,39 +270,39 @@ class Dm:
         return bool(reply.get("ok"))
 
 
-def close_dialogs(dm):
-    """Closes every window dm has open besides its own, not counted: what setting a task
+def close_dialogs(edm):
+    """Closes every window EDM has open besides its own, not counted: what setting a task
     up left open (a progress window, "This link no longer works"). Escape closes a dialog
     as its close button does; Close or OK where it does not. Never Cancel: in a progress
     window that would be Cancel download's neighbour."""
     for _ in range(12):
-        open_now = dm.dialogs()
+        open_now = edm.dialogs()
         if not open_now:
             return True
         if "This link no longer works" in open_now:
-            dm.press("Close")
+            edm.press("Close")
         else:
-            dm.call("ui.key", key="Escape")
+            edm.call("ui.key", key="Escape")
         pause(0.5)
-        if collections.Counter(dm.dialogs()) == collections.Counter(open_now):
-            if not dm.press("Close"):
-                dm.press("OK")
+        if collections.Counter(edm.dialogs()) == collections.Counter(open_now):
+            if not edm.press("Close"):
+                edm.press("OK")
             pause(0.5)
-    return not dm.dialogs()
+    return not edm.dialogs()
 
 
 class Steps:
     """What a person does for a task, counted as it is done."""
 
-    def __init__(self, dm):
-        self.dm = dm
+    def __init__(self, edm):
+        self.edm = edm
         self.clicks = self.keys = self.typed = self.windows = 0
         self.opened, self.done, self.notes = [], [], []
-        self.open = collections.Counter(dm.dialogs())
+        self.open = collections.Counter(edm.dialogs())
 
     def look(self):
         """Counts each window that opened since the last look."""
-        now = collections.Counter(self.dm.dialogs())
+        now = collections.Counter(self.edm.dialogs())
         for name, n in (now - self.open).items():
             self.windows += n
             self.opened.extend([name] * n)
@@ -316,7 +316,7 @@ class Steps:
             more["button"] = "right"
         if double:
             more["double"] = True
-        ok = self.dm.press(text, **more)
+        ok = self.edm.press(text, **more)
         if ok:
             self.clicks += 1
             self.done.append(("right-click " if right else "double-click " if double else "click ") + repr(text))
@@ -332,11 +332,11 @@ class Steps:
         not where a click lands, the row is chosen as a click would (`ui.select`)."""
         if right:
             return self.click(name, right=True)
-        r = self.dm.row(name)
-        ok = self.dm.press(name)
-        chosen = self.dm.inspect().get("selected") or []
+        r = self.edm.row(name)
+        ok = self.edm.press(name)
+        chosen = self.edm.inspect().get("selected") or []
         if not (ok and r and r["id"] in chosen) and r:
-            self.dm.call("ui.select", ids=[r["id"]])
+            self.edm.call("ui.select", ids=[r["id"]])
             self.notes.append(f"the row {name} chosen with ui.select, as a click on it")
         self.clicks += 1
         self.done.append(f"click the row {name!r}")
@@ -345,7 +345,7 @@ class Steps:
         return bool(r)
 
     def key(self, key, modifiers=()):
-        reply = self.dm.call("ui.key", key=key, modifiers=list(modifiers))
+        reply = self.edm.call("ui.key", key=key, modifiers=list(modifiers))
         self.keys += 1
         self.done.append("key " + "+".join([*modifiers, key]))
         if not reply.get("ok"):
@@ -354,7 +354,7 @@ class Steps:
         self.look()
 
     def type(self, text):
-        reply = self.dm.call("ui.type", text=text)
+        reply = self.edm.call("ui.type", text=text)
         self.typed += 1
         self.done.append(f"type {text!r}")
         if not reply.get("ok"):
@@ -383,25 +383,25 @@ class Steps:
         return got
 
     def dialog(self, title, seconds=10):
-        return self.until(lambda: title in self.dm.dialogs(), seconds)
+        return self.until(lambda: title in self.edm.dialogs(), seconds)
 
     def finished(self, names, seconds=90):
         """Waits for every download named to end; the rows."""
         def ended():
-            rows = [self.dm.row(n) for n in names]
+            rows = [self.edm.row(n) for n in names]
             return rows if all(r and r["state"]["kind"] in ("completed", "failed") for r in rows) else None
-        rows = self.until(ended, seconds) or [self.dm.row(n) for n in names]
+        rows = self.until(ended, seconds) or [self.edm.row(n) for n in names]
         # The progress window turns into Download complete, or one opens: seen as it does.
         pause(1.0)
         self.look()
         return rows
 
 
-def shown_with(dm, text, within=2.0):
+def shown_with(edm, text, within=2.0):
     """Whether `text` is drawn anywhere within `within` seconds."""
     end = time.time() + within
     while time.time() < end:
-        if any(text in t for t in dm.texts()):
+        if any(text in t for t in edm.texts()):
             return True
         time.sleep(0.3)
     return False
@@ -413,51 +413,51 @@ def all_whole(rows, names):
 
 
 # ---------------------------------------------------------------- the tasks
-# Each: setup(dm, files, work) not counted; run(dm, s, files, work) -> (ok, detail).
+# Each: setup(EDM, files, work) not counted; run(EDM, s, files, work) -> (ok, detail).
 
-def add_and_finish(dm, files, names, within=60):
-    dm.call("downloads.add", urls=[f"{files}/{n}" for n in names])
+def add_and_finish(edm, files, names, within=60):
+    edm.call("downloads.add", urls=[f"{files}/{n}" for n in names])
     for n in names:
-        dm.wait(n, {"completed", "failed"}, within)
+        edm.wait(n, {"completed", "failed"}, within)
 
 
-def open_add_url(dm, s, url):
+def open_add_url(edm, s, url):
     """Add URL, with the copied link put in; typed where the clipboard did not fill it."""
-    dm.call("ui.window", to="shown")
+    edm.call("ui.window", to="shown")
     pause(0.6)
     s.click("Add URL")
     s.dialog("Add URL", 5)
-    if not shown_with(dm, url, 2.0):
+    if not shown_with(edm, url, 2.0):
         s.notes.append("Add URL did not put in the copied link: typed")
         s.type(url)
     s.click("OK")
     return s.dialog("Download details", 15)
 
 
-def t05_setup(dm, files, work):
+def t05_setup(edm, files, work):
     if not set_clipboard(f"{files}/copied.bin"):
         print("  (could not put the link on the clipboard: it will be typed)", flush=True)
 
 
-def t05_run(dm, s, files, work):
-    if not open_add_url(dm, s, f"{files}/copied.bin"):
-        return False, f"no Download details: dialogs {dm.dialogs()}"
+def t05_run(edm, s, files, work):
+    if not open_add_url(edm, s, f"{files}/copied.bin"):
+        return False, f"no Download details: dialogs {edm.dialogs()}"
     s.click("Start now")
     (r,) = s.finished(["copied.bin"])
     return whole(r, "copied.bin")
 
 
-def t06_setup(dm, files, work):
-    dm.call("downloads.add", urls=[f"{files}/pause.bin"])
-    dm.wait("pause.bin", {"running"}, 15)
+def t06_setup(edm, files, work):
+    edm.call("downloads.add", urls=[f"{files}/pause.bin"])
+    edm.wait("pause.bin", {"running"}, 15)
     pause(2)
 
 
-def t06_run(dm, s, files, work):
+def t06_run(edm, s, files, work):
     s.row("pause.bin")
     s.click("Stop")
-    stopped = s.until(lambda: (dm.row("pause.bin") or {}).get("state", {}).get("kind") == "paused", 10)
-    had = ((dm.row("pause.bin") or {}).get("progress") or {}).get("downloaded", 0)
+    stopped = s.until(lambda: (edm.row("pause.bin") or {}).get("state", {}).get("kind") == "paused", 10)
+    had = ((edm.row("pause.bin") or {}).get("progress") or {}).get("downloaded", 0)
     pause(1.5)
     s.click("Resume")
     (r,) = s.finished(["pause.bin"], 180)
@@ -468,32 +468,32 @@ def t06_run(dm, s, files, work):
 BATCH = ["batch-a.bin", "batch-b.bin", "batch-c.bin"]
 
 
-def t07_setup(dm, files, work):
+def t07_setup(edm, files, work):
     if not set_clipboard("\n".join(f"{files}/{n}" for n in BATCH)):
         print("  (could not put the links on the clipboard)", flush=True)
 
 
-def t07_run(dm, s, files, work):
+def t07_run(edm, s, files, work):
     s.click("Tasks")
     s.click("Add links from clipboard")
     if not s.dialog("Links on the clipboard"):
-        return False, f"no Links on the clipboard: dialogs {dm.dialogs()}"
+        return False, f"no Links on the clipboard: dialogs {edm.dialogs()}"
     s.click("Start now")
     rows = s.finished(BATCH)
     return all_whole(rows, BATCH)
 
 
-def t08_setup(dm, files, work):
+def t08_setup(edm, files, work):
     if not set_clipboard(f"{files}/later.bin"):
         print("  (could not put the link on the clipboard: it will be typed)", flush=True)
 
 
-def t08_run(dm, s, files, work):
-    if not open_add_url(dm, s, f"{files}/later.bin"):
-        return False, f"no Download details: dialogs {dm.dialogs()}"
+def t08_run(edm, s, files, work):
+    if not open_add_url(edm, s, f"{files}/later.bin"):
+        return False, f"no Download details: dialogs {edm.dialogs()}"
     s.click("Add for later")
     pause(2)
-    waiting = dm.row("later.bin")
+    waiting = edm.row("later.bin")
     held = bool(waiting) and waiting["state"]["kind"] not in ("running", "completed")
     s.click("Start queue")
     (r,) = s.finished(["later.bin"])
@@ -501,13 +501,13 @@ def t08_run(dm, s, files, work):
     return held and ok, f"waited first: {held}; {detail}"
 
 
-def t09_run(dm, s, files, work):
+def t09_run(edm, s, files, work):
     s.click("Scheduler")
     if not s.dialog("Scheduler"):
-        return False, f"no Scheduler: dialogs {dm.dialogs()}"
+        return False, f"no Scheduler: dialogs {edm.dialogs()}"
     pause(0.8)
     s.click("Only download between set hours")
-    words = dm.dialog_texts()
+    words = edm.dialog_texts()
     hour12 = "1 AM" in words or "7 AM" in words
     start, start_to, stop, stop_to = ("1 AM", "2 AM", "7 AM", "6 AM") if hour12 else ("01", "02", "07", "06")
     s.click(start)
@@ -517,79 +517,79 @@ def t09_run(dm, s, files, work):
     s.click("OK")
 
     def kept():
-        sch = dm.settings().get("schedule") or {}
+        sch = edm.settings().get("schedule") or {}
         return sch if sch.get("enabled") and sch.get("from") == "02:00" and sch.get("to") == "06:00" else None
     sch = s.until(kept, 6)
-    got = dm.settings().get("schedule") or {}
+    got = edm.settings().get("schedule") or {}
     return bool(sch), f"schedule kept: enabled {got.get('enabled')}, {got.get('from')} to {got.get('to')}, days {got.get('days')}"
 
 
-def t10_run(dm, s, files, work):
+def t10_run(edm, s, files, work):
     s.click("Downloads")
     s.click("Speed limiter")
     s.click("Low speed (256 KB/s)")
-    kept = s.until(lambda: dm.settings().get("speed_limit") == 256, 6)
-    said = dm.inspect().get("said", "")
-    return bool(kept), f"speed_limit {dm.settings().get('speed_limit')}; the status line: {said!r}"
+    kept = s.until(lambda: edm.settings().get("speed_limit") == 256, 6)
+    said = edm.inspect().get("said", "")
+    return bool(kept), f"speed_limit {EDM.settings().get('speed_limit')}; the status line: {said!r}"
 
 
-def t11_setup(dm, files, work):
-    add_and_finish(dm, files, ["found-alpha.bin", "other-beta.bin", "third-gamma.bin"])
+def t11_setup(edm, files, work):
+    add_and_finish(edm, files, ["found-alpha.bin", "other-beta.bin", "third-gamma.bin"])
 
 
-def t11_run(dm, s, files, work):
-    target = dm.row("found-alpha.bin")
+def t11_run(edm, s, files, work):
+    target = edm.row("found-alpha.bin")
     s.key("F", [CMD])
-    s.until(lambda: dm.dialogs(), 4)
+    s.until(lambda: edm.dialogs(), 4)
     s.type("alpha")
     s.click("Find next")
     s.click("Close")
-    chosen = dm.inspect().get("selected") or []
+    chosen = edm.inspect().get("selected") or []
     s.counted(clicks=2, windows=1, why="File › Open folder: it opens the system's file window, left to a person")
     return bool(target) and chosen == [target["id"]], f"chosen {chosen}, the file's row {target and target['id']}"
 
 
-def t13_setup(dm, files, work):
-    dm.call("downloads.add", urls=[f"{files}/gone.bin"])
-    dm.wait("gone.bin", {"failed"}, 40)
+def t13_setup(edm, files, work):
+    edm.call("downloads.add", urls=[f"{files}/gone.bin"])
+    edm.wait("gone.bin", {"failed"}, 40)
     pause(2)
 
 
-def t13_run(dm, s, files, work):
-    r = dm.row("gone.bin")
+def t13_run(edm, s, files, work):
+    r = edm.row("gone.bin")
     if not r or r["state"]["kind"] != "failed":
         return False, f"the download did not fail first: {r and r['state']}"
     s.row("gone.bin", right=True)
     s.click("Update download link")
     if not s.dialog("Update download link"):
-        return False, f"no Update download link: dialogs {dm.dialogs()}"
+        return False, f"no Update download link: dialogs {edm.dialogs()}"
     pause(0.5)
     s.type(f"{files}/fresh.bin")
     s.click("OK")
-    done = s.until(lambda: (dm.row_id(r["id"]) or {}).get("state", {}).get("kind") in ("completed",), 60)
+    done = s.until(lambda: (edm.row_id(r["id"]) or {}).get("state", {}).get("kind") in ("completed",), 60)
     pause(1)
     s.look()
-    got = dm.row_id(r["id"])
+    got = edm.row_id(r["id"])
     ok, detail = whole(got, "fresh.bin")
     return bool(done) and ok, f"{got and got['state']['kind']}; {detail}"
 
 
-def t14_setup(dm, files, work):
+def t14_setup(edm, files, work):
     with LOCK:
         HELD.add("flaky.bin")
-    dm.call("downloads.add", urls=[f"{files}/flaky.bin"])
-    dm.wait("flaky.bin", {"failed"}, 40)
+    edm.call("downloads.add", urls=[f"{files}/flaky.bin"])
+    edm.wait("flaky.bin", {"failed"}, 40)
     pause(2)
 
 
-def t14_ready(dm, files, work):
+def t14_ready(edm, files, work):
     # The server is back once the task begins.
     with LOCK:
         HELD.discard("flaky.bin")
 
 
-def t14_run(dm, s, files, work):
-    r = dm.row("flaky.bin")
+def t14_run(edm, s, files, work):
+    r = edm.row("flaky.bin")
     if not r or r["state"]["kind"] != "failed":
         return False, f"the download did not fail first: {r and r['state']}"
     s.row("flaky.bin")
@@ -600,13 +600,13 @@ def t14_run(dm, s, files, work):
     return got["state"]["kind"] == "completed" and ok, detail
 
 
-def t15_setup(dm, files, work):
-    add_and_finish(dm, files, ["moved.bin"])
+def t15_setup(edm, files, work):
+    add_and_finish(edm, files, ["moved.bin"])
     (work / "moved here").mkdir(parents=True, exist_ok=True)
 
 
-def t15_run(dm, s, files, work):
-    r = dm.row("moved.bin")
+def t15_run(edm, s, files, work):
+    r = edm.row("moved.bin")
     if not r or r["state"]["kind"] != "completed":
         return False, f"nothing finished to move: {r and r['state']}"
     old = pathlib.Path(r["path"])
@@ -614,9 +614,9 @@ def t15_run(dm, s, files, work):
     s.row("moved.bin", right=True)
     s.click("Move/Rename")
     if not s.dialog("Move/Rename"):
-        return False, f"no Move/Rename: dialogs {dm.dialogs()}"
+        return False, f"no Move/Rename: dialogs {edm.dialogs()}"
     pause(0.6)
-    words = dm.dialog_texts()
+    words = edm.dialog_texts()
     folder = str(old.parent)
     if folder in words:
         s.click(folder)
@@ -628,36 +628,36 @@ def t15_run(dm, s, files, work):
     s.click("OK")
     moved = s.until(lambda: (target / old.name).is_file(), 20)
     pause(1)
-    got = dm.row_id(r["id"])
+    got = edm.row_id(r["id"])
     ok, detail = whole(got, "moved.bin")
     return bool(moved) and not old.exists() and ok, f"in {target}: {bool(moved)}; old place empty: {not old.exists()}; {detail}"
 
 
-def t16_setup(dm, files, work):
-    add_and_finish(dm, files, ["kept.bin"])
+def t16_setup(edm, files, work):
+    add_and_finish(edm, files, ["kept.bin"])
 
 
-def t16_run(dm, s, files, work):
-    r = dm.row("kept.bin")
+def t16_run(edm, s, files, work):
+    r = edm.row("kept.bin")
     if not r or r["state"]["kind"] != "completed":
         return False, f"nothing finished: {r and r['state']}"
     s.row("kept.bin")
     s.click("Delete")
-    gone = s.until(lambda: dm.row("kept.bin") is None, 6)
+    gone = s.until(lambda: edm.row("kept.bin") is None, 6)
     stays = pathlib.Path(r["path"]).is_file()
-    return bool(gone) and stays, f"off the list: {bool(gone)}; file kept: {stays}; asked: {dm.dialogs()}"
+    return bool(gone) and stays, f"off the list: {bool(gone)}; file kept: {stays}; asked: {edm.dialogs()}"
 
 
-def t17_setup(dm, files, work):
-    add_and_finish(dm, files, ["done-a.bin", "done-b.bin"])
+def t17_setup(edm, files, work):
+    add_and_finish(edm, files, ["done-a.bin", "done-b.bin"])
 
 
-def t17_run(dm, s, files, work):
-    rows = [dm.row(n) for n in ("done-a.bin", "done-b.bin")]
+def t17_run(edm, s, files, work):
+    rows = [edm.row(n) for n in ("done-a.bin", "done-b.bin")]
     if not all(r and r["state"]["kind"] == "completed" for r in rows):
         return False, "nothing finished to clear"
     s.click("Delete completed")
-    gone = s.until(lambda: not any(x["state"]["kind"] == "completed" for x in dm.rows()), 6)
+    gone = s.until(lambda: not any(x["state"]["kind"] == "completed" for x in edm.rows()), 6)
     stays = all(pathlib.Path(r["path"]).is_file() for r in rows)
     return bool(gone) and stays, f"off the list: {bool(gone)}; files kept: {stays}"
 
@@ -665,11 +665,11 @@ def t17_run(dm, s, files, work):
 SERIES = ["photo1.bin", "photo2.bin", "photo3.bin"]
 
 
-def t18_run(dm, s, files, work):
+def t18_run(edm, s, files, work):
     s.click("Tasks")
     s.click("Add numbered series")
     if not s.dialog("Add numbered series"):
-        return False, f"no Add numbered series: dialogs {dm.dialogs()}"
+        return False, f"no Add numbered series: dialogs {edm.dialogs()}"
     pause(0.6)
     s.type(f"{files}/photo*.bin")
     s.key("Tab")
@@ -681,20 +681,20 @@ def t18_run(dm, s, files, work):
     return all_whole(rows, SERIES)
 
 
-def t19_setup(dm, files, work):
+def t19_setup(edm, files, work):
     (work / "new downloads").mkdir(parents=True, exist_ok=True)
 
 
-def t19_run(dm, s, files, work):
+def t19_run(edm, s, files, work):
     new = work / "new downloads"
-    now = str(pathlib.Path(dm.settings().get("download_dir") or ""))
+    now = str(pathlib.Path(edm.settings().get("download_dir") or ""))
     s.click("Options")
     if not s.dialog("Options"):
-        return False, f"no Options: dialogs {dm.dialogs()}"
+        return False, f"no Options: dialogs {edm.dialogs()}"
     pause(0.8)
     s.click("Folders")
     pause(0.6)
-    words = dm.dialog_texts()
+    words = edm.dialog_texts()
     # The field's words, whole, or their end where the field shows only that.
     field = now if now in words else next(
         (w for w in words if len(w.lstrip("…. ")) > 8 and now.endswith(w.lstrip("…. "))), None)
@@ -707,8 +707,8 @@ def t19_run(dm, s, files, work):
     s.key("A", [CMD])
     s.type(str(new))
     s.click("OK")
-    kept = s.until(lambda: pathlib.Path(dm.settings().get("download_dir") or "") == new, 6)
-    return bool(kept), f"download_dir {dm.settings().get('download_dir')}; still open: {dm.dialogs()}"
+    kept = s.until(lambda: pathlib.Path(edm.settings().get("download_dir") or "") == new, 6)
+    return bool(kept), f"download_dir {EDM.settings().get('download_dir')}; still open: {edm.dialogs()}"
 
 
 DRIVEN = {
@@ -762,34 +762,34 @@ def run_task(task, files):
     (home / "downloads").mkdir(parents=True)
     # A new install: only where downloads go is chosen (B63's new home).
     (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads")}), encoding="utf-8")
-    dm = Dm(home)
+    edm = Dm(home)
     record = {"clicks": None, "keys": None, "typed": None, "windows": None, "ok": False, "detail": "",
               "opened": [], "done": [], "notes": []}
     try:
-        dm.start()
+        edm.start()
         if setup:
-            setup(dm, files, work)
-        if not close_dialogs(dm):
-            record["notes"].append(f"left open before the task, not counted: {dm.dialogs()}")
+            setup(edm, files, work)
+        if not close_dialogs(edm):
+            record["notes"].append(f"left open before the task, not counted: {edm.dialogs()}")
         if ready:
-            ready(dm, files, work)
-        dm.call("ui.window", to="shown")
+            ready(edm, files, work)
+        edm.call("ui.window", to="shown")
         pause(0.8)
-        s = Steps(dm)
+        s = Steps(edm)
         try:
-            ok, detail = run(dm, s, files, work)
+            ok, detail = run(edm, s, files, work)
         except Exception:   # a step that broke fails its task; the rest still run
             ok, detail = False, traceback.format_exc().replace("\n", " | ")[-600:]
         record.update(clicks=s.clicks, keys=s.keys, typed=s.typed, windows=s.windows, ok=bool(ok),
                       detail=detail, opened=s.opened, done=s.done, notes=record["notes"] + s.notes)
     except Exception:
-        record["detail"] = "dm could not be driven: " + traceback.format_exc().replace("\n", " | ")[-600:]
+        record["detail"] = "EDM could not be driven: " + traceback.format_exc().replace("\n", " | ")[-600:]
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            if dm.proc:
-                dm.proc.kill()
+            if edm.proc:
+                edm.proc.kill()
     return record
 
 
@@ -806,27 +806,27 @@ def main():
         sys.exit(f"docs/tasks.md and this script disagree on what is driven: "
                  f"{sorted(driven_doc ^ set(DRIVEN))}")
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cargo build -p {SHIPPED}")
+        sys.exit(f"no EDM at {BINARY}: cargo build -p {SHIPPED}")
     shutil.rmtree(WORK, ignore_errors=True)
     WORK.mkdir(parents=True)
     origin = start_server()
     files = f"{origin}/files"
-    print(f"dm: {BINARY}\nserver: {origin}\nwork: {WORK}", flush=True)
+    print(f"EDM: {BINARY}\nserver: {origin}\nwork: {WORK}", flush=True)
 
     for task in tasks:
         if task["how"] != "driven":
             e = task["expected"]
-            task["dm"] = {"clicks": e["clicks"], "keys": e["keys"], "typed": e["typed"], "windows": e["windows"],
+            task["EDM"] = {"clicks": e["clicks"], "keys": e["keys"], "typed": e["typed"], "windows": e["windows"],
                           "windows_text": e["windows_text"], "ok": None, "detail": "by hand: counted from its path",
                           "source": "docs/tasks.md"}
             continue
         if asked and task["id"] not in asked:
-            task["dm"] = None
+            task["EDM"] = None
             continue
         print(f"\n{task['id']}  {task['task']}", flush=True)
         record = run_task(task, files)
         record["source"] = "driven"
-        task["dm"] = record
+        task["EDM"] = record
         for step in record["done"]:
             print(f"    {step}", flush=True)
         for note in record["notes"]:
@@ -841,7 +841,7 @@ def main():
     print("\nTask                                              How      Clicks Keys Typed Steps Windows  Done  Ref A steps/windows", flush=True)
     more, failed = [], []
     for task in tasks:
-        d = task["dm"]
+        d = task["EDM"]
         if d is None:
             continue
         steps = None if d["clicks"] is None else d["clicks"] + (d["keys"] or 0) + (d["typed"] or 0)
@@ -855,23 +855,23 @@ def main():
         takes_more = (ref["steps"] is not None and steps is not None
                       and (steps > ref["steps"] or (steps == ref["steps"] and ref["windows"] is not None
                                                     and d["windows"] is not None and d["windows"] > ref["windows"])))
-        task["dm_takes_more"] = takes_more
+        task["edm_takes_more"] = takes_more
         if takes_more:
             more.append(task)
         name = f"{task['id']} {task['task']}"[:49]
         print(f"{name:<50}{task['how']:<9}{_n(d['clicks']):>6}{_n(d['keys']):>5}{_n(d['typed']):>6}"
               f"{_n(steps):>6} {str(windows if windows is not None else '-'):>7}  {done:<5} {refs}"
-              + ("   dm takes more" if takes_more else ""), flush=True)
+              + ("   EDM takes more" if takes_more else ""), flush=True)
 
     unfilled = [t["id"] for t in tasks if t["reference_a"]["steps"] is None]
     if unfilled:
         print(f"\nReference A not counted yet for {len(unfilled)} task(s): {', '.join(unfilled)} "
               f"(a person fills its columns in docs/tasks.md)", flush=True)
     if more:
-        print("\nWhere dm takes more than reference A, each a row to propose in docs/gaps.md:", flush=True)
+        print("\nWhere EDM takes more than reference A, each a row to propose in docs/gaps.md:", flush=True)
         for t in more:
-            d, ref = t["dm"], t["reference_a"]
-            print(f"  {t['id']} {t['task']}: dm {d['steps']} steps and {d['windows']} windows, "
+            d, ref = t["EDM"], t["reference_a"]
+            print(f"  {t['id']} {t['task']}: EDM {d['steps']} steps and {d['windows']} windows, "
                   f"reference A {ref['steps']} and {ref['windows']} ({ref['path'] or 'its path not written'})", flush=True)
     out = WORK / "task-steps.json"
     out.write_text(json.dumps({"binary": str(BINARY), "tasks": tasks}, indent=1, ensure_ascii=False), encoding="utf-8")

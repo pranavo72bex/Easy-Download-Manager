@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The doubles ratchet (gaps row A18), part of `cargo xtask layers`: a crate built in more

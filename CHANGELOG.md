@@ -5,6 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
+- dm is now called EDM, everywhere: the window, the browser extension, the Android app and the installers. Settings and the list of downloads move over on the first start. Android installs EDM as a new app beside dm, and the browser extension finds the app under either name, so update the extension first.
 - A download's speed no longer drops to nothing when a busy computer pauses for a moment just after the first bytes arrive.
 - A torrent tracker that answers "ask again now" is asked again a minute later at the soonest, and one whose answer never ends is let go of after a megabyte.
 - While sharing a torrent, a peer that asks for pieces without end and takes none of them is disconnected, instead of filling dm's memory with its requests.

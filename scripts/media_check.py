@@ -1,12 +1,12 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Whether a downloaded video or sound file is whole, read from its own
 structure, with nothing but Python's standard library.
 
-Used by out-of-box-check.py and real-sites.py to judge what dm made. It
+Used by out-of-box-check.py and real-sites.py to judge what EDM made. It
 decodes no pictures and no sound: it checks that the container is what it
 says and that nothing is cut short, which is how a download goes wrong.
 

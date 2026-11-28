@@ -1,6 +1,6 @@
 # Security report, 2026-10-29
 
-An authorized black-box and source test of dm on this computer, by a
+An authorized black-box and source test of EDM on this computer, by a
 testing agent working for the maintainer: the application only, servers of
 its own on loopback, no real folder or credential touched, nothing outside
 reached. Debug build 0.8.4 on branch its file. Denial of service out
@@ -9,22 +9,22 @@ of scope. What was done about each finding is noted under it.
 **Counts:** critical 0, high 0, medium 1, low 3.
 
 **Done the same day:** M1 (inward redirects refused: `redirects.rs`
-`inward`, tested). **Done the next day, 2026-10-30:** L2 (dm follows
+`inward`, tested). **Done the next day, 2026-10-30:** L2 (EDM follows
 redirects itself, `redirects.rs`; across hosts `Referer` goes as its origin
 alone and the ranges that follow carry the same; tested end to end), L1 (a
 row's login and cookies kept in `secrets.json` beside the queue file, never
 in it; tested; the keychain is gaps.md row 39), and L3 as defence in depth
 (the host answers only the extension ids built in or allowed by a manifest
-dm wrote, `shell::launcher_known`; tested). The browser's own check remains
+EDM wrote, `shell::launcher_known`; tested). The browser's own check remains
 the one that counts for L3.
 
 ---
 
 
 Authorized black-box + source review. Target: this repository
-(branch its file), debug build `target/debug/dm-desktop` (dm 0.8.4).
+(branch its file), debug build `target/debug/edm-desktop` (EDM 0.8.4).
 All testing on 127.0.0.1 against local servers; download_dir pointed at a temp folder
-(`scratchpad/pentest/downloads`); DM_HOME = `scratchpad/pentest/dmhome`.
+(`scratchpad/pentest/downloads`); EDM_HOME = `scratchpad/pentest/dmhome`.
 DoS/resource-exhaustion out of scope and not reported.
 
 ## Summary of severities
@@ -43,20 +43,20 @@ all confirmed safe by live testing.
 ## Findings
 
 ### M1 — SSRF: redirects to loopback / link-local / private addresses are followed (Medium, high confidence)
-**What.** `redirect_policy` (`crates/dm-core/src/lib.rs:525`) restricts only https->http
+**What.** `redirect_policy` (`crates/edm-core/src/lib.rs:525`) restricts only https->http
 downgrades and the redirect count (<=10). It does not restrict the destination IP. A download
-from an attacker URL that returns 3xx Location to an internal address makes dm connect there (GET).
+from an attacker URL that returns 3xx Location to an internal address makes EDM connect there (GET).
 
 **Reproduction.** evil server on 127.0.0.1:18080:
-- `/redir-control` -> `302 Location: http://127.0.0.1:53331/` (dm's control port)
+- `/redir-control` -> `302 Location: http://127.0.0.1:53331/` (EDM's control port)
 - `/redir-linklocal` -> `302 Location: http://169.254.169.254/latest/meta-data/`
 Added via `downloads.add`; queue.list states:
 ```
 redir-control  => failed "network: ... (SendRequest): invalid HTTP version parsed"
-redir-linklocal => running (dm was attempting the 169.254 connection)
+redir-linklocal => running (EDM was attempting the 169.254 connection)
 ```
-redir-control proves dm opened a TCP connection to the loopback control port and spoke HTTP
-(it only failed because the control port is JSON-lines, not HTTP). redir-linklocal proves dm
+redir-control proves EDM opened a TCP connection to the loopback control port and spoke HTTP
+(it only failed because the control port is JSON-lines, not HTTP). redir-linklocal proves EDM
 attempts link-local connections. No allow/deny-list for RFC1918/loopback/link-local targets.
 
 **Impact & honest constraints.** Blind, GET-only SSRF:
@@ -71,7 +71,7 @@ cloud metadata IMDSv1). Medium, not High; close to Low on a laptop with no inter
 when a previous hop was public (block public->private redirects). Optionally a user setting.
 
 ### L1 — Credentials embedded in a URL persisted cleartext in queue.json (Low, high confidence)
-**What.** `http://<login>@host/...` is stored verbatim (password included) in `<DM_HOME>/queue.json`;
+**What.** `http://<login>@host/...` is stored verbatim (password included) in `<EDM_HOME>/queue.json`;
 the queue keeps the raw `url` string (`queue/mod.rs:84`).
 **Reproduction.** `downloads.add {"urls":["http://<login>@127.0.0.1:18080/normal"]}` ->
 `grep` for the password in queue.json hits `"url":"http://<login>@127.0.0.1:1808..."`. The control API
@@ -82,24 +82,24 @@ treat it as secret for display). Only on-disk persistence is cleartext.
 logic, in `queue/persist.rs` / the `Entry` serialization.
 
 ### L2 — Referer forwarded to a different host across a redirect (Low, high confidence)
-**What.** On a cross-host redirect dm forwards `Referer` (previous URL) to the new host.
+**What.** On a cross-host redirect EDM forwards `Referer` (previous URL) to the new host.
 **Reproduction.** `/redir-xhost` -> `302 Location: http://localhost:18080/afterredir`. Second-hop
 server log: `GET /afterredir host: localhost:18080 referer: http://127.0.0.1:18080/redir-xhost`.
 Authorization was correctly dropped; the referrer (no creds in it) leaked to the other host.
 **Impact.** Minor info disclosure of the originating URL/path; browsers do similar. Low/Informational.
-**Fix.** Drop/trim `Referer` when a redirect changes host (dm sets it in `download/http.rs:129`,
+**Fix.** Drop/trim `Referer` when a redirect changes host (EDM sets it in `download/http.rs:129`,
 `probe.rs:64`); e.g. attach it only on the first request or re-evaluate per hop vs current host.
 
 ### L3 — Native messaging host does not itself validate the extension origin (Low/Informational, high confidence)
-**What.** `dm-desktop <chrome-extension://...>` enters host mode for any extension origin; the binary
-does not check the id. `shell::browser_launch` (`dm-shell/src/shell.rs:39`) only uses the arg to detect
+**What.** `edm-desktop <chrome-extension://...>` enters host mode for any extension origin; the binary
+does not check the id. `shell::browser_launch` (`edm-shell/src/shell.rs:39`) only uses the arg to detect
 host mode; `host::answer` never inspects origin.
-**Reproduction.** Framed JSON on stdin to `dm-desktop "chrome-extension://unlistedarbitraryid.../"`:
-engine.hello -> reply; download.start file:///etc/passwd -> failed "dm downloads http(s)... only";
+**Reproduction.** Framed JSON on stdin to `edm-desktop "chrome-extension://unlistedarbitraryid.../"`:
+engine.hello -> reply; download.start file:///etc/passwd -> failed "EDM downloads http(s)... only";
 download.start http://.../hostnormal -> started (fetched into download_dir). An arbitrary id is served.
 **Why Low.** Which extension may launch the host is enforced by the browser via the manifest
-allowed_origins/allowed_extensions (`dm-shell/src/register.rs:723-729`, pinned Chrome/Edge/Firefox ids).
-Anything that can run dm-desktop directly is already a local process with the user's privileges. Standard
+allowed_origins/allowed_extensions (`edm-shell/src/register.rs:723-729`, pinned Chrome/Edge/Firefox ids).
+Anything that can run edm-desktop directly is already a local process with the user's privileges. Standard
 native-messaging trust model. Optional defense-in-depth: reject origins not in the registered set.
 
 ---
@@ -112,10 +112,10 @@ strips RTL/bidi controls, maps `<>:"|?*`/control(<0x20)/0x7f to `_`, trims leadi
 dots/spaces, prefixes Windows reserved names, truncates to <=240B/200ch. `claim_path` uses create_new so
 it never replaces (`download/files.rs:181`). save_name re-sanitized (`assemble.rs:208`, `queue/mod.rs:653`).
 Live (all inside download_dir; nothing in /tmp or parent):
-- `../../../../../../tmp/dm_evil_traversal.txt` -> `dm_evil_traversal.txt`
-- `/tmp/dm_evil_absolute.txt` -> `dm_evil_absolute.txt`
-- `..\..\..\dm_evil_backslash.txt` -> `dm_evil_backslash.txt`
-- `filename*=UTF-8''%2e%2e%2f...dm_evil_star.txt` -> `dm_evil_star.txt`
+- `../../../../../../tmp/edm_evil_traversal.txt` -> `edm_evil_traversal.txt`
+- `/tmp/edm_evil_absolute.txt` -> `edm_evil_absolute.txt`
+- `..\..\..\edm_evil_backslash.txt` -> `edm_evil_backslash.txt`
+- `filename*=UTF-8''%2e%2e%2f...edm_evil_star.txt` -> `edm_evil_star.txt`
 - `CON` -> `_CON`;  `....` -> `dots` (URL fallback)
 - `invoice<U+202E>gpj.exe` -> `invoicegpj.exe`
 - 6000xA + .exe -> truncated ~200ch + .exe
@@ -127,7 +127,7 @@ Evidence: `evidence/filename_tests_downloads.txt` + queue.list paths under .../p
 parsed" (download failed). Defense in depth: sanitize also maps NUL (<0x20) to `_`.
 
 ### S3 — file:// and scheme redirects: blocked
-`302 Location: file:///etc/passwd` -> failed "the server sent dm on to file:///etc/passwd, an address dm
+`302 Location: file:///etc/passwd` -> failed "the server sent EDM on to file:///etc/passwd, an address EDM
 does not follow"; /etc/passwd not read. `accepted()` (`queue/mod.rs:405`) whitelists http(s)/ftp/torrent/
 live; the browser Start handler also rejects `file:` (`host.rs:739`).
 
@@ -154,11 +154,11 @@ against the landed URL.
   rebinding buys nothing (not HTTP, still needs the token).
 
 ### S7 — MCP server: stdio only, not web-reachable
-`dm-desktop mcp` speaks JSON-RPC on stdin/stdout (`mcp.rs:7,491`) as a client of the control port using
+`edm-desktop mcp` speaks JSON-RPC on stdin/stdout (`mcp.rs:7,491`) as a client of the control port using
 the local token. The only TcpListener in mcp.rs is inside `#[cfg(test)]`.
 
 ### S8 — Browser hand-off cannot choose save location or name
-`download.start` (`dm-protocol/src/lib.rs:181` Start) has no save_dir/save_name field; host builds Request
+`download.start` (`edm-protocol/src/lib.rs:181` Start) has no save_dir/save_name field; host builds Request
 with `..Request::default()` for those (`host.rs:769-782`). Live: a Start with injected save_dir/save_name
 to /tmp was ignored — file landed in download_dir as normal_download.bin, nothing in /tmp. Control API's
 `folder` param is constrained to inside download_dir with no `..` (`app/control.rs:320-333`).
@@ -177,7 +177,7 @@ release — arbitrary downloads are never auto-extracted. Torrent/metalink names
 - Declared 5, sent 50: saved exactly 5 bytes, extra ignored. No overflow.
 
 ### S11 — Dependency audit: clean
-cargo audit (1386 advisories): desktop/ (807 deps) exit 0, no vulns/warnings; crates/dm-catcher/ (72 deps) exit 0,
+cargo audit (1386 advisories): desktop/ (807 deps) exit 0, no vulns/warnings; crates/edm-catcher/ (72 deps) exit 0,
 clean. Evidence: `evidence/cargo_audit_desktop.txt`, `evidence/cargo_audit_browser.txt`.
 
 ---
@@ -188,7 +188,7 @@ clean. Evidence: `evidence/cargo_audit_desktop.txt`, `evidence/cargo_audit_brows
   pentest made zero edits to tracked files and committed nothing; all artifacts are under scratchpad/pentest/.
 - Not tested dynamically (reasoned from source/tests): https->http downgrade (S4), and Cookie (vs
   Authorization) stripping specifically — both share the mechanism demonstrated in S5.
-- All dm and server processes started for this test were terminated at the end (verified: no listener).
+- All EDM and server processes started for this test were terminated at the end (verified: no listener).
 
 ---
 
@@ -212,9 +212,9 @@ release (CHANGELOG, "Security hardening from the pre-release review"):
 - Index ranges from the player API were unbounded before allocation; now
   capped. Quarantine removal no longer follows links; adoption staging is
   per process; the Mozilla source archive is written outside `dist/`.
-- Left: the test-only environment knob `DM_YOUTUBE_HOST` is honoured in
+- Left: the test-only environment knob `EDM_YOUTUBE_HOST` is honoured in
   release builds; environment variables are trusted by this report's model.
-  (`DM_EJS_RELEASES` went with the fetched scripts on 2026-11-08.)
+  (`EDM_EJS_RELEASES` went with the fetched scripts on 2026-11-08.)
 
 
 ---
@@ -227,33 +227,33 @@ Both now ask Windows (`netstat -ano`, `icacls`, the system's hosts file) and
 ran against the debug build on Windows 11 with no finding:
 
 - **hostile:** a redirect to `file:///C:/WINDOWS/System32/drivers/etc/hosts`
-  and one to `ftp://127.0.0.1` are refused ("an address dm does not
+  and one to `ftp://127.0.0.1` are refused ("an address EDM does not
   follow"); a 1 MB header is refused; a 120 KB gzip body that unpacks to 67 MB
   is stopped as a decompression bomb; a file larger than the free space is
   held, not started; a login written into an address is masked in the list.
 - **control:** the port listens on `127.0.0.1` only; no token and a wrong
   token are refused and the connection cut; 1 MB with no line end is cut
   with no growth in memory; 1500 idle unauthenticated connections are
-  closed by dm; `file:` and `javascript:` addresses, a `folder` outside the
+  closed by EDM; `file:` and `javascript:` addresses, a `folder` outside the
   download folder and a relative one are refused.
 
-### L4: a dm home outside the account's profile took its drive's access list (Low; fixed)
+### L4: an EDM home outside the account's profile took its drive's access list (Low; fixed)
 
-**What.** On Unix dm makes its home 0700 (`instance.rs` `private`); on Windows
+**What.** On Unix EDM makes its home 0700 (`instance.rs` `private`); on Windows
 that was a no-op, and the files in it take the folder's inherited access
-list. The default home, `%LOCALAPPDATA%\dm`, inherits the profile's: this
-account, SYSTEM and the administrators. A home anywhere else (`DM_HOME`, a
+list. The default home, `%LOCALAPPDATA%\EDM`, inherits the profile's: this
+account, SYSTEM and the administrators. A home anywhere else (`EDM_HOME`, a
 portable copy on a second drive) inherits the drive's, which on this
 computer's D: gives `Authenticated Users: Modify` and `Users: Read`
 (measured with `icacls`). There, another signed-in account could read
 `control.token` (the control port is open by default for MCP, and loopback is
 shared by every account on the computer), the queue and unfinished parts.
 
-**Fix.** `platform/access/owner_only.rs`: when dm starts, a home whose access list is
+**Fix.** `platform/access/owner_only.rs`: when EDM starts, a home whose access list is
 not protected is given one of its own (nothing from its parent): full
 control for this account, SYSTEM and the administrators, inherited by what
 is in it and applied to what is there already. A home already protected is
-left alone; a drive with no access lists (FAT) is not a reason to stop dm.
+left alone; a drive with no access lists (FAT) is not a reason to stop EDM.
 Test: `instance::tests::dms_home_is_this_accounts_alone_on_windows_too` (a
 parent that lets every user in; the folder, a file already in it and one
 made after are left with no entry for users, signed-in users or everyone).
@@ -278,19 +278,19 @@ fail):
   `X-…-Token`) went out to any control-port or MCP client; only `cookies` was
   removed. Now removed too (`app/control.rs`;
   `a_rows_handed_over_sign_in_is_never_read_back_out` adds a bearer header).
-- **M6, an imported settings file could make dm run a program.** A queue's
+- **M6, an imported settings file could make EDM run a program.** A queue's
   own hours (`queue_schedules`, new since 0.8.7) carry `run_when_done`;
   `Settings::imported` kept this computer's program for the shared schedule
   only, and the window's guard against a script ignored the queues' too.
   Both now keep each queue's program as it was, and a queue the file adds
   runs none (`a_settings_file_never_sets_the_program_run_at_the_end_of_a_queues_own_hours`,
   `a_script_driving_the_window_cannot_set_the_program_a_queues_hours_run`).
-- **M7, a page could hand dm any number of torrents after one click.**
-  `content.js` took a script-opened magnet (`dm-magnet`) whenever the page's
+- **M7, a page could hand EDM any number of torrents after one click.**
+  `content.js` took a script-opened magnet (`edm-magnet`) whenever the page's
   user activation was live, which lasts seconds and is not used up. Now
   only within 1.5 s of a trusted pointer or key press seen by the content
   script itself, and one per press (`chrome-check.py`: "five magnets a page
-  opens for one click hand dm one"; the seven ways still reach dm, pressed
+  opens for one click hand EDM one"; the seven ways still reach EDM, pressed
   with the mouse).
 - **M8, the extension re-read any playlist a page loaded, private networks
   included.** A page could `fetch('http://192.168.1.1/…m3u8', {mode:
@@ -301,9 +301,9 @@ fail):
   loaded it is on that same host (`decide::may_reread`, with a test of eleven
   inside addresses; `chrome-check.py` 88 of 88).
 - **L5, the browser's headers followed a redirect to another host.** Across
-  hosts dm dropped `Authorization` and cookies but kept a site's own headers
+  hosts EDM dropped `Authorization` and cookies but kept a site's own headers
   (`X-Api-Key`…). Now a hop to another host carries only what every request
-  of dm's does (`redirects.rs` `CARRIED_ACROSS`; the cross-host redirect test
+  of EDM's does (`redirects.rs` `CARRIED_ACROSS`; the cross-host redirect test
   checks an `X-Api-Key`).
 - **L6, on macOS no Sign-in's password reached the Keychain.** A Sign-in's
   secret name has a line break between the site and the user, which
@@ -332,15 +332,15 @@ Left, each a row in `docs/gaps.md` (row 159):
   without it).
 - **Low (Windows): a torrent's file named `D:x`** passes librqbit's check
   (no `..`, no separator) and `PathBuf::push` makes it a path on another
-  drive; the vendored storage creates the empty files before dm's own check
+  drive; the vendored storage creates the empty files before EDM's own check
   refuses the torrent. No content is written. Fixed on Windows the same day:
   the vendored `init` checks every file's name before it makes any (plain
   parts only: no root, no `..`, no drive, no `:`), tests
-  `dm_tests::a_torrents_file_name_must_stay_in_its_folder` (the vendored crate) and
-  `tests/torrent_names.rs` (dm-core: the file was made outside the folder without it;
+  `edm_tests::a_torrents_file_name_must_stay_in_its_folder` (the vendored crate) and
+  `tests/torrent_names.rs` (edm-core: the file was made outside the folder without it;
   BUGLOG BUG-013).
 - **Low: the plain-JavaScript panel** (sites whose policy forbids
-  WebAssembly) checks only `isTrusted`, not that it is drawn as dm drew it
+  WebAssembly) checks only `isTrusted`, not that it is drawn as EDM drew it
   (`as_drawn`), in an open shadow root a page can restyle; and a panel
   choice now sends the cookies of whatever host the page's `<video src>`
   names. The app's Download details dialog is what remains. The click check
@@ -348,13 +348,13 @@ Left, each a row in `docs/gaps.md` (row 159):
   the same day: a panel choice's session goes only to the page's own site
   or a host the tab's own requests went to (`decide::session_goes`,
   `RequestHeaders::reached`; `chrome-check.py` "another site's file the
-  page names goes to dm without that site's session"). Made exact the same
+  page names goes to EDM without that site's session"). Made exact the same
   day, on Windows: a page can make its tab reach any host (a `fetch`, a
   frame, a preloaded `<video>`), and the browser sends that host none of a
-  `SameSite` sign-in from another site's page, but `reached` let dm take all
+  `SameSite` sign-in from another site's page, but `reached` let EDM take all
   its cookies. A file on another site now takes only the cookies the browser
   itself sent that host from the tab, by name (`RequestHeaders::sent_cookies`,
-  from the request's own `Cookie` header; `decide::cookies_named`), so dm
+  from the request's own `Cookie` header; `decide::cookies_named`), so EDM
   sends nothing the browser withheld; TikTok's video servers get what its
   player was sent (`the_cookies_the_browser_sent_a_host_from_a_tab_are_kept_by_name`;
   `chrome-check.py` "and where the tab's own player fetched from that site,
@@ -383,7 +383,7 @@ Left, each a row in `docs/gaps.md` (row 159):
   `document.js` (24 answers) is never released on a site with no rules; the
   kept headers are not split by private window; `Start.referrer` is the full
   page address where a browser sends its origin to another host; the panel's
-  `dm-player-*` listeners do not check `event.source`; the Properties and
+  `edm-player-*` listeners do not check `event.source`; the Properties and
   Download complete dialogs' Open buttons have no script guard; with no
   store at all the notice blames "Windows Credential Manager" on macOS and
   Linux too. Fixed 2026-11-08, the last two: a key a script pressed (Tab to
@@ -392,7 +392,7 @@ Left, each a row in `docs/gaps.md` (row 159):
   an AI assistant had just downloaded; Download complete's Open and Open
   with… and Properties' Open now run nothing a moment after a script drove
   the window, as File › Open did, and the file stays listed for the person
-  (`DmApp::run_refused`;
+  (`EdmApp::run_refused`;
   `a_dialogs_open_runs_nothing_a_moment_after_a_script_pressed_a_key`). The
   notice names this system's store (the Keychain, the Secret Service).
 - The worker's re-read of a playlist on the public web still carries the
@@ -431,24 +431,24 @@ this branch, both fixed the same day:
 ## YouTube's checks in Windows' own engine, 2026-11-08
 
 What changed: the two challenge scripts and QuickJS are no longer fetched from GitHub to read a
-YouTube video on Windows. dm cuts the player script itself (`youtube/player.rs`, a tokenizer and
-statement splitter of dm's own; nothing is parsed further) and runs the result in Windows' own
+YouTube video on Windows. EDM cuts the player script itself (`youtube/player.rs`, a tokenizer and
+statement splitter of EDM's own; nothing is parsed further) and runs the result in Windows' own
 Chakra (`javascript.rs`), as reference A runs its pieces in Windows' JScript9, in a process of its
-own: dm's own program started as the engine's host (`--javascript-host`).
+own: EDM's own program started as the engine's host (`--javascript-host`).
 
 - What runs: YouTube's own player code, from `https://www.youtube.com/s/player/…` only (the
-  existing `player_path` check), less the calls it makes while loading, plus dm's few lines that
+  existing `player_path` check), less the calls it makes while loading, plus EDM's few lines that
   call it. The same code every browser runs on youtube.com. Attacker: YouTube itself or a TLS
   interceptor the user trusts, as before.
 - What it can reach: nothing of the computer. A JSRT runtime has JavaScript's own objects and no
-  host objects (no files, programs, network, `ActiveXObject`, WinRT): dm projects none, and a test
+  host objects (no files, programs, network, `ActiveXObject`, WinRT): EDM projects none, and a test
   checks the usual names are absent (`there_is_nothing_of_the_computer_in_reach`). That is tighter
   than QuickJS's command line, whose modules reach files and programs.
 - How it is held in: no compiling to machine code (`DisableNativeCodeGeneration`: an interpreter
   only, which removes the JIT, where engine exploits usually live); no `eval` or `Function`; at
   most 256 MB (`JsSetRuntimeMemoryLimit`); stopped after 30 seconds from a second thread
   (`JsDisableRuntimeExecution`); a thread of its own with a 16 MB stack. `chakra.dll` is loaded from
-  System32 only (`LOAD_LIBRARY_SEARCH_SYSTEM32`), so a planted DLL beside dm is not taken.
+  System32 only (`LOAD_LIBRARY_SEARCH_SYSTEM32`), so a planted DLL beside EDM is not taken.
 - A process of its own: Chakra ends its whole process when a program passes its memory limit
   (found in testing, whatever the program does to get there), and a fault in the engine would do
   the same. In the host process that ends only the host; the app says the checks were not
@@ -472,7 +472,7 @@ functions, in the same host process as Chakra on Windows, in place of QuickJS's
 command line fetched from GitHub.
 
 - What it can reach: nothing of the computer. A global context made with no
-  class has JavaScript's own objects only; dm adds none, and a test checks the
+  class has JavaScript's own objects only; EDM adds none, and a test checks the
   usual names are absent (`there_is_nothing_of_the_computer_in_reach`).
 - How it is held in: no JIT in the host (`JSC_useJIT=false`, an interpreter
   only, as Chakra's `DisableNativeCodeGeneration`); stopped at its time

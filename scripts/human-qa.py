@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Every row of docs/behaviour-contract.md, checked as a person checks it.
@@ -9,10 +9,10 @@
     python3 scripts/human-qa.py                    # the whole list, in sight
     python3 scripts/human-qa.py --save-baseline    # the window's pictures, once approved
 
-dm's real window is shown and driven through its own buttons and dialogs
+EDM's real window is shown and driven through its own buttons and dialogs
 (Add URL, Download details, Stop, Resume, Remove ...), slowly enough to
 watch, against a server on 127.0.0.1 that logs every connection and request.
-Then Microsoft Edge, in a window of its own with dm's extension loaded, runs
+Then Microsoft Edge, in a window of its own with EDM's extension loaded, runs
 the browser checks and a real YouTube video (`youtube-check.py`). Never
 headless: the point is to see what a person sees.
 
@@ -20,15 +20,15 @@ The run fails if any row of the contract was not checked, so the list is
 gone through whole every time; a row the script cannot reach on this
 computer (no Edge, no network) is a failure, not a skip.
 
-Needs a debug build (`cargo build -p dm-gpui`), the
-extension (`sh scripts/package.sh`) and Microsoft Edge. DM_BINARY and
-DM_QA_EDGE name others. The download folder and dm's home are made under
-/tmp/dm-human-qa and removed at the end. Standard library only.
+Needs a debug build (`cargo build -p edm-gpui`), the
+extension (`sh scripts/package.sh`) and Microsoft Edge. EDM_BINARY and
+EDM_QA_EDGE name others. The download folder and EDM's home are made under
+/tmp/edm-human-qa and removed at the end. Standard library only.
 
 It sets UTF-8 for itself (its output, the files it reads and writes, and
 what it reads from the programs it runs), so `python -X utf8` is not needed
 on Windows. On Windows, start it from PowerShell or Windows Terminal, not
-from Git Bash: from there dm's window is pictured solid black, and the run
+from Git Bash: from there EDM's window is pictured solid black, and the run
 stops at its first picture saying so rather than reporting rows it could
 not see.
 
@@ -49,27 +49,27 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONTRACT = ROOT / "docs" / "behaviour-contract.md"
 BASELINE = ROOT / "docs" / "behaviour-baseline"
-# The window dm ships, on every system: GPUI (crates/dm-gpui).
-SHIPPED = "dm-gpui"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug"
+# The window EDM ships, on every system: GPUI (crates/edm-gpui).
+SHIPPED = "edm-gpui"
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug"
                       / (SHIPPED + (".exe" if sys.platform == "win32" else "")))
 # One set of pictures for each system whose fonts and window frames differ.
 BASELINE_SET = BASELINE / "gpui" / {"win32": "windows", "linux": "linux"}.get(sys.platform, "macos")
-EDGE = os.environ.get("DM_QA_EDGE") or {
+EDGE = os.environ.get("EDM_QA_EDGE") or {
     "darwin": "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
     "linux": "/usr/bin/microsoft-edge",
     "win32": r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
 }.get(sys.platform, "")
-VIDEO = os.environ.get("DM_QA_VIDEO", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
-PACE = float(os.environ.get("DM_QA_PACE", "1.0"))   # how long each step stays on screen
+VIDEO = os.environ.get("EDM_QA_VIDEO", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
+PACE = float(os.environ.get("EDM_QA_PACE", "1.0"))   # how long each step stays on screen
 SAVE_BASELINE = "--save-baseline" in sys.argv
 MiB = 1024 * 1024
 # The engine's first look at a file: on several connections it asks for the first 8 MiB
-# alone (gaps row S9, dm-core probe::FIRST_ASK).
+# alone (gaps row S9, edm-core probe::FIRST_ASK).
 PROBES = ("bytes=0-0", "bytes=0-", "bytes=0-8388607")
-# Resolved: on Windows "/tmp/..." has no drive, so it is not absolute and dm
+# Resolved: on Windows "/tmp/..." has no drive, so it is not absolute and EDM
 # refused it as the download folder, saving into the real Downloads folder.
-WORK = pathlib.Path(os.environ.get("DM_QA_WORK") or "/tmp/dm-human-qa").resolve()
+WORK = pathlib.Path(os.environ.get("EDM_QA_WORK") or "/tmp/edm-human-qa").resolve()
 
 
 def pause(seconds):
@@ -91,7 +91,7 @@ def check(row, what, ok, detail=""):
 
 def screen_region(x, y, w, h, target):
     """A picture of part of the screen: how a dialog's window of its own is
-    pictured, as dm's own pictures (`ui.screenshot`) are of its main window."""
+    pictured, as EDM's own pictures (`ui.screenshot`) are of its main window."""
     if w <= 0 or h <= 0:
         return False
     target = pathlib.Path(target)
@@ -179,7 +179,7 @@ def win32_run(body):
 
 
 def win32_windows(pid):
-    """What Windows itself says of each visible titled window of dm's: its rectangle
+    """What Windows itself says of each visible titled window of EDM's: its rectangle
     on the screen, its parent and owner (none for a top-level window) and its style."""
     body = r'''
 $want = %d; $o = @()
@@ -199,29 +199,29 @@ $o''' % pid
 
 
 def is_main_title(title):
-    """dm's main window by its title: "dm", or while downloads run how far and how fast before
-    " — dm", "37% · 4.1 MB/s — dm" (gaps row U16; `dm_desktop_base::taskbar::is_main_title`).
-    No dialog's title ends so: "About dm" has no dash."""
-    return title == "dm" or title.endswith(" — dm")
+    """EDM's main window by its title: "EDM", or while downloads run how far and how fast before
+    " — EDM", "37% · 4.1 MB/s — EDM" (gaps row U16; `edm_desktop_base::taskbar::is_main_title`).
+    No dialog's title ends so: "About EDM" has no dash."""
+    return title == "EDM" or title.endswith(" — EDM")
 
 
 def titled(windows, title):
     """The window of `windows` (by title, as `win32_windows` gives them) that `title` names:
-    "dm" names the main window, whatever its title says now."""
-    if title == "dm":
+    "EDM" names the main window, whatever its title says now."""
+    if title == "EDM":
         return next((w for t, w in windows.items() if is_main_title(t)), None)
     return windows.get(title)
 
 
 def win32_move(pid, title, x, y):
-    """Puts a window of dm's where the system is told, as a person's drag would."""
+    """Puts a window of EDM's where the system is told, as a person's drag would."""
     window = titled(win32_windows(pid), title)
     if window:
         win32_run(r"[U]::SetWindowPos([IntPtr]%d, [IntPtr]::Zero, %d, %d, 0, 0, 0x0005) | Out-Null" % (window["hwnd"], x, y))
 
 
 def win32_front(pid, title):
-    """A window of dm's brought above every other window, so that a press on its title
+    """A window of EDM's brought above every other window, so that a press on its title
     bar lands on it and not on whatever else (an editor, a terminal) lies over that spot."""
     window = titled(win32_windows(pid), title)
     if window:
@@ -269,7 +269,7 @@ PACK = make_zip()
 
 # name: (size, bytes a second per connection or 0, kind)
 FILES = {
-    # Stopped part way (B04) and resumed (B05): about 12 s on the 16 connections a new dm uses
+    # Stopped part way (B04) and resumed (B05): about 12 s on the 16 connections a new EDM uses
     # (2026-11-23; at 1 MiB/s a connection the release build had it whole before Stop).
     "big.bin": (96 * MiB, 512 * 1024, "plain"),
     "fast.bin": (32 * MiB, 0, "plain"),
@@ -448,7 +448,7 @@ def connections(name):
     return {e["conn"] for e in requests(name)}
 
 
-# ---------------------------------------------------------------- dm, driven
+# ---------------------------------------------------------------- EDM, driven
 
 class Dm:
     def __init__(self, home):
@@ -456,8 +456,8 @@ class Dm:
 
     def start(self):
         (self.home / "control.port").unlink(missing_ok=True)
-        self.proc = subprocess.Popen([str(BINARY), "--control", "0"], env=dict(os.environ, DM_HOME=str(self.home)),
-                                     stdout=subprocess.DEVNULL, stderr=open(WORK / "dm-stderr.txt", "a", encoding="utf-8"))
+        self.proc = subprocess.Popen([str(BINARY), "--control", "0"], env=dict(os.environ, EDM_HOME=str(self.home)),
+                                     stdout=subprocess.DEVNULL, stderr=open(WORK / "edm-stderr.txt", "a", encoding="utf-8"))
         port = self.home / "control.port"
         for _ in range(200):
             if port.exists() and port.read_text(encoding="utf-8").strip():
@@ -519,9 +519,9 @@ class Dm:
             time.sleep(0.25)
             reply = self.call("ui.click", text=text)
         if not reply.get("ok"):
-            # Said where dm's window stands: a window narrower than its toolbar's
+            # Said where EDM's window stands: a window narrower than its toolbar's
             # labels shows icons only, and there is no word to click.
-            print(f"  (nothing on screen to click for {text!r}: dm's window {self.windows().get('main')})", flush=True)
+            print(f"  (nothing on screen to click for {text!r}: EDM's window {self.windows().get('main')})", flush=True)
         pause(0.6)
         return reply.get("ok")
 
@@ -559,13 +559,13 @@ class Dm:
         return any(text in t for t in self.texts())
 
     def windows(self):
-        """Where dm's window and each dialog's window of its own stand."""
+        """Where EDM's window and each dialog's window of its own stand."""
         return self.call("ui.windows").get("result", {})
 
     def picture(self, name, dialog=False):
         if dialog:
             # A dialog is a window of its own, so it is pictured from the
-            # screen, over the rectangle dm says it stands on.
+            # screen, over the rectangle EDM says it stands on.
             info = self.windows()
             shown = [d["outer"] for d in info.get("dialogs", []) if d.get("outer")]
             if not shown:
@@ -592,7 +592,7 @@ class Dm:
         return reply
 
     def open_options(self):
-        # By its command: on macOS a new dm has no toolbar Options; the app menu's Settings…
+        # By its command: on macOS a new EDM has no toolbar Options; the app menu's Settings…
         # (⌘,) opens it there (2026-11-27).
         return self.call("command.run", id="downloads.options")
 
@@ -601,9 +601,9 @@ class Dm:
         # window behind the browser draws no frames on macOS (B10 and B63,
         # 2026-11-10).
         self.call("ui.window", to="shown")
-        # macOS brings the app forward on its own time, after dm asked: an
+        # macOS brings the app forward on its own time, after EDM asked: an
         # Add URL opened before that was put behind the main window (B01,
-        # B25, B42, B44 on the GPUI window). Not a wait dm can do itself.
+        # B25, B42, B44 on the GPUI window). Not a wait EDM can do itself.
         pause(0.6)
         self.click("Add URL")
         for _ in range(40):
@@ -716,7 +716,7 @@ def png_pixels(path):
 
 
 class NotPictured(Exception):
-    """dm's window could not be pictured: nothing the walk sees can be told from what a person sees."""
+    """EDM's window could not be pictured: nothing the walk sees can be told from what a person sees."""
 
 
 def flat(path):
@@ -755,53 +755,53 @@ def starting(words):
     return lambda texts: next((t for t in texts if t.startswith(words)), words.strip())
 
 
-def answer(dm, title, button, seconds=40):
+def answer(edm, title, button, seconds=40):
     """Waits for the question `title`, returns the words on it, and presses `button` (its words,
     or a function picking them from the question's, as `starting`)."""
     end = time.time() + seconds
     while time.time() < end:
-        if title in dm.dialogs():
+        if title in edm.dialogs():
             pause(0.5)
-            said = dm.dialog_texts()
-            dm.click(button(said) if callable(button) else button)
+            said = edm.dialog_texts()
+            edm.click(button(said) if callable(button) else button)
             return said
         time.sleep(0.25)
     return None
 
 
-def drain(dm, seconds, buttons, said):
+def drain(edm, seconds, buttons, said):
     """Answers, as a person does, every question in `buttons` (title -> button) that
     comes within `seconds`, keeping the words on each in `said[title]`."""
     end = time.time() + seconds
     while time.time() < end:
-        for title in dm.dialogs():
+        for title in edm.dialogs():
             if title in buttons:
                 pause(0.4)
-                texts = dm.dialog_texts()
+                texts = edm.dialog_texts()
                 said.setdefault(title, []).append(texts)
                 button = buttons[title]
-                dm.click(button(texts) if callable(button) else button)
+                edm.click(button(texts) if callable(button) else button)
         time.sleep(0.25)
 
 
-def walk(dm, origin):
+def walk(edm, origin):
     files = f"{origin}/files"
 
     print("\nAdding a download", flush=True)
-    shot = dm.picture("empty-window")
+    shot = edm.picture("empty-window")
     if shot is None or flat(shot):
         raise NotPictured(
-            "dm's window " + ("could not be pictured" if shot is None else f"was pictured one colour all over ({shot})")
+            "EDM's window " + ("could not be pictured" if shot is None else f"was pictured one colour all over ({shot})")
             + ": this shell cannot see the screen, so no row can be checked as a person sees it."
             + (" Start it from PowerShell or Windows Terminal, not Git Bash." if sys.platform == "win32" else ""))
-    dm.open_add_url()
-    dm.picture("add-url", dialog=True)
-    dm.click("Next")
+    edm.open_add_url()
+    edm.picture("add-url", dialog=True)
+    edm.click("Next")
     pause(0.8)
-    shown = dm.texts()
+    shown = edm.texts()
     check("B01", "Next with nothing typed asks for an address and adds nothing",
-          "Type or paste the address of what to download." in shown and not dm.rows(),
-          f"{len(dm.rows())} rows")
+          "Type or paste the address of what to download." in shown and not edm.rows(),
+          f"{len(edm.rows())} rows")
     if sys.platform == "darwin":
         # What VoiceOver is given of the refusal (gaps row E24): the note is a live region,
         # always there, named by what it says once it says something. Read through
@@ -809,7 +809,7 @@ def walk(dm, origin):
         refusal = "Type or paste the address of what to download."
         told = []
         for _ in range(30):
-            got = (dm.call("ui.accessibility").get("result") or {}).get("windows") or []
+            got = (edm.call("ui.accessibility").get("result") or {}).get("windows") or []
             told = [e for w in got if w.get("title") == "Add URL" for e in w.get("elements", [])
                     if refusal in " ".join(str(e.get(k) or "") for k in ("label", "title", "value"))]
             if told:
@@ -817,42 +817,42 @@ def walk(dm, origin):
             time.sleep(0.4)
         check("B01", "a screen reader is given the refusal in Add URL's own window",
               bool(told), f"elements carrying it: {[(e.get('role'), e.get('label')) for e in told][:3]}")
-    dm.click("Cancel")
-    dm.open_add_url()
-    dm.call("ui.type", text=f"{files}/big.bin")
+    edm.click("Cancel")
+    edm.open_add_url()
+    edm.call("ui.type", text=f"{files}/big.bin")
     pause(0.4)
-    dm.click("Next")
+    edm.click("Next")
     for _ in range(40):
-        if "Download details" in dm.dialogs():
+        if "Download details" in edm.dialogs():
             break
         time.sleep(0.25)
     pause(1.0)
-    dm.picture("download-details", dialog=True)
-    shown = dm.texts()
+    edm.picture("download-details", dialog=True)
+    shown = edm.texts()
     wanted = ["Category", "Save to folder", "Save as", "Size", "Start now", "Add for later", "Cancel"]
     check("B02", "OK opens Download details with its fields and buttons",
           all(w in shown for w in wanted) and "big.bin" in shown, f"missing: {[w for w in wanted if w not in shown]}")
-    dm.click("Start now")
-    r = dm.wait("big.bin", {"running"}, 15)
+    edm.click("Start now")
+    r = edm.wait("big.bin", {"running"}, 15)
     pause(3)
-    r = dm.row("big.bin")
+    r = edm.row("big.bin")
     check("B03", "Start now starts it and the row shows progress",
           r and r["state"]["kind"] == "running" and r["progress"]["downloaded"] > 0,
           f"{r['state']['kind'] if r else None}, {r['progress']['downloaded'] if r else 0} bytes")
 
     print("\nStopping and resuming", flush=True)
-    dm.call("ui.select", ids=[r["id"]])
+    edm.call("ui.select", ids=[r["id"]])
     pause(0.5)
-    dm.click("Stop")
-    r = dm.wait("big.bin", {"paused"}, 10)
+    edm.click("Stop")
+    r = edm.wait("big.bin", {"paused"}, 10)
     pause(1)
-    status = next((x.get("status", "") for x in dm.call("ui.inspect")["result"].get("rows", []) if x.get("id") == r["id"]), "")
+    status = next((x.get("status", "") for x in edm.call("ui.inspect")["result"].get("rows", []) if x.get("id") == r["id"]), "")
     check("B04", "Stop: 'Stopped · N%' and its bytes kept",
           r["state"]["kind"] == "paused" and r["progress"]["downloaded"] > 0 and status.startswith("Stopped") and "%" in status,
           f"{status}, {r['progress']['downloaded']} bytes")
     mark = len(LOG)
-    dm.click("Resume")
-    r = dm.wait("big.bin", {"completed", "failed"}, 180)
+    edm.click("Resume")
+    r = edm.wait("big.bin", {"completed", "failed"}, 180)
     starts = sorted(int(e["range"][6:].split("-")[0]) for e in requests("big.bin", mark) if e["range"] and e["range"] not in PROBES)
     ok, d = whole(r, "big.bin")
     check("B05", "Resume goes on from what it had and the file is whole", starts and starts[0] > 0 and ok,
@@ -863,18 +863,18 @@ def walk(dm, origin):
 
     print("\nHow a file is fetched", flush=True)
     for name in ("fast.bin", "slowconn.bin", "limited.bin", "norange.bin", "lie.bin"):
-        dm.add(f"{files}/{name}")
+        edm.add(f"{files}/{name}")
     # The questions a server's answer raises (B39, B41) are answered as a person does,
     # as they come: each blocks the window until it is.
     questions = {}
     asked = {"Name sent by the server": starting("Use "), "This link no longer works": "Close"}
     for url in (f"{origin}/go/target", f"{files}/report", f"{files}/missing.bin"):
-        dm.add(url)
-        drain(dm, 4, asked, questions)
+        edm.add(url)
+        drain(edm, 4, asked, questions)
     pause(2)
     done = {}
     for name in ("fast.bin", "slowconn.bin", "limited.bin", "norange.bin", "lie.bin"):
-        done[name] = dm.wait(name, {"completed", "failed"}, 180)
+        done[name] = edm.wait(name, {"completed", "failed"}, 180)
     fast = requests("fast.bin")
     check("B07", "finished connections take the next piece", len(fast) > len(connections("fast.bin")),
           f"{len(fast)} requests on {len(connections('fast.bin'))} connections")
@@ -891,25 +891,25 @@ def walk(dm, origin):
     check("B10", "no ranges: one connection, whole", ok and not ranged, d)
     ok, d = whole(done["lie.bin"], "lie.bin")
     check("B11", "an overstated length still completes", done["lie.bin"]["state"]["kind"] == "completed" and ok, d)
-    r = dm.wait("go/target", {"completed", "failed"}, 60)
+    r = edm.wait("go/target", {"completed", "failed"}, 60)
     ok, d = whole(r, "target.bin")
     check("B12", "a redirect is followed and named by its target", ok and pathlib.Path(r["path"]).name == "target.bin", d)
-    report = dm.wait("files/report", {"completed", "failed"}, 60)
+    report = edm.wait("files/report", {"completed", "failed"}, 60)
     ok, d = whole(report, "report")
     check("B13", "the server's name is used", ok and pathlib.Path(report["path"]).name == "Report 2026.pdf", d)
-    r = dm.wait("missing.bin", {"completed", "failed"}, 60)
-    status = next((x.get("status", "") for x in dm.call("ui.inspect")["result"].get("rows", []) if x.get("id") == (r or {}).get("id")), "")
+    r = edm.wait("missing.bin", {"completed", "failed"}, 60)
+    status = next((x.get("status", "") for x in edm.call("ui.inspect")["result"].get("rows", []) if x.get("id") == (r or {}).get("id")), "")
     check("B14", "a 404 fails with words a person reads",
           r and r["state"]["kind"] == "failed" and "404" in r["state"].get("reason", "") and "no longer works" in status,
           f"{status} / {r['state'].get('reason', '') if r else ''}")
     # B54: a failure that only says what went wrong also says what a person can do about it.
-    dm.call("ui.click", text="missing.bin", double=True)
+    edm.call("ui.click", text="missing.bin", double=True)
     pause(1.5)
-    said = " ".join(dm.dialog_texts())
+    said = " ".join(edm.dialog_texts())
     check("B54", "a failed download's window says what a person can do next",
           "Open the page it came from in your browser" in said, said[-200:])
     # B55: "Copy details" puts a block with no secret in it on the clipboard.
-    dm.call("ui.click", text="Copy details")
+    edm.call("ui.click", text="Copy details")
     pause(0.8)
     held = ""
     if sys.platform == "win32":
@@ -923,9 +923,9 @@ def walk(dm, origin):
     check("B55", "Copy details puts the host, the status and the setup on the clipboard, no path or query",
           "State: failed" in held and "Host: " in held and "Headers sent:" in held and "?" not in held
           and "/missing.bin" not in held, held[:200])
-    dm.call("ui.key", key="Escape")
+    edm.call("ui.key", key="Escape")
     pause(0.6)
-    finished = [x for x in dm.rows() if x["state"]["kind"] == "completed"]
+    finished = [x for x in edm.rows() if x["state"]["kind"] == "completed"]
     exact = []
     for x in finished:
         name = x["url"].rsplit("/", 1)[-1]
@@ -934,53 +934,53 @@ def walk(dm, origin):
     check("B15", "every completed file is byte-exact", exact and all(exact), f"{sum(exact)} of {len(exact)}")
 
     print("\nWhere files go", flush=True)
-    big = dm.row("big.bin")
+    big = edm.row("big.bin")
     check("B16", "a PDF lands in Documents, a .bin in Other",
           pathlib.Path(report["path"]).parent.name == "Documents" and pathlib.Path(big["path"]).parent.name == "Other",
           f"{pathlib.Path(report['path']).parent.name}/Report 2026.pdf, {pathlib.Path(big['path']).parent.name}/big.bin")
-    dm.add(f"{files}/again.bin")
-    first = dm.wait("again.bin", {"completed"}, 60)
+    edm.add(f"{files}/again.bin")
+    first = edm.wait("again.bin", {"completed"}, 60)
 
     def add_again():
-        dm.open_add_url()
-        dm.call("ui.type", text=f"{files}/again.bin")
+        edm.open_add_url()
+        edm.call("ui.type", text=f"{files}/again.bin")
         pause(0.4)
-        dm.click("Next")
+        edm.click("Next")
         for _ in range(40):
-            if "Already in the list" in dm.dialogs():
+            if "Already in the list" in edm.dialogs():
                 break
             time.sleep(0.25)
         pause(0.8)
-        return dm.dialogs(), dm.texts()
+        return edm.dialogs(), edm.texts()
 
     dialogs, shown = add_again()
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.8)
-    copies = [x for x in dm.rows() if x["url"].endswith("/again.bin")]
-    check("B17", "the same address again: dm asks first, Cancel adds nothing",
+    copies = [x for x in edm.rows() if x["url"].endswith("/again.bin")]
+    check("B17", "the same address again: EDM asks first, Cancel adds nothing",
           "Already in the list" in dialogs and "This address is already in the list (Complete)." in shown
-          and all(b in shown for b in ("Download again", "Show it", "Cancel")) and len(copies) == 1 and not dm.dialogs(),
+          and all(b in shown for b in ("Download again", "Show it", "Cancel")) and len(copies) == 1 and not edm.dialogs(),
           f"dialogs {dialogs}; {len(copies)} row(s)")
     dialogs, shown = add_again()
-    dm.click("Download again")
+    edm.click("Download again")
     for _ in range(40):
-        if "Download details" in dm.dialogs():
+        if "Download details" in edm.dialogs():
             pause(0.5)
-            dm.click("Start now")
+            edm.click("Start now")
             break
         time.sleep(0.25)
     end = time.time() + 60
     while time.time() < end:
-        copies = [x for x in dm.rows() if x["url"].endswith("/again.bin")]
+        copies = [x for x in edm.rows() if x["url"].endswith("/again.bin")]
         if len(copies) == 2 and all(x["state"]["kind"] == "completed" for x in copies):
             break
         time.sleep(0.25)
     names = sorted(pathlib.Path(x.get("path") or "").name for x in copies)
     check("B17", "Download again saves a second copy beside the first as 'name (1)'",
-          names == ["again (1).bin", "again.bin"] and not dm.dialogs(), f"{names}")
+          names == ["again (1).bin", "again.bin"] and not edm.dialogs(), f"{names}")
 
     print("\nWhat a server's answer raises (added 2026-11-01 at the maintainer's word)", flush=True)
-    drain(dm, 3, asked, questions)
+    drain(edm, 3, asked, questions)
     # The sentence wraps wherever the window is wide enough, so it is read whole.
     named = [t for t in questions.get("Name sent by the server", [])
              if "The name to save the file was report, but the server sent Report 2026.pdf" in " ".join(t)
@@ -990,9 +990,9 @@ def walk(dm, origin):
           f"{len(questions.get('Name sent by the server', []))} question(s): {questions.get('Name sent by the server', [])}"[:600])
     check("B39", "Use saves it under the server's name",
           pathlib.Path(report["path"]).name == "Report 2026.pdf", pathlib.Path(report["path"]).name)
-    dm.add(f"{files}/second")
-    said = answer(dm, "Name sent by the server", starting("Keep "))
-    second = dm.wait("files/second", {"completed", "failed"}, 60)
+    edm.add(f"{files}/second")
+    said = answer(edm, "Name sent by the server", starting("Keep "))
+    second = edm.wait("files/second", {"completed", "failed"}, 60)
     check("B39", "Keep saves it under the address's name",
           said is not None and bool(second) and second["state"]["kind"] == "completed"
           and pathlib.Path(second["path"]).name == "second",
@@ -1003,77 +1003,77 @@ def walk(dm, origin):
     check("B41", "a 404 opens no window; the row says this link no longer works",
           not gone and "no longer works" in status, f"{len(gone)} window(s); row: {status}")
     pause(3)
-    check("B41", "no window comes later for the row", "This link no longer works" not in dm.dialogs(), "")
-    dm.add(f"{files}/pageyes.zip")
-    said = answer(dm, "Web page instead of the file", "Save as HTML")
-    page = dm.wait("pageyes.zip", {"completed", "failed"}, 60)
+    check("B41", "no window comes later for the row", "This link no longer works" not in edm.dialogs(), "")
+    edm.add(f"{files}/pageyes.zip")
+    said = answer(edm, "Web page instead of the file", "Save as HTML")
+    page = edm.wait("pageyes.zip", {"completed", "failed"}, 60)
     saved = pathlib.Path(page["path"]) if page and page.get("path") else None
     check("B40", "a web page for a file is asked about; Save as HTML saves it as an HTML page",
           said is not None and "Save as HTML" in said and "Don’t download" in said and saved is not None
           and saved.name == "pageyes.html" and saved.read_bytes().startswith(b"<html>"),
           saved.name if saved else str(page and page["state"]))
-    dm.add(f"{files}/pageno.zip")
-    said = answer(dm, "Web page instead of the file", "Don’t download")
+    edm.add(f"{files}/pageno.zip")
+    said = answer(edm, "Web page instead of the file", "Don’t download")
     pause(2)
     left = list((WORK / "home" / "downloads").rglob("pageno*"))
     check("B40", "Don’t download removes the row and keeps nothing",
-          said is not None and dm.row("pageno.zip") is None and not left,
-          f"row kept: {dm.row('pageno.zip') is not None}, files: {left}")
+          said is not None and edm.row("pageno.zip") is None and not left,
+          f"row kept: {EDM.row('pageno.zip') is not None}, files: {left}")
 
     print("\nThe queue and speed", flush=True)
-    dm.call("downloads.add", urls=[f"{files}/q{i}.bin" for i in range(1, 6)])
+    edm.call("downloads.add", urls=[f"{files}/q{i}.bin" for i in range(1, 6)])
     most, end = 0, time.time() + 120
     while time.time() < end:
-        qs = [x for x in dm.rows() if re.search(r"/q\d\.bin$", x["url"])]
+        qs = [x for x in edm.rows() if re.search(r"/q\d\.bin$", x["url"])]
         most = max(most, sum(1 for x in qs if x["state"]["kind"] == "running"))
         if len(qs) == 5 and all(x["state"]["kind"] in ("completed", "failed") for x in qs):
             break
         time.sleep(0.2)
-    qs = [x for x in dm.rows() if re.search(r"/q\d\.bin$", x["url"])]
+    qs = [x for x in edm.rows() if re.search(r"/q\d\.bin$", x["url"])]
     check("B18", "five at once: no more than three run, all complete",
           most <= 3 and all(x["state"]["kind"] == "completed" for x in qs), f"at most {most} running")
-    dm.add(f"{files}/later.bin", then="Add for later")
+    edm.add(f"{files}/later.bin", then="Add for later")
     pause(2)
-    waiting = dm.row("later.bin")
+    waiting = edm.row("later.bin")
     still = waiting and waiting["state"]["kind"] not in ("running", "completed")
-    dm.click("Start queue")
-    r = dm.wait("later.bin", {"completed", "failed"}, 60)
+    edm.click("Start queue")
+    r = edm.wait("later.bin", {"completed", "failed"}, 60)
     check("B19", "Add for later waits until Start queue, then completes",
           still and r["state"]["kind"] == "completed", f"before: {waiting['state']['kind'] if waiting else None}")
     # B64: Downloads › Start Queue lists the queues; the one clicked is started,
     # whatever the list shows.
-    dm.add(f"{files}/night.bin", then="Add for later")
+    edm.add(f"{files}/night.bin", then="Add for later")
     pause(2)
-    night = dm.row("night.bin")
-    dm.call("ui.select", ids=[night["id"]])
-    dm.call("command.run", id="file.move_to_queue")
+    night = edm.row("night.bin")
+    edm.call("ui.select", ids=[night["id"]])
+    edm.call("command.run", id="file.move_to_queue")
     pause(0.8)
-    dm.call("ui.type", text="Night")
+    edm.call("ui.type", text="Night")
     pause(0.4)
-    dm.click("Move")
+    edm.click("Move")
     pause(0.8)
-    dm.call("ui.place", place="all")
+    edm.call("ui.place", place="all")
     pause(0.5)
-    held = dm.row("night.bin")
-    dm.menu("Downloads", "Start queue", "Night")
-    r = dm.wait("night.bin", {"completed", "failed"}, 60)
+    held = edm.row("night.bin")
+    edm.menu("Downloads", "Start queue", "Night")
+    r = edm.wait("night.bin", {"completed", "failed"}, 60)
     check("B64", "Downloads > Start Queue > Night starts the Night queue while the list shows All downloads",
           held and held.get("queue") == "Night" and held["state"]["kind"] not in ("running", "completed")
           and r["state"]["kind"] == "completed",
           f"queue {held.get('queue') if held else None}, then {r['state']['kind']}")
-    # Timed as dm sees it, from added to complete: the server's own clock
+    # Timed as EDM sees it, from added to complete: the server's own clock
     # stops early, as the connection's buffers hold most of a small file.
-    said = dm.call("command.run", id="downloads.speed.low").get("result", {}).get("said", "")
+    said = edm.call("command.run", id="downloads.speed.low").get("result", {}).get("said", "")
     pause(1)
     began = time.time()
-    dm.call("downloads.add", urls=[f"{files}/limit.bin"])
-    r = dm.wait("limit.bin", {"completed", "failed"}, 60)
+    edm.call("downloads.add", urls=[f"{files}/limit.bin"])
+    r = edm.wait("limit.bin", {"completed", "failed"}, 60)
     rate = FILES["limit.bin"][0] / 1024 / (time.time() - began)
-    dm.call("command.run", id="downloads.speed.unlimited")
+    edm.call("command.run", id="downloads.speed.unlimited")
     pause(1)
     began = time.time()
-    dm.call("downloads.add", urls=[f"{files}/again.bin?unlimited"])
-    free = dm.wait("again.bin?unlimited", {"completed", "failed"}, 60)
+    edm.call("downloads.add", urls=[f"{files}/again.bin?unlimited"])
+    free = edm.wait("again.bin?unlimited", {"completed", "failed"}, 60)
     free_took = time.time() - began
     check("B20", "Low speed keeps to about 256 KB/s, Unlimited lifts it",
           said == "Speed limiter on: 256 KB/s." and 180 <= rate <= 320 and r["state"]["kind"] == "completed"
@@ -1082,25 +1082,25 @@ def walk(dm, origin):
 
     print("\nA ZIP's contents", flush=True)
     mark = len(LOG)
-    dm.open_add_url()
+    edm.open_add_url()
     for _ in range(3):
-        dm.call("ui.type", text=f"{files}/pack.zip")
+        edm.call("ui.type", text=f"{files}/pack.zip")
         pause(0.4)
-        if any(f"{files}/pack.zip" in t for t in dm.texts()):
+        if any(f"{files}/pack.zip" in t for t in edm.texts()):
             break
-    dm.click("Next")
+    edm.click("Next")
     for _ in range(40):
-        if "Download details" in dm.dialogs():
+        if "Download details" in edm.dialogs():
             break
         time.sleep(0.25)
     seen = []
     for _ in range(80):
-        seen = dm.texts()
+        seen = edm.texts()
         if any("setup.exe" in t for t in seen):
             break
         time.sleep(0.25)
     pause(1)
-    seen = seen + [t for t in dm.scrolled_texts(turns=4, lines=2) if t not in seen]
+    seen = seen + [t for t in edm.scrolled_texts(turns=4, lines=2) if t not in seen]
     listed = (any(t.strip() == "Contents" for t in seen) and any("docs/readme.txt" in t for t in seen)
               and any("setup.exe" in t for t in seen))
     asked = requests("pack.zip", mark)
@@ -1115,16 +1115,16 @@ def walk(dm, origin):
     # `ui.click` counts from the last drawn: setup.exe's button is the 0th, so
     # readme.txt's is the 1st.
     for _ in range(16):
-        if dm.call("ui.click", text="Take out", nth=1).get("ok"):
+        if edm.call("ui.click", text="Take out", nth=1).get("ok"):
             break
         time.sleep(0.25)
     saved_line = ""
     for _ in range(80):
-        saved_line = next((t for t in dm.texts() if "readme.txt saved to" in t), "")
+        saved_line = next((t for t in edm.texts() if "readme.txt saved to" in t), "")
         if saved_line:
             break
         time.sleep(0.25)
-    taken = [p for p in (dm.home / "downloads").rglob("readme.txt")]
+    taken = [p for p in (edm.home / "downloads").rglob("readme.txt")]
     asked = requests("pack.zip", mark)
     partial = bool(asked) and all(e["range"] and (e["range"] in PROBES or not e["range"].startswith("bytes=0-"))
                                   for e in asked)
@@ -1133,190 +1133,190 @@ def walk(dm, origin):
           f"'{saved_line}'; found {taken}; ranges asked: {[e['range'] for e in asked]}")
     for p in taken:
         p.unlink(missing_ok=True)
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.8)
     check("B44", "closing it fetched nothing and left no row",
-          "Download details" not in dm.dialogs() and dm.row("pack.zip") is None
+          "Download details" not in edm.dialogs() and edm.row("pack.zip") is None
           and not any(e.get("ev") == "done" and e.get("name") == "pack.zip" and e.get("bytes", 0) > MiB
                       for e in LOG[mark:]),
-          f"{dm.dialogs()}")
+          f"{edm.dialogs()}")
 
     print("\nThe list, a running download's window, recent addresses and Find", flush=True)
     # B45: each row has a small picture of its file's kind, told apart by shape.
     # big.bin (plain), Report 2026.pdf (document) and pack.zip (archive) are in
     # the list now; the screenshot shows whether their icons differ by shape.
-    shot45 = dm.picture("b45-icons")
+    shot45 = edm.picture("b45-icons")
     check("B45", "each row in the list has a file-kind icon told apart by shape (screenshot: b45-icons.png)",
           shot45 is not None,
           f"screenshot {'saved to ' + str(shot45) if shot45 else 'not taken'}")
 
     # B46: a double-click on a download still going opens its progress window,
     # whose title starts with how far it is.
-    dm.add(f"{files}/ui.bin")
-    dm.wait("ui.bin", {"running"}, 20)
+    edm.add(f"{files}/ui.bin")
+    edm.wait("ui.bin", {"running"}, 20)
     pause(3)
-    dm.reveal("ui.bin")
-    before = (dm.row("ui.bin") or {}).get("state", {}).get("kind")
-    clicked = dm.call("ui.click", text="ui.bin", double=True)
+    edm.reveal("ui.bin")
+    before = (edm.row("ui.bin") or {}).get("state", {}).get("kind")
+    clicked = edm.call("ui.click", text="ui.bin", double=True)
     pause(1.5)
-    titles = [w.get("title", "") for w in (dm.windows().get("dialogs") or [])]
+    titles = [w.get("title", "") for w in (edm.windows().get("dialogs") or [])]
     first = next((t for t in titles if "ui.bin" in t), "")
     # What it was and where the click went, for a failure on one system alone
     # (Linux, gaps row Q1).
     check("B46", "a double-click on a running download opens its progress window",
           bool(first) and "File properties" not in titles,
           f"{titles}; the row was {before}; the click: {clicked}; "
-          f"the window said {[t for t in dm.texts() if 'ui.bin' in t or '%' in t][:8]}")
+          f"the window said {[t for t in EDM.texts() if 'ui.bin' in t or '%' in t][:8]}")
     check("B46", "its title starts with how far it is",
           bool(re.match(r"^\d+% ", first)), f"{first!r}")
     pause(3)
-    later = next((w.get("title", "") for w in (dm.windows().get("dialogs") or []) if "ui.bin" in w.get("title", "")), "")
+    later = next((w.get("title", "") for w in (edm.windows().get("dialogs") or []) if "ui.bin" in w.get("title", "")), "")
     check("B46", "and the number goes on counting as it runs",
           bool(re.match(r"^\d+% ", later)) and int(re.match(r"^(\d+)%", later).group(1)) >= int(re.match(r"^(\d+)%", first).group(1)) if re.match(r"^\d+% ", first) and re.match(r"^\d+% ", later) else False,
           f"{first!r} then {later!r}")
     # B53: the Connections section of that window names each piece's own speed.
-    dm.click("Connections")
+    edm.click("Connections")
     pause(2.5)
-    rates = [w for w in dm.dialog_texts() if re.search(r"\d\s?(KB|MB|GB|B)/s$", w)]
+    rates = [w for w in edm.dialog_texts() if re.search(r"\d\s?(KB|MB|GB|B)/s$", w)]
     check("B53", "a running download's Connections section names a speed beside its pieces",
-          len(rates) >= 2, f"{rates}; the dialogs said {dm.dialog_texts()[:40]}")
-    dm.call("ui.key", key="Escape")
+          len(rates) >= 2, f"{rates}; the dialogs said {edm.dialog_texts()[:40]}")
+    edm.call("ui.key", key="Escape")
     pause(0.6)
-    r = dm.row("ui.bin")
+    r = edm.row("ui.bin")
     if r:
-        dm.call("ui.select", ids=[r["id"]])
-        dm.click("Stop")
-        dm.wait("ui.bin", {"paused"}, 10)
+        edm.call("ui.select", ids=[r["id"]])
+        edm.click("Stop")
+        edm.wait("ui.bin", {"paused"}, 10)
     # B47: an address with a token in its query is not kept for Add URL's list.
-    dm.add(f"{files}/ui-alpha.bin?token=secret123abc")
-    dm.wait("ui-alpha.bin", {"completed", "failed"}, 30)
-    kept = (dm.home / "settings.json").read_text(encoding="utf-8", errors="replace") if (dm.home / "settings.json").exists() else ""
+    edm.add(f"{files}/ui-alpha.bin?token=secret123abc")
+    edm.wait("ui-alpha.bin", {"completed", "failed"}, 30)
+    kept = (edm.home / "settings.json").read_text(encoding="utf-8", errors="replace") if (edm.home / "settings.json").exists() else ""
     check("B47", "an address with a token in its query is added but not kept for Add URL's Recent list",
-          dm.row("ui-alpha.bin") is not None and "secret123abc" not in kept, f"settings mention it: {'secret123abc' in kept}")
+          edm.row("ui-alpha.bin") is not None and "secret123abc" not in kept, f"settings mention it: {'secret123abc' in kept}")
     # B48: Find previous goes back, wrapping from the first row to the last.
     for name in ("ui-beta.bin", "ui-alphabet.bin"):
-        dm.add(f"{files}/{name}")
-        dm.wait(name, {"completed", "failed"}, 30)
+        edm.add(f"{files}/{name}")
+        edm.wait(name, {"completed", "failed"}, 30)
     # Find is Cmd-F on macOS, Ctrl-F elsewhere, as the menu says.
-    dm.call("ui.key", key="F", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
+    edm.call("ui.key", key="F", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
     pause(0.8)
-    dm.call("ui.type", text="alpha")
+    edm.call("ui.type", text="alpha")
     pause(0.4)
     # Find next puts the text in force; the dialog then holds the keyboard, so
     # it is closed, and F3 and Shift-F3 are pressed in the window, as a person does.
-    dm.click("Find next")
+    edm.click("Find next")
     pause(0.6)
-    dm.click("Close")
+    edm.click("Close")
     pause(0.8)
-    dm.call("ui.key", key="F3", modifiers=["shift"])
+    edm.call("ui.key", key="F3", modifiers=["shift"])
     pause(0.8)
-    one = [x["url"].rsplit("/", 1)[-1] for x in dm.rows() if x["id"] in (dm.call("ui.inspect").get("result", {}).get("selected") or [])]
-    dm.call("ui.key", key="F3", modifiers=["shift"])
+    one = [x["url"].rsplit("/", 1)[-1] for x in edm.rows() if x["id"] in (edm.call("ui.inspect").get("result", {}).get("selected") or [])]
+    edm.call("ui.key", key="F3", modifiers=["shift"])
     pause(0.8)
-    two = [x["url"].rsplit("/", 1)[-1] for x in dm.rows() if x["id"] in (dm.call("ui.inspect").get("result", {}).get("selected") or [])]
+    two = [x["url"].rsplit("/", 1)[-1] for x in edm.rows() if x["id"] in (edm.call("ui.inspect").get("result", {}).get("selected") or [])]
     check("B48", "Shift-F3 selects the previous row whose name has the text, and goes on back",
           len(one) == 1 and len(two) == 1 and one != two and all("alpha" in n for n in one + two), f"{one} then {two}")
 
     print("\nWhen things go wrong", flush=True)
-    dm.add(f"{files}/crash.bin")
-    dm.wait("crash.bin", {"running"}, 15)
+    edm.add(f"{files}/crash.bin")
+    edm.wait("crash.bin", {"running"}, 15)
     pause(6)
-    had = dm.row("crash.bin")["progress"]["downloaded"]
-    dm.kill()
+    had = edm.row("crash.bin")["progress"]["downloaded"]
+    edm.kill()
     pause(1.5)
     mark = len(LOG)
-    dm.start()
-    r = dm.row("crash.bin")
+    edm.start()
+    r = edm.row("crash.bin")
     if r and r["state"]["kind"] != "running":
-        dm.call("ui.select", ids=[r["id"]])
-        dm.click("Resume")
-    r = dm.wait("crash.bin", {"completed", "failed"}, 180)
+        edm.call("ui.select", ids=[r["id"]])
+        edm.click("Resume")
+    r = edm.wait("crash.bin", {"completed", "failed"}, 180)
     starts = sorted(int(e["range"][6:].split("-")[0]) for e in requests("crash.bin", mark) if e["range"] and e["range"] not in PROBES)
     ok, d = whole(r, "crash.bin")
     check("B21", "killed mid-download, it goes on after reopening and is whole",
           0 < had < FILES["crash.bin"][0] and starts and starts[0] > 0 and ok, f"killed at {had} bytes; {d}")
-    listed = {x["url"]: x["state"]["kind"] for x in dm.rows()}
-    dm.quit()
+    listed = {x["url"]: x["state"]["kind"] for x in edm.rows()}
+    edm.quit()
     pause(1)
-    dm.start()
-    again = {x["url"]: x["state"]["kind"] for x in dm.rows()}
+    edm.start()
+    again = {x["url"]: x["state"]["kind"] for x in edm.rows()}
     check("B22", "quit and reopened, every row is as it was", listed == again, f"{len(again)} rows")
 
     print("\nTidying the list", flush=True)
-    r = dm.row("lie.bin")
+    r = edm.row("lie.bin")
     kept = pathlib.Path(r["path"])
-    dm.call("ui.select", ids=[r["id"]])
+    edm.call("ui.select", ids=[r["id"]])
     pause(0.5)
-    dm.click("Delete")
+    edm.click("Delete")
     pause(0.8)
-    said = dm.call("ui.inspect")["result"].get("said", "")
-    gone = dm.row("lie.bin") is None
-    dm.click("Undo")
+    said = edm.call("ui.inspect")["result"].get("said", "")
+    gone = edm.row("lie.bin") is None
+    edm.click("Undo")
     pause(0.8)
-    back = dm.row("lie.bin") is not None
+    back = edm.row("lie.bin") is not None
     check("B23", "a finished download leaves the list at once, its file stays, Undo brings it back",
-          not dm.dialogs() and gone and said == "Removed 1 download from the list." and kept.is_file() and back,
+          not edm.dialogs() and gone and said == "Removed 1 download from the list." and kept.is_file() and back,
           f"'{said}'; gone: {gone}; file kept: {kept.is_file()}; back after Undo: {back}")
-    dm.add(f"{files}/stopme.bin")
-    r = dm.wait("stopme.bin", {"running"}, 15)
+    edm.add(f"{files}/stopme.bin")
+    r = edm.wait("stopme.bin", {"running"}, 15)
     pause(3)
-    dm.call("ui.select", ids=[r["id"]])
-    dm.click("Stop")
-    dm.wait("stopme.bin", {"paused"}, 10)
-    dm.call("ui.select", ids=[r["id"]])
-    dm.click("Delete")
+    edm.call("ui.select", ids=[r["id"]])
+    edm.click("Stop")
+    edm.wait("stopme.bin", {"paused"}, 10)
+    edm.call("ui.select", ids=[r["id"]])
+    edm.click("Delete")
     pause(0.8)
-    asked_titles = dm.dialogs()
-    asked = dm.dialog_texts()
-    dm.click("Keep it")
+    asked_titles = edm.dialogs()
+    asked = edm.dialog_texts()
+    edm.click("Keep it")
     pause(0.6)
-    still = dm.row("stopme.bin")
-    dm.call("ui.select", ids=[r["id"]])
-    dm.click("Delete")
+    still = edm.row("stopme.bin")
+    edm.call("ui.select", ids=[r["id"]])
+    edm.click("Delete")
     pause(0.8)
-    dm.click("Remove download")
+    edm.click("Remove download")
     pause(0.8)
     check("B38", "an unfinished download: Remove asks, Keep it keeps it, Remove download takes it off",
           # The title is the window's own; the sentence wraps wherever the window is wide enough.
           "Remove an unfinished download" in asked_titles and "This download isn't finished." in " ".join(asked)
           and "Remove download" in asked and "Keep it" in asked and still and still["state"]["kind"] == "paused"
-          and dm.row("stopme.bin") is None,
+          and edm.row("stopme.bin") is None,
           f"asked: {'This download isn' + chr(39) + 't finished' in ' '.join(asked)}; kept after Keep it: {bool(still)}")
-    paths = [pathlib.Path(x["path"]) for x in dm.rows() if x["state"]["kind"] == "completed"]
-    # From the Downloads menu: a new dm's toolbar has no Delete completed (2026-11-26).
-    dm.menu("Downloads", "Delete completed")
+    paths = [pathlib.Path(x["path"]) for x in edm.rows() if x["state"]["kind"] == "completed"]
+    # From the Downloads menu: a new EDM's toolbar has no Delete completed (2026-11-26).
+    edm.menu("Downloads", "Delete completed")
     # Its own line, not the one before it ("Put back 1 download." from the
     # Undo above), which a fixed pause sometimes read (gaps row 56).
     said = ""
     for _ in range(25):
         pause(0.2)
-        said = dm.call("ui.inspect")["result"].get("said", "")
+        said = edm.call("ui.inspect")["result"].get("said", "")
         if said.startswith("Deleted"):
             break
-    left = [x for x in dm.rows() if x["state"]["kind"] == "completed"]
+    left = [x for x in edm.rows() if x["state"]["kind"] == "completed"]
     check("B24", "Clear finished empties the finished rows, every file stays",
           not left and said.startswith("Deleted") and all(p.is_file() for p in paths), f"'{said}'")
 
     print("\nDialogs are windows of their own", flush=True)
-    dm.open_add_url()
-    info = dm.windows()
+    edm.open_add_url()
+    info = edm.windows()
     main = info.get("main")
     shown = info.get("dialogs") or []
     box = shown[0].get("outer") if shown else None
     over = bool(main and box and main[0] <= (box[0] + box[2]) / 2 <= main[2]
                 and main[1] <= (box[1] + box[3]) / 2 <= main[3])
-    words = [t["text"] for t in dm.call("ui.texts")["result"]["texts"] if t.get("window") == "dialog"]
-    check("B42", "Add URL opens as a window of its own, over the middle of dm's window",
+    words = [t["text"] for t in edm.call("ui.texts")["result"]["texts"] if t.get("window") == "dialog"]
+    check("B42", "Add URL opens as a window of its own, over the middle of EDM's window",
           len(shown) == 1 and shown[0]["title"] == "Add URL" and over and "Next" in words,
-          f"dm {main}, dialog {box}, words {words[:6]}")
+          f"EDM {main}, dialog {box}, words {words[:6]}")
     if sys.platform == "darwin":
-        # What VoiceOver is given of the dialog's own window (gaps row 160), read by dm itself
+        # What VoiceOver is given of the dialog's own window (gaps row 160), read by EDM itself
         # through NSAccessibility: AccessKit builds a window's tree only once it is first asked,
         # so it is asked until its buttons are there. Linux's is read over AT-SPI
         # (linux-gui-check.sh) and Windows' over UI Automation (windows-a11y-check.py).
         heard = []
         for _ in range(30):
-            got = (dm.call("ui.accessibility").get("result") or {}).get("windows") or []
+            got = (edm.call("ui.accessibility").get("result") or {}).get("windows") or []
             heard = [e["title"] for w in got if w.get("title") == "Add URL" for e in w.get("elements", [])
                      if e.get("role") == "AXButton" and e.get("title")]
             if "Next" in heard and "Cancel" in heard:
@@ -1324,55 +1324,55 @@ def walk(dm, origin):
             time.sleep(0.4)
         check("B42", "a screen reader is given its OK and Cancel, in its own window",
               "Next" in heard and "Cancel" in heard, f"buttons a screen reader is given there: {heard}")
-    # Moved as a drag by its title bar moves it: half outside dm's window.
+    # Moved as a drag by its title bar moves it: half outside EDM's window.
     if box:
         width = box[2] - box[0]
         want = (main[2] - width / 2, main[1] + 20)
-        dm.call("ui.move_window", title="Add URL", x=want[0], y=want[1])
+        edm.call("ui.move_window", title="Add URL", x=want[0], y=want[1])
         pause(1.0)
-        moved = (dm.windows().get("dialogs") or [{}])[0].get("outer")
-        check("B42", "it stands where it was put, half outside dm's window",
+        moved = (edm.windows().get("dialogs") or [{}])[0].get("outer")
+        check("B42", "it stands where it was put, half outside EDM's window",
               bool(moved) and abs(moved[0] - want[0]) <= 16 and abs(moved[1] - want[1]) <= 16 and moved[2] > main[2],
               f"asked for {want}, it is at {moved}")
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.6)
-    check("B42", "its buttons work where it was put: Cancel closes it", "Add URL" not in dm.dialogs(), f"{dm.dialogs()}")
-    dm.open_add_url()
-    dm.call("ui.key", key="Escape")
+    check("B42", "its buttons work where it was put: Cancel closes it", "Add URL" not in edm.dialogs(), f"{edm.dialogs()}")
+    edm.open_add_url()
+    edm.call("ui.key", key="Escape")
     pause(0.8)
-    check("B42", "Escape closes it, as Cancel does", "Add URL" not in dm.dialogs(), f"{dm.dialogs()}")
+    check("B42", "Escape closes it, as Cancel does", "Add URL" not in edm.dialogs(), f"{edm.dialogs()}")
     if sys.platform == "win32":
-        dm.open_add_url()
-        win32_titles(dm.proc.pid, close="Add URL")
+        edm.open_add_url()
+        win32_titles(edm.proc.pid, close="Add URL")
         pause(1.0)
         check("B42", "its close button (the system's) closes it, as Cancel does",
-              "Add URL" not in dm.dialogs(), f"{dm.dialogs()}")
+              "Add URL" not in edm.dialogs(), f"{edm.dialogs()}")
     else:
         check("B42", "its close button (the system's) closes it, as Cancel does", True,
               "pressed on Windows only; Escape is the same path elsewhere")
     if sys.platform == "win32":
-        # The dialog taken fully out of dm's window, as Windows itself sees it: dm's
+        # The dialog taken fully out of EDM's window, as Windows itself sees it: EDM's
         # window put aside (a person may park it partly off the screen), the dialog
         # moved to a place with no overlap with it, then drawn to another by its
-        # title bar with the mouse. Read back from Windows, not from dm.
-        pid = dm.proc.pid
-        win32_move(pid, "dm", -420, 30)
+        # title bar with the mouse. Read back from Windows, not from EDM.
+        pid = edm.proc.pid
+        win32_move(pid, "EDM", -420, 30)
         pause(1.0)
-        dm.open_add_url()
+        edm.open_add_url()
         pause(1.0)
         wins = win32_windows(pid)
-        aside = (titled(wins, "dm") or {}).get("rect")
+        aside = (titled(wins, "EDM") or {}).get("rect")
         if aside and "Add URL" in wins:
             free = aside[2] + 20
-            dm.call("ui.move_window", title="Add URL", x=free, y=40)
+            edm.call("ui.move_window", title="Add URL", x=free, y=40)
             pause(1.2)
             seen = win32_windows(pid).get("Add URL", {})
             box = seen.get("rect")
-            check("B42", "moved to a place with no overlap with dm's window, Windows reports it there",
+            check("B42", "moved to a place with no overlap with EDM's window, Windows reports it there",
                   bool(box) and abs(box[0] - free) <= 16 and abs(box[1] - 40) <= 16 and not overlap(box, aside),
-                  f"dm {aside}, dialog {box}")
+                  f"EDM {aside}, dialog {box}")
             top_level = seen.get("parent") == 0 and seen.get("owner") == 0 and not (seen.get("style", 0) & 0x40000000)
-            check("B42", "it is a window of its own, not a child or owned window clipped by dm's",
+            check("B42", "it is a window of its own, not a child or owned window clipped by EDM's",
                   bool(seen) and top_level, f"parent {seen.get('parent')}, owner {seen.get('owner')}, style {hex(seen.get('style', 0))}")
             if box:
                 gx = min(max(box[0] + 60, 40), box[2] - 80)
@@ -1385,46 +1385,46 @@ def walk(dm, origin):
                 dragged = win32_windows(pid).get("Add URL", {}).get("rect")
                 pause(2.0)
                 still = win32_windows(pid).get("Add URL", {}).get("rect")
-                check("B42", "drawn by its title bar with the mouse it stands where the mouse left it, wholly outside dm's window",
+                check("B42", "drawn by its title bar with the mouse it stands where the mouse left it, wholly outside EDM's window",
                       bool(dragged) and abs(dragged[0] - goal[0]) <= 16 and abs(dragged[1] - goal[1]) <= 16
                       and not overlap(dragged, aside) and dragged == still,
-                      f"dm {aside}, wanted {goal}, it is at {dragged}, and later {still}")
+                      f"EDM {aside}, wanted {goal}, it is at {dragged}, and later {still}")
         else:
-            check("B42", "moved to a place with no overlap with dm's window, Windows reports it there", False,
+            check("B42", "moved to a place with no overlap with EDM's window, Windows reports it there", False,
                   f"windows {list(wins)}")
-        dm.click("Cancel")
+        edm.click("Cancel")
         pause(0.8)
-        win32_move(pid, "dm", 130, 130)
+        win32_move(pid, "EDM", 130, 130)
         pause(1.0)
-    # Options keeps the clicks to itself: dm's window takes none until it is closed.
-    dm.open_options()
+    # Options keeps the clicks to itself: EDM's window takes none until it is closed.
+    edm.open_options()
     for _ in range(40):
-        if "Options" in dm.dialogs():
+        if "Options" in edm.dialogs():
             break
         time.sleep(0.1)
     pause(0.8)
-    dm.click("Add URL")
+    edm.click("Add URL")
     pause(0.8)
-    held = dm.dialogs()
-    check("B42", "Options holds dm's window: a click on its toolbar does nothing while it is open",
+    held = edm.dialogs()
+    check("B42", "Options holds EDM's window: a click on its toolbar does nothing while it is open",
           held == ["Options"], f"{held}")
-    dm.call("ui.key", key="Escape")
+    edm.call("ui.key", key="Escape")
     pause(0.8)
-    dm.open_add_url()
-    check("B42", "and the window answers again once it is closed", "Add URL" in dm.dialogs(), f"{dm.dialogs()}")
-    dm.click("Cancel")
+    edm.open_add_url()
+    check("B42", "and the window answers again once it is closed", "Add URL" in edm.dialogs(), f"{edm.dialogs()}")
+    edm.click("Cancel")
     pause(0.6)
 
     # Options' tabs: the connection's and the proxy's settings are one Advanced page.
-    dm.open_options()
+    edm.open_options()
     for _ in range(40):
-        if "Options" in dm.dialogs():
+        if "Options" in edm.dialogs():
             break
         time.sleep(0.1)
     pause(0.8)
-    dm.click("Advanced")
+    edm.click("Advanced")
     pause(0.8)
-    words = dm.scrolled_texts("Speed limit (KB/s, 0 for none)")
+    words = edm.scrolled_texts("Speed limit (KB/s, 0 for none)")
     first = "Speed limit (KB/s, 0 for none)"
     # What is drawn before the first setting: the tabs, then the page's first heading.
     before = words[:words.index(first)] if first in words else []
@@ -1439,7 +1439,7 @@ def walk(dm, origin):
           "Sites with their own connection limit" in words and "Add a site limit" in words, f"{words}")
     # B43 since 2026-11-08: on Windows reference A's Dial Up / VPN section, below the proxy's
     # (gaps row 93, G84); read further down the page, as a person scrolls on.
-    words += [w for w in dm.scrolled_texts(turns=12) if w not in words]
+    words += [w for w in edm.scrolled_texts(turns=12) if w not in words]
     dialup = ("Dial Up / VPN", "Use Windows Dial Up / VPN Networking", "Connection", "User name",
               "Save password", "Redial attempts (zero if endlessly)", "Time between redial attempts (seconds)")
     if sys.platform == "win32":
@@ -1449,65 +1449,65 @@ def walk(dm, origin):
         check("B43", "Away from Windows, Advanced has no Dial Up / VPN section",
               "Use Windows Dial Up / VPN Networking" not in words, f"{words}")
     # B60: Site files has the switch for following links to other sites.
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.8)
-    dm.menu("Tasks", "Grabber")
+    edm.menu("Tasks", "Grabber")
     pause(0.8)
-    site_words = dm.dialog_texts()
+    site_words = edm.dialog_texts()
     check("B60", "Site files has 'Also follow links to other sites' beside the page depth",
           "Also follow links to other sites" in site_words and "Page depth" in site_words,
           f"{site_words}")
     check("B61", "Site files has 'Keep the site’s folders' under the other-sites box",
           "Keep the site’s folders" in site_words, f"{site_words}")
-    dm.click("Close")
+    edm.click("Close")
     pause(0.8)
     # B62: the Scheduler has the field for a program to run at the end.
-    dm.click("Scheduler")
+    edm.click("Scheduler")
     pause(0.8)
-    sched_words = dm.dialog_texts()
+    sched_words = edm.dialog_texts()
     check("B62", "the Scheduler has 'Run this program when they are done (optional)'",
           "Run this program when they are done (optional)" in sched_words, f"{sched_words}")
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.8)
-    dm.open_options()
+    edm.open_options()
     pause(0.8)
-    dm.click("Advanced")
+    edm.click("Advanced")
     pause(0.8)
-    # B51: the page says how dm identifies itself, with the switch.
-    check("B51", "Advanced shows the name dm sends to servers and the Identify as dm only switch",
-          "dm identifies itself to servers as:" in words and "Identify as dm only" in words, f"{words}")
+    # B51: the page says how EDM identifies itself, with the switch.
+    check("B51", "Advanced shows the name EDM sends to servers and the Identify as EDM only switch",
+          "EDM identifies itself to servers as:" in words and "Identify as EDM only" in words, f"{words}")
     check("B51", "Advanced has the site rules' list, which gives a site its own User-Agent and headers",
           "Sites with their own folder, speed and headers" in words and "Add a site rule" in words, f"{words}")
     # B56: the Downloads tab has the Connections per file box with its Presets.
-    dm.click("Downloads")
+    edm.click("Downloads")
     pause(0.8)
-    dl = dm.dialog_texts()
+    dl = edm.dialog_texts()
     check("B56", "Downloads has Connections per file with Presets: Slow (2) Normal (8) Fast (16) Maximum (32)",
           "Connections per file" in dl and "Presets:" in dl and "Slow (2)" in dl and "Normal (8)" in dl
           and "Fast (16)" in dl and "Maximum (32)" in dl, f"{dl}")
-    dm.click("General")
+    edm.click("General")
     pause(0.8)
     # Scrolled through: in reference A's smaller window (2026-11-04) the row
     # is below the tab's first screen, as it is for a person.
-    general = dm.dialog_texts() + dm.scrolled_texts("Theme")
+    general = edm.dialog_texts() + edm.scrolled_texts("Theme")
     check("B50", "General has the row for what happens when an address is already in the list",
           "When an address is already in the list" in general, f"{general}")
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.6)
     # B49: the Scheduler offers what to do when the scheduled downloads are done.
-    dm.click("Scheduler")
+    edm.click("Scheduler")
     for _ in range(40):
-        if "Scheduler" in dm.dialogs():
+        if "Scheduler" in edm.dialogs():
             break
         time.sleep(0.1)
     pause(0.8)
-    sched = dm.dialog_texts()
-    check("B49", "the Scheduler asks what dm does when the scheduled downloads are done, and how many tries again",
+    sched = edm.dialog_texts()
+    check("B49", "the Scheduler asks what EDM does when the scheduled downloads are done, and how many tries again",
           "When the scheduled downloads are done" in sched
           and "Try a failed download again this many times (0 for none)" in sched, f"{sched}")
     # B49 since 2026-11-08: on Windows reference A's "Hang up modem when done", below the
     # program to run when they are done; read further down, as a person scrolls on.
-    sched += [w for w in dm.scrolled_texts(turns=8) if w not in sched]
+    sched += [w for w in edm.scrolled_texts(turns=8) if w not in sched]
     if sys.platform == "win32":
         check("B49", "On Windows, the Scheduler has reference A's Hang up modem when done",
               "Hang up modem when done" in sched, f"{sched}")
@@ -1518,23 +1518,23 @@ def walk(dm, origin):
     # start once, and Start now and Stop. Opened again while the list shows
     # another queue, it shows that queue's (the name is also in the tree, so it
     # is not clicked for).
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.6)
-    dm.call("ui.place", place="queue:Recheck queue")
+    edm.call("ui.place", place="queue:Recheck queue")
     pause(0.5)
-    dm.click("Scheduler")
+    edm.click("Scheduler")
     for _ in range(40):
-        if "Scheduler" in dm.dialogs():
+        if "Scheduler" in edm.dialogs():
             break
         time.sleep(0.1)
     pause(0.8)
-    other = dm.dialog_texts()
-    dm.call("ui.place", place="all")
+    other = edm.dialog_texts()
+    edm.call("ui.place", place="all")
     check("B65", "the Scheduler lists the queues; another queue offers hours of its own, a date, Start now and Stop",
           "Queues" in sched and "Main queue" in sched and "Start now" in sched and "Stop" in sched
           and "Once, on this date" in sched and "Hours of its own for this queue" in other
           and "This queue follows the Main queue’s hours." in other, f"{sched} / {other}")
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.6)
     # B52: the tray's Speed menu has Settings…, which the tray cannot be driven
     # here to click: its menu is built from the same command as Downloads ›
@@ -1549,34 +1549,34 @@ def walk(dm, origin):
     # there in force at once in every window.
     held = ["cmd" if sys.platform == "darwin" else "ctrl"]
     def sizes():
-        names = [t["rect"] for t in dm.call("ui.texts").get("result", {}).get("texts", [])
+        names = [t["rect"] for t in edm.call("ui.texts").get("result", {}).get("texts", [])
                  if t.get("window") == "main" and t["text"] in ("File name", "Name")]
         return names[0][3] - names[0][1] if names else 0
     medium = sizes()
-    dm.call("ui.key", key="=", modifiers=held)
+    edm.call("ui.key", key="=", modifiers=held)
     pause(0.8)
     larger = sizes()
-    kept = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
-    dm.call("ui.key", key="0", modifiers=held)
+    kept = json.loads((edm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
+    edm.call("ui.key", key="0", modifiers=held)
     pause(0.8)
     back = sizes()
     check("B66", "Ctrl (Cmd) with + draws the list larger at once, kept; with 0 back to 100%",
           medium > 0 and larger >= medium * 1.1 and back == medium and kept == 1.2,
           f"{medium} -> {larger} -> {back}, kept {kept}")
-    dm.open_options()
+    edm.open_options()
     for _ in range(40):
-        if "Options" in dm.dialogs():
+        if "Options" in edm.dialogs():
             break
         time.sleep(0.1)
     pause(0.8)
-    words = dm.dialog_texts()
-    dm.click("80%")
+    words = edm.dialog_texts()
+    edm.click("80%")
     pause(1.0)
-    picked = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
+    picked = json.loads((edm.home / "settings.json").read_text(encoding="utf-8")).get("text_size")
     smaller = sizes()
-    dm.click("100%")
+    edm.click("100%")
     pause(1.0)
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.6)
     check("B66", "Options › General › Appearance has the scale's four stops; 80% is in force at once and kept",
           all(w in words for w in ("Text size", "60%", "80%", "100%", "120%")) and picked == 0.8
@@ -1587,29 +1587,29 @@ def walk(dm, origin):
     # there is kept with OK as "es" in settings.json and shown on the pop-up
     # when Options opens again, then the video's own is put back. Which track
     # a dubbed video is saved with is the engine's own tests' (YouTube's, HLS's
-    # and DASH's stand-ins in dm-core).
+    # and DASH's stand-ins in edm-core).
     def sound_language():
         try:
-            saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
+            saved = json.loads((edm.home / "settings.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
         return saved.get("sound_language", "")
 
     def downloads_page():
-        dm.open_options()
+        edm.open_options()
         for _ in range(40):
-            if "Options" in dm.dialogs():
+            if "Options" in edm.dialogs():
                 break
             time.sleep(0.1)
         pause(0.8)
-        dm.click("Downloads")
+        edm.click("Downloads")
         pause(0.8)
-        seen = dm.dialog_texts()
+        seen = edm.dialog_texts()
         if "Sound language" not in seen:
             # Below the page's first screen in a small window: scrolled to, as a person does.
-            dm.call("ui.scroll", text="Video quality", lines=3)
+            edm.call("ui.scroll", text="Video quality", lines=3)
             pause(0.5)
-            seen = dm.dialog_texts()
+            seen = edm.dialog_texts()
         return seen
 
     sound_note = ("Where a video has its sound in several languages, this one is taken; "
@@ -1620,20 +1620,20 @@ def walk(dm, origin):
     check("B68", "Options › Downloads has Sound language under Video quality, the video's own at first, with its note",
           laid_out and "The video’s own" in words
           and (sound_note in words or sound_note in " ".join(words)), f"{words}")
-    dm.click("The video’s own")
+    edm.click("The video’s own")
     pause(0.6)
-    dm.click("Español")
+    edm.click("Español")
     pause(0.6)
-    dm.click("OK")
+    edm.click("OK")
     pause(1.0)
     picked = sound_language()
     words = downloads_page()
     shown = "Español" in words
-    dm.click("Español")
+    edm.click("Español")
     pause(0.6)
-    dm.click("The video’s own")
+    edm.click("The video’s own")
     pause(0.6)
-    dm.click("OK")
+    edm.click("OK")
     pause(1.0)
     back = sound_language()
     check("B68", "Español picked is kept with OK as \"es\", shown when Options opens again; the video's own puts back \"\"",
@@ -1656,23 +1656,23 @@ def walk(dm, origin):
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     except (OSError, subprocess.SubprocessError):
         copied = False
-    dm.call("command.run", id="program.add_from_clipboard")
+    edm.call("command.run", id="program.add_from_clipboard")
     for _ in range(40):
-        if "Links on the clipboard" in dm.dialogs():
+        if "Links on the clipboard" in edm.dialogs():
             break
         time.sleep(0.1)
     pause(0.8)
-    words = dm.dialog_texts()
+    words = edm.dialog_texts()
     check("B67", "Links on the clipboard offers Save to: by category (chosen), one category, one folder, Browse…",
           copied and all(w in words for w in ("Save to", "Each file to the folder of its category",
                                               "Every file to this category", "Every file to this folder",
                                               "Browse…")), f"copied {copied}: {words[:16]}")
-    new = dm.home / "downloads" / "From the clipboard" / "new"
-    dm.click("Every file to this folder")
-    dm.call("ui.type", text=str(new))
+    new = edm.home / "downloads" / "From the clipboard" / "new"
+    edm.click("Every file to this folder")
+    edm.call("ui.type", text=str(new))
     pause(0.6)
-    dm.click("Start now")
-    got = [dm.wait(n, ("completed",), 30) for n in ("clip-a.bin", "clip-b.bin")]
+    edm.click("Start now")
+    got = [edm.wait(n, ("completed",), 30) for n in ("clip-a.bin", "clip-b.bin")]
     exact = [whole(r, n) for r, n in zip(got, ("clip-a.bin", "clip-b.bin"))]
     landed = [pathlib.Path(r["path"]).parent if r and r.get("path") else None for r in got]
     check("B67", "a new folder typed there is made, and every link lands in it whole",
@@ -1685,10 +1685,10 @@ def walk(dm, origin):
 
     # B69 (gaps row W17): Download details' "Keep no record", ticked: once the
     # file is whole its row goes, and the file stays. Nothing of its address is
-    # left in dm's own files: the queue, its journal, the secrets, and Add
+    # left in EDM's own files: the queue, its journal, the secrets, and Add
     # URL's Recent list in settings.json (Add URL put it there as it was typed).
     def holds(path, name):
-        # Windows refuses a read of a file dm holds locked (instance.lock), which
+        # Windows refuses a read of a file EDM holds locked (instance.lock), which
         # holds no address.
         try:
             return name.encode() in path.read_bytes()
@@ -1696,30 +1696,30 @@ def walk(dm, origin):
             return False
 
     def naming(name):
-        return sorted(p.name for p in dm.home.iterdir() if p.is_file() and holds(p, name))
-    asked = dm.add(f"{files}/private.bin", then="Keep no record")
+        return sorted(p.name for p in edm.home.iterdir() if p.is_file() and holds(p, name))
+    asked = edm.add(f"{files}/private.bin", then="Keep no record")
     pause(0.6)
-    ticked = dm.dialog_texts()
-    dm.click("Start now")
+    ticked = edm.dialog_texts()
+    edm.click("Start now")
     saved = None
     for _ in range(160):
-        saved = next((dm.home / "downloads").rglob("private.bin"), None)
-        if saved is not None and dm.row("private.bin") is None:
+        saved = next((edm.home / "downloads").rglob("private.bin"), None)
+        if saved is not None and edm.row("private.bin") is None:
             break
         time.sleep(0.25)
     # The queue is written again within a few seconds of a change.
     pause(4)
     same = saved is not None and saved.read_bytes() == DATA["private.bin"]
     check("B69", "Download details has Keep no record; ticked, the finished download's row goes and its file stays whole",
-          asked and "Keep no record" in ticked and same and dm.row("private.bin") is None,
-          f"words {ticked[:12]}, file {saved}, row {dm.row('private.bin')}")
+          asked and "Keep no record" in ticked and same and edm.row("private.bin") is None,
+          f"words {ticked[:12]}, file {saved}, row {EDM.row('private.bin')}")
     left = naming("private.bin")
-    check("B69", "and none of dm's own files names it, settings.json's Recent list included",
+    check("B69", "and none of EDM's own files names it, settings.json's Recent list included",
           same and not left, f"named in {left}")
-    unpack_when_done(dm, files)
-    same_file_again(dm, files)
-    follow_feed(dm, files)
-    only_through(dm, files)
+    unpack_when_done(edm, files)
+    same_file_again(edm, files)
+    follow_feed(edm, files)
+    only_through(edm, files)
 
     print("\nHow the window looks", flush=True)
     for name in ("empty-window", "add-url", "download-details"):
@@ -1744,17 +1744,17 @@ def walk(dm, origin):
 
 
 BROWSER_ROWS = {
-    "B26": ["a clicked download is fetched by dm into its own folder", "the browser's copy is cancelled and erased"],
-    "B27": ["a plain click on a link to a PDF the browser would show in the tab goes to dm"],
+    "B26": ["a clicked download is fetched by EDM into its own folder", "the browser's copy is cancelled and erased"],
+    "B27": ["a plain click on a link to a PDF the browser would show in the tab goes to EDM"],
     "B28": ["an Alt-clicked link is left with the browser"],
-    "B29": ["'Download link with dm' hands the link to dm"],
-    "B30": ["'Download all links with dm' hands every link on the page to dm's queue"],
-    "B31": ["with 'Catch downloads' off, a download dm would catch stays in the browser"],
+    "B29": ["'Download link with EDM' hands the link to EDM"],
+    "B30": ["'Download all links with EDM' hands every link on the page to EDM's queue"],
+    "B31": ["with 'Catch downloads' off, a download EDM would catch stays in the browser"],
     "B32": ["with no host, a download it would catch finishes in the browser"],
     "B33": ["YouTube: hovering the playing player shows 'Download video'", "YouTube: it sits in the player's top corner",
             "YouTube: it stays while the pointer rests on the playing video"],
     "B34": ["YouTube: its click lists the video's qualities with their sizes"],
-    "B35": ["YouTube: its click is taken by the app", "YouTube: the video lands in dm's folder, fetched by dm itself",
+    "B35": ["YouTube: its click is taken by the app", "YouTube: the video lands in EDM's folder, fetched by EDM itself",
             "YouTube: the downloaded video is whole (media_check)"],
     "B59": ["YouTube: its list has a Part line that takes a start and an end"],
 }
@@ -1771,7 +1771,7 @@ def edge(script, *args):
     # says a detail was "not run" though it passed (Windows, 2026-11-13: B26, B27, B30 to B35,
     # B59).
     run = subprocess.run([sys.executable, "-X", "utf8", "-u", str(ROOT / "scripts" / script), *args],
-                         env=dict(os.environ, CHROME_PATH=EDGE, DM_BINARY=str(BINARY),
+                         env=dict(os.environ, CHROME_PATH=EDGE, EDM_BINARY=str(BINARY),
                                   PYTHONIOENCODING="utf-8"),
                          capture_output=True, encoding="utf-8", errors="replace")
     (WORK / f"edge-{script}.txt").write_text(run.stdout + run.stderr, encoding="utf-8")
@@ -1786,7 +1786,7 @@ def edge(script, *args):
 def browser():
     print("\nThe browser and a video, in Microsoft Edge", flush=True)
     if not EDGE or not pathlib.Path(EDGE).exists():
-        print(f"  Microsoft Edge is not at {EDGE!r} (DM_QA_EDGE names it)", flush=True)
+        print(f"  Microsoft Edge is not at {EDGE!r} (EDM_QA_EDGE names it)", flush=True)
         return
     said, code = edge("youtube-check.py", VIDEO)
     for row, names in BROWSER_ROWS.items():
@@ -1797,14 +1797,14 @@ def browser():
     check("B36", "every browser check passes", code == 0 and said and not failed,
           f"{len(said) - len(failed)} of {len(said)}" + (f"; failed: {failed[:3]}" if failed else ""))
 
-    print("\nEvery kind of file, with dm set as installed, in Microsoft Edge", flush=True)
+    print("\nEvery kind of file, with EDM set as installed, in Microsoft Edge", flush=True)
     said, code = edge("every-type-check.py")
     kinds = {n: v for n, v in said.items() if n.startswith("a click on ")}
     for name, (ok, detail) in kinds.items():
         check("B37", name, ok, detail[:100])
     check("B37", "every kind was tried", len(kinds) >= 14, f"{len(kinds)} kinds")
     failed = [n for n, (ok, _) in said.items() if not ok]
-    check("B36", "every browser check passes, run again with dm's own settings", code == 0 and said and not failed,
+    check("B36", "every browser check passes, run again with EDM's own settings", code == 0 and said and not failed,
           f"{len(said) - len(failed)} of {len(said)}" + (f"; failed: {failed[:3]}" if failed else ""))
 
 
@@ -1828,32 +1828,32 @@ def clipboard_restore(held):
             pass
 
 
-def unpack_when_done(dm, files):
+def unpack_when_done(edm, files):
     """B71 (gaps row W14): Unpack when done, ticked for the Archives kind in Options ›
     Folders (the archive kept), then for one download in Download details with "Send the
     archive to the Trash" chosen: each ZIP's files land in a new folder of its name beside it,
     a folder already there is not replaced, and the row says what became of the archive."""
     def folders_page():
-        dm.open_options()
+        edm.open_options()
         for _ in range(40):
-            if "Options" in dm.dialogs():
+            if "Options" in edm.dialogs():
                 break
             time.sleep(0.1)
         pause(0.8)
-        dm.click("Folders")
+        edm.click("Folders")
         pause(0.8)
         # Down to the page's foot, where the section is, as a person scrolls.
-        return dm.scrolled_texts("Download folder", turns=14)
+        return edm.scrolled_texts("Download folder", turns=14)
 
     def settled(name, within=60):
-        dm.wait(name, ("completed", "failed"), within)
+        edm.wait(name, ("completed", "failed"), within)
         end = time.time() + within
-        while time.time() < end and not (dm.row(name) or {}).get("said"):
+        while time.time() < end and not (edm.row(name) or {}).get("said"):
             time.sleep(0.25)
-        return dm.row(name) or {}
+        return edm.row(name) or {}
 
     def status(row):
-        shown = dm.call("ui.inspect").get("result", {}).get("rows", [])
+        shown = edm.call("ui.inspect").get("result", {}).get("rows", [])
         return next((x.get("status", "") for x in shown if x.get("id") == row.get("id")), "")
 
     def holds(folder, name, data):
@@ -1865,10 +1865,10 @@ def unpack_when_done(dm, files):
     check("B71", "Options › Folders has Unpack when done: a box for each kind, then Keep the archive or Send it to the Trash",
           all(w in words for w in wanted + ("Archives", "Videos", "Other")), f"{words}")
     # The last "Archives" drawn is the kind's box, below the kind's folder of that name.
-    dm.click("Archives")
-    dm.click("OK")
+    edm.click("Archives")
+    edm.click("OK")
     pause(0.8)
-    dm.add(f"{files}/kind.zip")
+    edm.add(f"{files}/kind.zip")
     r = settled("kind.zip")
     if not r.get("path"):
         check("B71", "a ZIP of the kind ticked finishes", False, f"{r}")
@@ -1889,21 +1889,21 @@ def unpack_when_done(dm, files):
     mine.mkdir(parents=True, exist_ok=True)
     (mine / "readme.txt").write_bytes(b"mine")
     folders_page()
-    dm.click("Archives")
-    dm.click("Send the archive to the Trash")
-    dm.click("OK")
+    edm.click("Archives")
+    edm.click("Send the archive to the Trash")
+    edm.click("OK")
     pause(0.8)
-    dm.open_add_url()
-    dm.call("ui.type", text=f"{files}/own.zip")
+    edm.open_add_url()
+    edm.call("ui.type", text=f"{files}/own.zip")
     pause(0.4)
-    dm.click("Next")
+    edm.click("Next")
     for _ in range(40):
-        if "Download details" in dm.dialogs():
+        if "Download details" in edm.dialogs():
             break
         time.sleep(0.25)
     pause(1.0)
-    ticked = dm.click("Unpack when done")
-    dm.click("Start now")
+    ticked = edm.click("Unpack when done")
+    edm.click("Start now")
     r = settled("own.zip")
     archive = pathlib.Path(r.get("path") or where / "own.zip")
     shown = status(r)
@@ -1917,73 +1917,73 @@ def unpack_when_done(dm, files):
           f"said {r.get('said')!r}; status {shown!r}; archive there: {archive.is_file()}")
     # Put back as a new install has it, for the checks that follow.
     folders_page()
-    dm.click("Keep the archive")
-    dm.click("OK")
+    edm.click("Keep the archive")
+    edm.click("OK")
     pause(0.8)
 
 
-def same_file_again(dm, files):
+def same_file_again(edm, files):
     """B73 (gaps row W18): the same file from a second address (the server's same bytes under
     the same name, the address another by its query), once the first is finished, is asked
     about before it is fetched: Show it takes the new row off and fetches nothing; Download
     again, with Remember my choice ticked, fetches it beside the first and keeps the answer in
     Options › General."""
-    dm.add(f"{files}/same.bin")
-    first = dm.wait("/same.bin", ("completed",), 60)
+    edm.add(f"{files}/same.bin")
+    first = edm.wait("/same.bin", ("completed",), 60)
     title = "The same file is already here"
 
     def copies():
-        return sorted(p.name for p in (dm.home / "downloads").rglob("same*.bin"))
+        return sorted(p.name for p in (edm.home / "downloads").rglob("same*.bin"))
 
-    dm.add(f"{files}/same.bin?mirror=2")
-    said = answer(dm, title, "Show it")
+    edm.add(f"{files}/same.bin?mirror=2")
+    said = answer(edm, title, "Show it")
     pause(1.5)
     check("B73", "a second address of a finished file asks first, with Show it, Download again and "
           "Remember my choice; Show it fetches nothing and takes the new row off",
           first and first["state"]["kind"] == "completed" and said is not None
           and "A finished download in the list has this name and size." in said
           and all(w in said for w in ("Show it", "Download again", "Remember my choice"))
-          and dm.row("mirror=2") is None and copies() == ["same.bin"],
-          f"first {first and first['state']}; words {said}; row {dm.row('mirror=2')}; files {copies()}")
+          and edm.row("mirror=2") is None and copies() == ["same.bin"],
+          f"first {first and first['state']}; words {said}; row {EDM.row('mirror=2')}; files {copies()}")
 
-    dm.add(f"{files}/same.bin?mirror=3")
+    edm.add(f"{files}/same.bin?mirror=3")
     end = time.time() + 40
-    while time.time() < end and title not in dm.dialogs():
+    while time.time() < end and title not in edm.dialogs():
         time.sleep(0.25)
     pause(0.5)
-    ticked = dm.click("Remember my choice")
-    dm.click("Download again")
-    r = dm.wait("mirror=3", ("completed",), 60)
-    saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8")).get("same_file_choice")
+    ticked = edm.click("Remember my choice")
+    edm.click("Download again")
+    r = edm.wait("mirror=3", ("completed",), 60)
+    saved = json.loads((edm.home / "settings.json").read_text(encoding="utf-8")).get("same_file_choice")
     exact = whole(r, "same.bin")
     check("B73", "Download again with Remember my choice fetches it beside the first, and the answer is kept",
           ticked and r and r["state"]["kind"] == "completed" and exact[0]
           and copies() == ["same (1).bin", "same.bin"] and saved == "again",
           f"row {r and r['state']}; {exact[1]}; files {copies()}; kept {saved!r}")
 
-    dm.open_options()
+    edm.open_options()
     for _ in range(40):
-        if "Options" in dm.dialogs():
+        if "Options" in edm.dialogs():
             break
         time.sleep(0.1)
     pause(0.8)
-    dm.click("General")
+    edm.click("General")
     pause(0.8)
-    general = dm.dialog_texts() + dm.scrolled_texts("Theme")
+    general = edm.dialog_texts() + edm.scrolled_texts("Theme")
     check("B73", "Options › General has the row that undoes the remembered answer",
           "When the same file is already here" in general, f"{general}")
-    dm.click("Cancel")
+    edm.click("Cancel")
     pause(0.6)
 
 
-def follow_feed(dm, files):
+def follow_feed(edm, files):
     """B75 (gaps row W10): a feed's address in Add URL opens the Playlist dialog, its item
     listed; "Check again every" ticked with Add for later follows it, listed under Grabber
     projects; the feed gains an item, and its row's Check now adds only that one, to the queue
     chosen (the Main queue); Stop following forgets it."""
     def follows():
         try:
-            saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
+            saved = json.loads((edm.home / "settings.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
         return saved.get("follows")
@@ -1991,7 +1991,7 @@ def follow_feed(dm, files):
     def waited(part, within=30):
         end = time.time() + within
         while time.time() < end:
-            r = dm.row(part)
+            r = edm.row(part)
             if r:
                 return r
             time.sleep(0.25)
@@ -2000,7 +2000,7 @@ def follow_feed(dm, files):
     def asked(title, within=20):
         end = time.time() + within
         while time.time() < end:
-            if title in dm.dialogs():
+            if title in edm.dialogs():
                 pause(0.5)
                 return True
             time.sleep(0.25)
@@ -2009,28 +2009,28 @@ def follow_feed(dm, files):
     def side_panel_down():
         # Grabber projects are listed under the queues: past the side panel's foot in a
         # small window, scrolled to as a person does.
-        dm.call("ui.scroll", text="Recheck queue", lines=12)
+        edm.call("ui.scroll", text="Recheck queue", lines=12)
         pause(0.5)
-        return dm.texts()
+        return edm.texts()
 
     FEED[:] = ["ep1"]
     address = f"{files}/podcast.rss"
-    dm.open_add_url()
-    dm.call("ui.type", text=address)
+    edm.open_add_url()
+    edm.call("ui.type", text=address)
     pause(0.4)
-    dm.click("Next")
+    edm.click("Next")
     opened = asked("Playlist")
     words, end = [], time.time() + 30
     while time.time() < end:
-        words = dm.dialog_texts()
+        words = edm.dialog_texts()
         if any("Episode 1" in w for w in words):
             break
         time.sleep(0.25)
     check("B75", "a feed's address opens the Playlist dialog, its item listed, with Check again every … hours",
           opened and any("Episode 1" in w for w in words) and "Check again every" in words
-          and "hours, adding what is new to" in words, f"{dm.dialogs()} {words}")
-    dm.click("Check again every")
-    dm.click("Add for later")
+          and "hours, adding what is new to" in words, f"{edm.dialogs()} {words}")
+    edm.click("Check again every")
+    edm.click("Add for later")
     first = waited("/ep1.mp3")
     kept = follows() or []
     one = kept[0] if len(kept) == 1 else {}
@@ -2044,52 +2044,52 @@ def follow_feed(dm, files):
 
     FEED.append("ep2")
     side_panel_down()
-    dm.click("Stand-in podcast")
+    edm.click("Stand-in podcast")
     followed = asked("Followed")
-    said = dm.dialog_texts()
-    dm.click("Check now")
+    said = edm.dialog_texts()
+    edm.click("Check now")
     second = waited("/ep2.mp3")
     pause(1.0)
-    ones = [r for r in dm.rows() if r.get("url", "").endswith("/ep1.mp3")]
+    ones = [r for r in edm.rows() if r.get("url", "").endswith("/ep1.mp3")]
     check("B75", "the feed gains an item: Check now adds only that one, for later, to the queue chosen",
           followed and any("Checked again every 24 hours" in w for w in said) and bool(second)
           and (second or {}).get("queue") == "Main queue" and len(ones) == 1,
           f"asked {followed} {said}; new row {second}; the first {len(ones)} times")
 
     side_panel_down()
-    dm.click("Stand-in podcast")
+    edm.click("Stand-in podcast")
     asked("Followed")
-    dm.click("Stop following")
+    edm.click("Stop following")
     pause(1.0)
-    check("B75", "Stop following forgets it, its rows kept", follows() == [] and bool(dm.row("/ep2.mp3")),
+    check("B75", "Stop following forgets it, its rows kept", follows() == [] and bool(edm.row("/ep2.mp3")),
           f"follows {follows()}")
 
 
-def only_through(dm, files):
+def only_through(edm, files):
     """B77 (gaps row W12): Options › Advanced › Network has "Only through", a pop-up of the
     computer's networks with Any network first; one chosen and kept with OK, a download from
     this computer's own server still completes, every connection coming from that network's
     address rather than the loopback's; Any network puts it back."""
     def advanced_page():
-        dm.open_options()
+        edm.open_options()
         for _ in range(40):
-            if "Options" in dm.dialogs():
+            if "Options" in edm.dialogs():
                 break
             time.sleep(0.1)
         pause(0.8)
-        dm.click("Advanced")
+        edm.click("Advanced")
         pause(0.8)
-        seen = dm.dialog_texts()
+        seen = edm.dialog_texts()
         if "Only through" not in seen:
             # Below the page's first screen in a small window: scrolled to, as a person does.
-            dm.call("ui.scroll", text="Time out a silent connection after (seconds)", lines=3)
+            edm.call("ui.scroll", text="Time out a silent connection after (seconds)", lines=3)
             pause(0.5)
-            seen = dm.dialog_texts()
+            seen = edm.dialog_texts()
         return seen
 
     def kept():
         try:
-            saved = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
+            saved = json.loads((edm.home / "settings.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
         return saved.get("only_through", "")
@@ -2102,18 +2102,18 @@ def only_through(dm, files):
     laid_out = ("Only through" in words and "Any network" in words
                 and (note in words or note in " ".join(words)))
     before = set(words)
-    dm.click("Any network")
+    edm.click("Any network")
     pause(0.8)
     # The pop-up's lines: each network as "name (address)" or, on macOS, "Wi-Fi (en0)".
-    listed = [w for w in dm.dialog_texts() if w not in before and "(" in w and w.endswith(")")]
+    listed = [w for w in edm.dialog_texts() if w not in before and "(" in w and w.endswith(")")]
     check("B77", "Options › Advanced › Network has Only through, Any network at first, listing the computer's networks",
           laid_out and bool(listed), f"listed {listed}; words {words[:16]}")
     if not listed:
-        dm.call("ui.key", key="Escape")
-        dm.click("Cancel")
+        edm.call("ui.key", key="Escape")
+        edm.click("Cancel")
         return
-    dm.click(listed[0])
-    dm.click("OK")
+    edm.click(listed[0])
+    edm.click("OK")
     pause(1.0)
     chosen = kept()
     # On Windows a connection held to a network's address cannot reach the loopback's, as it
@@ -2122,8 +2122,8 @@ def only_through(dm, files):
     if sys.platform == "win32" and named:
         files = start_server(named.group(1)) + "/files"
     since = len(LOG)
-    dm.add(f"{files}/only.bin")
-    r = dm.wait("only.bin", ("completed", "failed"), 60)
+    edm.add(f"{files}/only.bin")
+    r = edm.wait("only.bin", ("completed", "failed"), 60)
     same, said = whole(r, "only.bin")
     peers = {e.get("peer") for e in LOG[since:] if e.get("ev") == "accept"}
     check("B77", "one chosen is kept with OK, and a download completes over it, from its address alone",
@@ -2131,53 +2131,53 @@ def only_through(dm, files):
           f"kept {chosen!r}; {said}; came from {sorted(p for p in peers if p)}")
     # Put back as a new install has it, for the checks that follow.
     advanced_page()
-    dm.click(chosen or listed[0])
+    edm.click(chosen or listed[0])
     pause(0.8)
-    dm.click("Any network")
-    dm.click("OK")
+    edm.click("Any network")
+    edm.click("OK")
     pause(1.0)
     check("B77", "Any network puts it back", kept() == "", f"kept {kept()!r}")
 
 
 def new_install(origin):
-    """B63: dm as a new install has it, nothing chosen yet: a download opens its
+    """B63: EDM as a new install has it, nothing chosen yet: a download opens its
     progress window as it starts, and a Download complete window when it ends."""
     home = WORK / "new-install"
     (home / "downloads").mkdir(parents=True)
     (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "downloads"), "theme": "dark"}), encoding="utf-8")
-    dm = Dm(home)
-    dm.start()
+    edm = Dm(home)
+    edm.start()
     try:
-        dm.add(f"{origin}/files/fresh.bin")
+        edm.add(f"{origin}/files/fresh.bin")
         seen = []
         for _ in range(80):
-            seen.append(dm.dialogs())
+            seen.append(edm.dialogs())
             if "Download progress" in seen[-1]:
                 break
             time.sleep(0.1)
         check("B63", "a new install opens a download's progress window as it starts",
               "Download progress" in seen[-1], f"windows: {seen[-1]}")
-        dm.wait("fresh.bin", ("completed", "failed"), 60)
+        edm.wait("fresh.bin", ("completed", "failed"), 60)
         for _ in range(40):
-            if "Download complete" in dm.dialogs():
+            if "Download complete" in edm.dialogs():
                 break
             time.sleep(0.25)
         pause(1)
         check("B63", "and a Download complete window when it has finished",
-              "Download complete" in dm.dialogs(), f"windows: {dm.dialogs()}")
+              "Download complete" in edm.dialogs(), f"windows: {edm.dialogs()}")
         check("B63", "with Open and Open folder in it",
-              all(any(t.startswith(w) for t in dm.dialog_texts()) for w in ("Open", "Open folder")),
-              f"words: {dm.dialog_texts()[:16]}")
+              all(any(t.startswith(w) for t in edm.dialog_texts()) for w in ("Open", "Open folder")),
+              f"words: {edm.dialog_texts()[:16]}")
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
 
 
 def forgetting():
     """B70 (gaps row W17): Options › Downloads has "Forget finished downloads
-    after (days, 0 for never)"; with it set, dm opened forgets a finished
+    after (days, 0 for never)"; with it set, EDM opened forgets a finished
     download older than that, keeps a newer one, and leaves both files."""
     home = WORK / "forgetting"
     saved = home / "downloads"
@@ -2193,43 +2193,43 @@ def forgetting():
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(saved), "theme": "dark", "popups_version": 2,
         "show_progress": False, "show_complete": False, "forget_after_days": 7}), encoding="utf-8")
-    dm = Dm(home)
-    dm.start()
+    edm = Dm(home)
+    edm.start()
     try:
         for _ in range(40):
-            if dm.row("old.bin") is None:
+            if edm.row("old.bin") is None:
                 break
             time.sleep(0.25)
-        check("B70", "with 7 days set, dm opened forgets a download finished 10 days ago, keeps one of yesterday, and both files stay",
-              dm.row("old.bin") is None and dm.row("new.bin") is not None
+        check("B70", "with 7 days set, EDM opened forgets a download finished 10 days ago, keeps one of yesterday, and both files stay",
+              edm.row("old.bin") is None and edm.row("new.bin") is not None
               and (saved / "old.bin").is_file() and (saved / "new.bin").is_file(),
-              f"rows {[r['filename'] for r in dm.rows()]}")
-        dm.call("ui.window", to="shown")
+              f"rows {[r['filename'] for r in EDM.rows()]}")
+        edm.call("ui.window", to="shown")
         pause(0.6)
-        dm.open_options()
+        edm.open_options()
         for _ in range(40):
-            if "Options" in dm.dialogs():
+            if "Options" in edm.dialogs():
                 break
             time.sleep(0.1)
         pause(0.8)
-        dm.click("Downloads")
+        edm.click("Downloads")
         pause(0.8)
-        words = dm.scrolled_texts("Connections per file", turns=12)
-        dm.click("Cancel")
+        words = edm.scrolled_texts("Connections per file", turns=12)
+        edm.click("Cancel")
         pause(0.6)
         check("B70", "Options › Downloads has Forget finished downloads after (days, 0 for never), with its note",
               "Forget finished downloads after (days, 0 for never)" in words
               and any(w.startswith("A finished download leaves the list") for w in words), f"{words[-16:]}")
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
 
 
 def backing_up():
-    """B72 (gaps row W16): File › Back up dm… writes one .dmbackup of the settings and the
-    list, the sign-ins sealed with the passphrase typed twice; File › Restore… in another dm
+    """B72 (gaps row W16): File › Back up EDM… writes one .dmbackup of the settings and the
+    list, the sign-ins sealed with the passphrase typed twice; File › Restore… in another EDM
     refuses a wrong passphrase in its window, restoring nothing, then with the right one puts
     the settings in force and adds the downloads, one already listed not twice, the sign-ins
     with them."""
@@ -2251,40 +2251,40 @@ def backing_up():
 
     def opened(title):
         for _ in range(60):
-            if title in dm.dialogs():
+            if title in edm.dialogs():
                 pause(0.8)
                 return True
             time.sleep(0.25)
         return False
 
     def typed(text):
-        dm.call("ui.type", text=text)
+        edm.call("ui.type", text=text)
         pause(0.4)
 
-    backup = WORK / "dm.dmbackup"
+    backup = WORK / "EDM.dmbackup"
     home = home_of("backup-from", {"connections": 3, "site_rules": [{"host": "slow.example.com", "speed": 64}]},
                    [row(1, "kept.bin", "paused"), row(2, "signed.bin", "paused", cookies=cookie)])
-    dm = Dm(home)
-    dm.start()
+    edm = Dm(home)
+    edm.start()
     try:
-        dm.call("ui.window", to="shown")
+        edm.call("ui.window", to="shown")
         pause(0.6)
         # Chosen before the dialog opens, as Restore's below: where the desktop has no file
         # chooser (Debian in Docker), the dialog opened first offers a path to type instead,
         # and the backup went to the download folder, not here.
-        dm.call("ui.choose", path=str(backup))
-        dm.call("command.run", id="program.back_up")
-        shown = opened("Back up dm")
-        words = " ".join(dm.dialog_texts())
-        check("B72", "File › Back up dm… says what a backup holds, with Passphrase and Passphrase again",
-              shown and "One file of dm's settings" in words and "Passphrase again" in words, f"{dm.dialogs()}: {words[:200]}")
+        edm.call("ui.choose", path=str(backup))
+        edm.call("command.run", id="program.back_up")
+        shown = opened("Back up EDM")
+        words = " ".join(edm.dialog_texts())
+        check("B72", "File › Back up EDM… says what a backup holds, with Passphrase and Passphrase again",
+              shown and "One file of EDM's settings" in words and "Passphrase again" in words, f"{edm.dialogs()}: {words[:200]}")
         typed(passphrase)
-        dm.call("ui.key", key="Tab")
+        edm.call("ui.key", key="Tab")
         typed(passphrase)
-        dm.click("Back up")
+        edm.click("Back up")
         # The passphrase is stretched 600,000 rounds: seconds in a debug build.
         for _ in range(240):
-            if backup.is_file() and "Back up dm" not in dm.dialogs():
+            if backup.is_file() and "Back up EDM" not in edm.dialogs():
                 break
             time.sleep(0.25)
         text = backup.read_text(encoding="utf-8") if backup.is_file() else ""
@@ -2299,47 +2299,47 @@ def backing_up():
               f"{backup}: format {made.get('format')}, rows {len(made.get('rows', []))}, keys {sorted(made)}")
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
 
     home = home_of("backup-into", {}, [row(1, "kept.bin", "completed")])
-    dm = Dm(home)
-    dm.start()
+    edm = Dm(home)
+    edm.start()
     try:
-        dm.call("ui.window", to="shown")
+        edm.call("ui.window", to="shown")
         pause(0.6)
-        dm.call("ui.choose", path=str(backup))
-        dm.call("command.run", id="program.restore")
-        shown = opened("Restore dm")
-        words = " ".join(dm.dialog_texts())
+        edm.call("ui.choose", path=str(backup))
+        edm.call("command.run", id="program.restore")
+        shown = opened("Restore EDM")
+        words = " ".join(edm.dialog_texts())
         check("B72", "File › Restore… says what restoring does and asks for the passphrase of the sealed sign-ins",
               shown and "replace these, as OK in Options does" in words and "Passphrase" in words,
-              f"{dm.dialogs()}: {words[:200]}")
+              f"{edm.dialogs()}: {words[:200]}")
         typed("not the passphrase")
-        dm.click("Restore")
+        edm.click("Restore")
         # The passphrase is stretched 600,000 rounds before it is found wrong.
         for _ in range(240):
-            words = " ".join(dm.dialog_texts())
+            words = " ".join(edm.dialog_texts())
             if "does not open" in words:
                 break
             time.sleep(0.25)
         pause(0.5)
-        words = " ".join(dm.dialog_texts())
+        words = " ".join(edm.dialog_texts())
         check("B72", "a wrong passphrase is said in the window, which stays open, and nothing is restored",
-              "That passphrase does not open this backup’s sign-ins." in words and "Restore dm" in dm.dialogs()
-              and len(dm.rows()) == 1, f"{dm.dialogs()}: {words[-200:]}; rows {len(dm.rows())}")
-        dm.call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
+              "That passphrase does not open this backup’s sign-ins." in words and "Restore EDM" in edm.dialogs()
+              and len(edm.rows()) == 1, f"{edm.dialogs()}: {words[-200:]}; rows {len(edm.rows())}")
+        edm.call("ui.key", key="A", modifiers=["cmd" if sys.platform == "darwin" else "ctrl"])
         typed(passphrase)
-        dm.click("Restore")
+        edm.click("Restore")
         for _ in range(240):
-            if "Restore dm" not in dm.dialogs() and len(dm.rows()) >= 2:
+            if "Restore EDM" not in edm.dialogs() and len(edm.rows()) >= 2:
                 break
             time.sleep(0.25)
         pause(1.0)
-        rows = dm.rows()
-        signed = dm.row("signed.bin") or {}
-        said = dm.wait_for_text("Restored dm from", 10)
+        rows = edm.rows()
+        signed = edm.row("signed.bin") or {}
+        said = edm.wait_for_text("Restored EDM from", 10)
         check("B72", "with the right one its downloads are added, one already listed not twice, the sign-ins with them",
               len(rows) == 2 and len([r for r in rows if "kept.bin" in r.get("url", "")]) == 1
               and signed.get("state", {}).get("kind") == "paused" and signed.get("signed_in") is True and said,
@@ -2359,15 +2359,15 @@ def backing_up():
               f"connections {settings.get('connections')}, site rules {settings.get('site_rules')}")
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
 
 
 def statistics(origin):
     """B74 (gaps row W15): a running download's progress window draws its speed
     over the last five minutes, and View › Statistics opens with what has
-    finished, by day, by site and by category, and the speeds seen since dm
+    finished, by day, by site and by category, and the speeds seen since EDM
     opened; nothing new is written."""
     home = WORK / "figures"
     saved = home / "downloads"
@@ -2385,48 +2385,48 @@ def statistics(origin):
         "download_dir": str(saved), "theme": "dark", "popups_version": 2,
         "show_progress": True, "show_complete": False,
         "ask_caught_downloads": False, "ask_panel_downloads": False}), encoding="utf-8")
-    dm = Dm(home)
-    dm.start()
+    edm = Dm(home)
+    edm.start()
     try:
-        dm.add(f"{origin}/files/graph.bin")
-        dm.wait("graph.bin", ("running",), 20)
+        edm.add(f"{origin}/files/graph.bin")
+        edm.wait("graph.bin", ("running",), 20)
         for _ in range(80):
-            if "Download progress" in dm.dialogs():
+            if "Download progress" in edm.dialogs():
                 break
             time.sleep(0.1)
         pause(3)
-        words = dm.dialog_texts()
+        words = edm.dialog_texts()
         check("B74", "a running download's progress window draws its speed over the last 5 minutes",
-              "Speed over the last 5 minutes" in words, f"windows {dm.dialogs()}; words {words[:20]}")
-        dm.call("ui.key", key="Escape")
+              "Speed over the last 5 minutes" in words, f"windows {edm.dialogs()}; words {words[:20]}")
+        edm.call("ui.key", key="Escape")
         pause(0.8)
-        dm.menu("View", "Statistics")
+        edm.menu("View", "Statistics")
         for _ in range(40):
-            if "Statistics" in dm.dialogs():
+            if "Statistics" in edm.dialogs():
                 break
             time.sleep(0.1)
         pause(0.8)
-        words = dm.scrolled_texts("By category", turns=8)
+        words = edm.scrolled_texts("By category", turns=8)
         check("B74", "View › Statistics opens with the files finished, by day, by site and by category",
               all(w in words for w in ("Files finished", "Downloaded in all", "By day, the last 30 days",
                                        "By site, the 10 largest", "By category", "a.example", "b.example",
                                        "Videos", "Documents"))
               and any(w.startswith("Busiest day: ") for w in words), f"{words[:40]}")
-        check("B74", "with the average and best speed of what ran since dm opened",
+        check("B74", "with the average and best speed of what ran since EDM opened",
               "Average speed" in words and "Best speed" in words and "not measured yet" not in words,
               f"{words[-16:]}")
-        dm.call("ui.key", key="Escape")
+        edm.call("ui.key", key="Escape")
         pause(0.6)
         kept = sorted(str(p.relative_to(home)) for p in home.rglob("*"))
-        check("B74", "and nothing of it is written in dm's folder",
+        check("B74", "and nothing of it is written in EDM's folder",
               not any("statistic" in k.lower() for k in kept)
               and "statistic" not in (home / "settings.json").read_text(encoding="utf-8").lower(),
               f"{kept}")
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
 
 
 def metered_waits(origin):
@@ -2434,7 +2434,7 @@ def metered_waits(origin):
     battery: wait below" at 30, a download waits while the connection is metered, saying why on
     its row, then while the battery is below 30 %, then goes on by itself once neither holds; the
     two lines are in Options with their notes and the choices kept. The state is a stand-in a
-    debug build reads (`DM_STATE_FILE`): Windows', NetworkManager's and IOKit's own answers are
+    debug build reads (`EDM_STATE_FILE`): Windows', NetworkManager's and IOKit's own answers are
     the engine's tests' and the platform's (`metered.rs`), not this run's."""
     home = WORK / "metered"
     saved = home / "downloads"
@@ -2447,16 +2447,16 @@ def metered_waits(origin):
         "download_dir": str(saved), "theme": "dark", "popups_version": 2,
         "show_progress": False, "show_complete": False,
         "on_metered": "wait", "battery_below": 30}), encoding="utf-8")
-    os.environ["DM_STATE_FILE"] = str(state)
-    dm = Dm(home)
+    os.environ["EDM_STATE_FILE"] = str(state)
+    edm = Dm(home)
     try:
-        dm.start()
+        edm.start()
     finally:
-        os.environ.pop("DM_STATE_FILE", None)
+        os.environ.pop("EDM_STATE_FILE", None)
 
     def status():
-        r = dm.row("metered.bin") or {}
-        shown = dm.call("ui.inspect").get("result", {}).get("rows", [])
+        r = edm.row("metered.bin") or {}
+        shown = edm.call("ui.inspect").get("result", {}).get("rows", [])
         return next((x.get("status", "") for x in shown if x.get("id") == r.get("id")), "")
 
     def said_within(words, seconds):
@@ -2468,9 +2468,9 @@ def metered_waits(origin):
         return False
 
     try:
-        dm.call("downloads.add", urls=[f"{origin}/files/metered.bin"])
+        edm.call("downloads.add", urls=[f"{origin}/files/metered.bin"])
         metered = said_within("Waiting: the connection is metered", 15)
-        r = dm.row("metered.bin") or {}
+        r = edm.row("metered.bin") or {}
         check("B76", "on a metered connection with Wait, a download added waits, its row saying \"Waiting: the connection is metered\", with nothing fetched",
               metered and r.get("state", {}).get("kind") == "paused"
               and not (r.get("progress") or {}).get("downloaded"),
@@ -2480,21 +2480,21 @@ def metered_waits(origin):
         check("B76", "on the battery at 12 % with 30 set, it waits, its row saying \"Waiting: the battery is low\"",
               low, f"status {status()!r}")
         state.write_text("", encoding="utf-8")
-        r = dm.wait("metered.bin", {"completed", "failed"}, 60) or {}
+        r = edm.wait("metered.bin", {"completed", "failed"}, 60) or {}
         check("B76", "once neither holds, it goes on by itself and finishes",
               r.get("state", {}).get("kind") == "completed", f"state {r.get('state')}, status {status()!r}")
-        dm.call("ui.window", to="shown")
+        edm.call("ui.window", to="shown")
         pause(0.6)
-        dm.open_options()
+        edm.open_options()
         for _ in range(40):
-            if "Options" in dm.dialogs():
+            if "Options" in edm.dialogs():
                 break
             time.sleep(0.1)
         pause(0.8)
-        dm.click("Downloads")
+        edm.click("Downloads")
         pause(0.8)
-        words = dm.scrolled_texts("Connections per file", turns=14)
-        dm.click("Cancel")
+        words = edm.scrolled_texts("Connections per file", turns=14)
+        edm.click("Cancel")
         pause(0.6)
         joined = " ".join(words)
         check("B76", "Options › Downloads has On a metered connection (showing Wait) and On battery: wait below (%, 0 for never), each with its note",
@@ -2504,78 +2504,78 @@ def metered_waits(origin):
               and "Downloads wait while the computer runs on its battery" in joined, f"{words[-20:]}")
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
 
 
 def archive_password(origin):
     """B78 (gaps row C2b): Extract here on an archive none of the saved passwords opens asks
     for its password in "Archive password"; a wrong one is said there and the window stays
     open, and the right one, with "Keep this password" on, extracts it and closes the window.
-    The archive is the AES ZIP of dm-core's fixtures, its password "dm secret"."""
+    The archive is the AES ZIP of edm-core's fixtures, its password "EDM secret"."""
     home = WORK / "archive-password"
     saved = home / "downloads"
     saved.mkdir(parents=True)
-    locked = (ROOT / "crates" / "dm-core" / "tests" / "fixtures" / "archives" / "zip"
+    locked = (ROOT / "crates" / "edm-core" / "tests" / "fixtures" / "archives" / "zip"
               / "aes256.zip").read_bytes()
     FILES["locked.zip"] = (len(locked), 0, "plain")
     DATA["locked.zip"] = locked
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(saved), "theme": "dark", "popups_version": 2,
         "show_progress": False, "show_complete": False}), encoding="utf-8")
-    dm = Dm(home)
-    dm.start()
+    edm = Dm(home)
+    edm.start()
     try:
-        dm.call("ui.window", to="shown")
-        dm.call("downloads.add", urls=[f"{origin}/files/locked.zip"])
-        r = dm.wait("locked.zip", {"completed", "failed"}, 60) or {}
-        dm.call("ui.select", ids=[r.get("id")])
+        edm.call("ui.window", to="shown")
+        edm.call("downloads.add", urls=[f"{origin}/files/locked.zip"])
+        r = edm.wait("locked.zip", {"completed", "failed"}, 60) or {}
+        edm.call("ui.select", ids=[r.get("id")])
         pause(0.6)
-        dm.call("command.run", id="file.extract_here")
+        edm.call("command.run", id="file.extract_here")
         asked = False
         for _ in range(60):
-            if "Archive password" in dm.dialogs():
+            if "Archive password" in edm.dialogs():
                 asked = True
                 break
             time.sleep(0.25)
         pause(0.8)
         check("B78", "Extract here on a ZIP no saved password opens asks for it in \"Archive password\", with Password, Keep this password and Extract",
-              asked and all(w in dm.dialog_texts() for w in ("Password", "Keep this password", "Extract")),
-              f"dialogs {dm.dialogs()}, words {dm.dialog_texts()[:12]}")
-        dm.call("ui.type", text="wrong")
+              asked and all(w in edm.dialog_texts() for w in ("Password", "Keep this password", "Extract")),
+              f"dialogs {edm.dialogs()}, words {edm.dialog_texts()[:12]}")
+        edm.call("ui.type", text="wrong")
         pause(0.4)
-        dm.click("Extract")
-        wrong = dm.wait_for_text("That password does not open it.", 15)
+        edm.click("Extract")
+        wrong = edm.wait_for_text("That password does not open it.", 15)
         check("B78", "a wrong password is said in the window, which stays open",
-              wrong and "Archive password" in dm.dialogs(), f"dialogs {dm.dialogs()}")
-        dm.call("ui.type", text="dm secret")
+              wrong and "Archive password" in edm.dialogs(), f"dialogs {edm.dialogs()}")
+        edm.call("ui.type", text="EDM secret")
         pause(0.4)
-        dm.click("Keep this password")
-        dm.click("Extract")
+        edm.click("Keep this password")
+        edm.click("Extract")
         folder = pathlib.Path(r.get("path", "")).with_suffix("")
         end = time.time() + 30
         while time.time() < end and not (folder / "docs" / "a.txt").is_file():
             time.sleep(0.25)
         pause(0.8)
         check("B78", "the right password extracts it and the window closes",
-              (folder / "docs" / "a.txt").is_file() and "Archive password" not in dm.dialogs(),
-              f"folder {folder}, dialogs {dm.dialogs()}")
+              (folder / "docs" / "a.txt").is_file() and "Archive password" not in edm.dialogs(),
+              f"folder {folder}, dialogs {edm.dialogs()}")
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
 
 
 # The main window's title while a download runs (gaps row U16).
-TITLED = re.compile(r"\d{1,3}% · .+/s — dm")
+TITLED = re.compile(r"\d{1,3}% · .+/s — EDM")
 
 
 def told_and_titled(origin):
     """Gaps rows U16 and U23, on a home of their own. U16: while a download runs the main
-    window's title says how far and how fast ("37% · 4.1 MB/s — dm"), as the port and the
-    system read it, and it is "dm" again once nothing runs. U23 on macOS (`told_list`); Windows'
+    window's title says how far and how fast ("37% · 4.1 MB/s — EDM"), as the port and the
+    system read it, and it is "EDM" again once nothing runs. U23 on macOS (`told_list`); Windows'
     screen reader is read by `windows-a11y-check.py` and Linux's by `linux-gui-check.sh`."""
     home = WORK / "told"
     (home / "downloads").mkdir(parents=True)
@@ -2583,58 +2583,58 @@ def told_and_titled(origin):
         "download_dir": str(home / "downloads"), "theme": "dark", "popups_version": 2,
         "show_progress": False, "show_complete": False,
         "ask_caught_downloads": False, "ask_panel_downloads": False}), encoding="utf-8")
-    dm = Dm(home)
-    dm.start()
+    edm = Dm(home)
+    edm.start()
     try:
-        main_title = lambda: dm.windows().get("main_title") or ""
-        check("U16", "the main window's title is dm while nothing runs", main_title() == "dm", repr(main_title()))
-        dm.call("downloads.add", urls=[f"{origin}/files/told.bin"])
-        dm.wait("told.bin", ("running",), 20)
+        main_title = lambda: edm.windows().get("main_title") or ""
+        check("U16", "the main window's title is EDM while nothing runs", main_title() == "EDM", repr(main_title()))
+        edm.call("downloads.add", urls=[f"{origin}/files/told.bin"])
+        edm.wait("told.bin", ("running",), 20)
         shown = ""
         for _ in range(40):
             shown = main_title()
             if TITLED.fullmatch(shown):
                 break
             time.sleep(0.25)
-        check("U16", "while a download runs it says how far and how fast: 37% · 4.1 MB/s — dm",
+        check("U16", "while a download runs it says how far and how fast: 37% · 4.1 MB/s — EDM",
               bool(TITLED.fullmatch(shown)), repr(shown))
         # As the system has it: Windows' own list of the process's windows, AppKit's on macOS.
         if sys.platform == "win32":
-            seen = win32_titles(dm.proc.pid)
+            seen = win32_titles(edm.proc.pid)
         elif sys.platform == "darwin":
-            seen = [w.get("title", "") for w in (dm.call("ui.accessibility").get("result") or {}).get("windows") or []]
+            seen = [w.get("title", "") for w in (edm.call("ui.accessibility").get("result") or {}).get("windows") or []]
         else:
             seen = None
         if seen is not None:
             check("U16", "and the system's own window says it so", any(TITLED.fullmatch(t) for t in seen), f"{seen}")
         if sys.platform == "darwin":
-            told_list(dm, origin)
+            told_list(edm, origin)
         else:
             print("  (U23: read by windows-a11y-check.py on Windows and linux-gui-check.sh on Linux)", flush=True)
-        dm.call("command.run", id="downloads.stop_all")
+        edm.call("command.run", id="downloads.stop_all")
         back = ""
         for _ in range(40):
             back = main_title()
-            if back == "dm":
+            if back == "EDM":
                 break
             time.sleep(0.25)
-        check("U16", "and once nothing runs it is dm again", back == "dm", repr(back))
+        check("U16", "and once nothing runs it is EDM again", back == "EDM", repr(back))
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
 
 
-def told_list(dm, origin):
-    """Gaps row U23 on macOS, read in dm itself through NSAccessibility (`ui.accessibility`), as
+def told_list(edm, origin):
+    """Gaps row U23 on macOS, read in EDM itself through NSAccessibility (`ui.accessibility`), as
     VoiceOver is given it: the list a table named Downloads, a row for each download under the
     headings' row, each cell named; a greyed button told off; a running download's bar valued
     from 0 to 100; "X finished." and "X failed: reason" said in the status region. Not read
     here: Connections' open or shut state and a heading's sort, which AccessKit's macOS adapter
     does not give (Windows' check reads Connections)."""
     def elements():
-        got = (dm.call("ui.accessibility").get("result") or {}).get("windows") or []
+        got = (edm.call("ui.accessibility").get("result") or {}).get("windows") or []
         return next((w.get("elements", []) for w in got if is_main_title(w.get("title", ""))), [])
 
     def named(e):
@@ -2667,20 +2667,20 @@ def told_list(dm, origin):
     # The tree is built once it is asked for, and the cells are told once something reads.
     until(lambda es: [e for e in es if e.get("role") == "AXRow"])
     # Said for twelve seconds from a point of the status region of its own: read at once.
-    dm.call("downloads.add", urls=[f"{origin}/files/told-done.bin"])
-    dm.wait("told-done.bin", ("completed", "failed"), 30)
+    edm.call("downloads.add", urls=[f"{origin}/files/told-done.bin"])
+    edm.wait("told-done.bin", ("completed", "failed"), 30)
     said = until(lambda es: [named(e) for e in es if "told-done.bin finished." in named(e)], 12)
     check("U23", "\"X finished.\" is said in the status region", bool(said), f"{said}")
-    dm.call("downloads.add", urls=[f"{origin}/files/told-missing.bin"])
-    dm.wait("told-missing.bin", ("failed",), 30)
+    edm.call("downloads.add", urls=[f"{origin}/files/told-missing.bin"])
+    edm.wait("told-missing.bin", ("failed",), 30)
     said = until(lambda es: [named(e) for e in es if "told-missing.bin failed: " in named(e)], 12)
     check("U23", "and \"X failed: reason\"", bool(said), f"{said}")
 
-    dm.call("ui.select", ids=[])
+    edm.call("ui.select", ids=[])
     pause(0.8)
     now = elements()
     of = lambda role: [e for e in now if e.get("role") == role]
-    tables, cells, rows = [named(e) for e in of("AXTable")], [named(e) for e in of("AXCell")], dm.rows()
+    tables, cells, rows = [named(e) for e in of("AXTable")], [named(e) for e in of("AXCell")], edm.rows()
     check("U23", "the list is a table named Downloads", "Downloads" in tables, f"tables {tables}")
     check("U23", "a row for each download under the headings' row", len(of("AXRow")) == len(rows) + 1,
           f"{len(of('AXRow'))} rows for {len(rows)} downloads")
@@ -2691,20 +2691,20 @@ def told_list(dm, origin):
     on = [e for e in of("AXButton") if named(e) == "Add URL" and e.get("enabled") is not False]
     check("U23", "a greyed button is told off: Delete with nothing chosen, Add URL not",
           bool(off(now)) and bool(on), f"buttons {buttons(now)}")
-    done = dm.row("told-done.bin")
-    dm.call("ui.select", ids=[done["id"]] if done else [])
+    done = edm.row("told-done.bin")
+    edm.call("ui.select", ids=[done["id"]] if done else [])
     pause(0.8)
     check("U23", "and no longer once a finished download is chosen",
           bool(done) and not until(off, 5), f"buttons {buttons(elements())}")
     bars = until(valued, 10)
     check("U23", "the running download's bar has its value, 0 to 100",
-          bool(bars) and (dm.row("told.bin") or {}).get("state", {}).get("kind") == "running",
+          bool(bars) and (edm.row("told.bin") or {}).get("state", {}).get("kind") == "running",
           f"bars {[e.get('value') for e in elements() if e.get('role') == 'AXProgressIndicator']}")
 
 
 def main():
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cargo build -p {SHIPPED}")
+        sys.exit(f"no EDM at {BINARY}: cargo build -p {SHIPPED}")
     rows = re.findall(r"^\| (B\d\d) \|", CONTRACT.read_text(encoding="utf-8"), re.M)
     shutil.rmtree(WORK, ignore_errors=True)
     home = WORK / "home"
@@ -2717,26 +2717,26 @@ def main():
         "show_progress": False, "show_complete": False,
         "ask_caught_downloads": False, "ask_panel_downloads": False}), encoding="utf-8")
     origin = start_server()
-    print(f"dm: {BINARY}\nthe contract: {len(rows)} rows\nserver: {origin}", flush=True)
+    print(f"EDM: {BINARY}\nthe contract: {len(rows)} rows\nserver: {origin}", flush=True)
     # An address on the clipboard is offered in Add URL (as it should be), so
     # a run that follows a copied link saw "OK with nothing typed" with an
     # address typed. The clipboard is emptied for the walk and put back after.
     held = clipboard_held()
-    dm = Dm(home)
-    dm.start()
+    edm = Dm(home)
+    edm.start()
     stopped = None
     try:
-        walk(dm, origin)
+        walk(edm, origin)
     except NotPictured as e:   # every row after it would be reported wrongly: the run stops here
         stopped = str(e)
     except Exception as e:   # a step that broke is a failure of its row, and the rest still run
         (WORK / "walk-trace.txt").write_text(traceback.format_exc(), encoding="utf-8")
-        check("WALK", "the walk through the window ran to its end", False, repr(e) + f" dm_exit={dm.proc.poll()} " + traceback.format_exc().replace(chr(10), " | ")[-700:])
+        check("WALK", "the walk through the window ran to its end", False, repr(e) + f" edm_exit={edm.proc.poll()} " + traceback.format_exc().replace(chr(10), " | ")[-700:])
     finally:
         try:
-            dm.quit()
+            edm.quit()
         except Exception:
-            dm.proc.kill()
+            edm.proc.kill()
         clipboard_restore(held)
     if stopped:
         sys.exit(f"\nSTOPPED, no row checked: {stopped}")

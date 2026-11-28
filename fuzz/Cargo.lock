@@ -742,7 +742,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "dm-core"
+name = "dontfrag"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f949ddc2e911eaf995d2cabc132a478c73cacd1cc0a04c1f0636544b9586178d"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "tokio",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "dyn-clone"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
+
+[[package]]
+name = "edm-core"
 version = "0.10.3"
 dependencies = [
  "aes",
@@ -752,9 +770,9 @@ dependencies = [
  "chacha20poly1305",
  "crc32fast",
  "dirs",
- "dm-media",
- "dm-net",
- "dm-torrent",
+ "edm-media",
+ "edm-net",
+ "edm-torrent",
  "flate2",
  "futures-util",
  "getrandom 0.4.3",
@@ -779,23 +797,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "dm-fuzz"
+name = "edm-fuzz"
 version = "0.0.0"
 dependencies = [
- "dm-core",
- "dm-js",
- "dm-media",
- "dm-torrent",
+ "edm-core",
+ "edm-js",
+ "edm-media",
+ "edm-torrent",
  "libfuzzer-sys",
  "tempfile",
 ]
 
 [[package]]
-name = "dm-js"
+name = "edm-js"
 version = "0.10.3"
 
 [[package]]
-name = "dm-media"
+name = "edm-media"
 version = "0.10.3"
 dependencies = [
  "aes",
@@ -809,13 +827,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "dm-net"
+name = "edm-net"
 version = "0.10.3"
 dependencies = [
  "base64 0.22.1",
  "brotli-decompressor",
  "bytes",
- "dm-js",
+ "edm-js",
  "flate2",
  "futures-util",
  "getrandom 0.4.3",
@@ -836,7 +854,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dm-torrent"
+name = "edm-torrent"
 version = "0.10.3"
 dependencies = [
  "bytes",
@@ -846,24 +864,6 @@ dependencies = [
  "tokio-util",
  "url",
 ]
-
-[[package]]
-name = "dontfrag"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f949ddc2e911eaf995d2cabc132a478c73cacd1cc0a04c1f0636544b9586178d"
-dependencies = [
- "cfg-if",
- "libc",
- "tokio",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "dyn-clone"
-version = "1.0.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "either"

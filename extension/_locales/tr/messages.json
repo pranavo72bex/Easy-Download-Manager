@@ -1,24 +1,24 @@
 {
   "extName": {
-    "message": "dm — İndirme Yöneticisi"
+    "message": "EDM — İndirme Yöneticisi"
   },
   "extDescription": {
-    "message": "İndirmeleri ve videoları dm uygulamasına verir, o da onları indirir. Uygulama yoksa tarayıcı onları tutar."
+    "message": "İndirmeleri ve videoları EDM uygulamasına verir, o da onları indirir. Uygulama yoksa tarayıcı onları tutar."
   },
   "menuLink": {
-    "message": "Bağlantıyı dm ile indir"
+    "message": "Bağlantıyı EDM ile indir"
   },
   "menuMedia": {
-    "message": "Medyayı dm ile indir"
+    "message": "Medyayı EDM ile indir"
   },
   "menuAllLinks": {
-    "message": "Tüm bağlantıları dm ile indir"
+    "message": "Tüm bağlantıları EDM ile indir"
   },
   "menuSelectedLinks": {
-    "message": "Seçili bağlantıları dm ile indir"
+    "message": "Seçili bağlantıları EDM ile indir"
   },
   "popupLooking": {
-    "message": "dm uygulaması aranıyor…"
+    "message": "EDM uygulaması aranıyor…"
   },
   "popupCatch": {
     "message": "İndirmeleri yakala"
@@ -80,22 +80,22 @@
     "message": "Bu sayfadan verilecek oturum yok"
   },
   "popupOpen": {
-    "message": "dm'i aç"
+    "message": "EDM'i aç"
   },
   "popupGetApp": {
-    "message": "dm uygulamasını edinin"
+    "message": "EDM uygulamasını edinin"
   },
   "popupNoAnswer": {
-    "message": "dm uygulaması yanıt vermedi"
+    "message": "EDM uygulaması yanıt vermedi"
   },
   "popupOpening": {
-    "message": "dm açılıyor…"
+    "message": "EDM açılıyor…"
   },
   "popupIsOpen": {
-    "message": "dm açık"
+    "message": "EDM açık"
   },
   "popupConnected": {
-    "message": "dm $VERSION$ ile bağlantı kuruldu",
+    "message": "EDM $VERSION$ ile bağlantı kuruldu",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -103,7 +103,7 @@
     }
   },
   "popupConnectedOld": {
-    "message": "dm $VERSION$ ile bağlantı kuruldu · dm uygulamasını güncelleyin: o zamana kadar tarayıcı indirmelerini tutar",
+    "message": "EDM $VERSION$ ile bağlantı kuruldu · EDM uygulamasını güncelleyin: o zamana kadar tarayıcı indirmelerini tutar",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -130,13 +130,13 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm henüz bu tarayıcıya bağlı değil."
+    "message": "EDM henüz bu tarayıcıya bağlı değil."
   },
   "popupStepGet": {
-    "message": "1. Bu bilgisayarda henüz dm uygulaması yok mu? Edinin, kurun ve bir kez açın."
+    "message": "1. Bu bilgisayarda henüz EDM uygulaması yok mu? Edinin, kurun ve bir kez açın."
   },
   "popupStepOpen": {
-    "message": "2. Zaten kurulu mu? dm'yi açın (zaten açıksa yeniden açın). Bu pencere kendiliğinden bağlanır."
+    "message": "2. Zaten kurulu mu? EDM'yi açın (zaten açıksa yeniden açın). Bu pencere kendiliğinden bağlanır."
   },
   "popupAdvanced": {
     "message": "Gelişmiş: $COMMAND$",
@@ -187,7 +187,7 @@
     "message": "Tamamlananları temizle"
   },
   "popupNotAnswering": {
-    "message": "dm yanıt vermedi ($REASON$). dm'yi açın (zaten açıksa yeniden açın); bu pencere kendiliğinden yeniden dener. Hâlâ yanıt vermiyorsa: $COMMAND$",
+    "message": "EDM yanıt vermedi ($REASON$). EDM'yi açın (zaten açıksa yeniden açın); bu pencere kendiliğinden yeniden dener. Hâlâ yanıt vermiyorsa: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"
@@ -207,13 +207,13 @@
     "message": "Korumalı video"
   },
   "panelProtectedSaid": {
-    "message": "Bu video kopyalamaya karşı korumalı, bu yüzden yalnızca sitenin kendi oynatıcısı oynatabilir. dm korumalı video indirmez."
+    "message": "Bu video kopyalamaya karşı korumalı, bu yüzden yalnızca sitenin kendi oynatıcısı oynatabilir. EDM korumalı video indirmez."
   },
   "panelThroughApp": {
-    "message": "bu sayfa, dm uygulaması üzerinden"
+    "message": "bu sayfa, EDM uygulaması üzerinden"
   },
   "panelHelp": {
-    "message": "dm bu videoyu dm uygulamasıyla indirir; adını ve klasörünü orada seçersiniz. Tarayıcıda bırakma tuşu basılıyken (dm'in Seçenekler bölümünde değiştirilmediyse Alt) tıklanan bağlantı tarayıcıda kalır."
+    "message": "EDM bu videoyu EDM uygulamasıyla indirir; adını ve klasörünü orada seçersiniz. Tarayıcıda bırakma tuşu basılıyken (EDM'in Seçenekler bölümünde değiştirilmediyse Alt) tıklanan bağlantı tarayıcıda kalır."
   },
   "panelDrag": {
     "message": "Taşımak için sürükleyin"
@@ -242,22 +242,22 @@
     "message": "Kaliteler okunuyor…"
   },
   "panelReadingSaid": {
-    "message": "dm bu sayfanın video kalitelerini okuyor; bu yarım dakikaya kadar sürebilir."
+    "message": "EDM bu sayfanın video kalitelerini okuyor; bu yarım dakikaya kadar sürebilir."
   },
   "panelTimedOut": {
-    "message": "dm zamanında yanıt vermedi. Yeniden deneyin ya da videoya sağ tıklayıp “Medyayı dm ile indir” seçeneğini seçin."
+    "message": "EDM zamanında yanıt vermedi. Yeniden deneyin ya da videoya sağ tıklayıp “Medyayı EDM ile indir” seçeneğini seçin."
   },
   "panelSending": {
-    "message": "dm'e gönderiliyor…"
+    "message": "EDM'e gönderiliyor…"
   },
   "panelNotTaken": {
-    "message": "dm bunu alamadı"
+    "message": "EDM bunu alamadı"
   },
   "panelUpdated": {
-    "message": "dm güncellendi: kullanmak için bu sayfayı yeniden yükleyin"
+    "message": "EDM güncellendi: kullanmak için bu sayfayı yeniden yükleyin"
   },
   "panelSent": {
-    "message": "dm'e gönderildi"
+    "message": "EDM'e gönderildi"
   },
   "panelInBrowser": {
     "message": "Tarayıcıda indiriliyor"
@@ -289,19 +289,19 @@
     }
   },
   "panelAppReading": {
-    "message": "dm uygulaması videosu için bu sayfayı okuyor"
+    "message": "EDM uygulaması videosu için bu sayfayı okuyor"
   },
   "panelAppHas": {
-    "message": "dm uygulaması aldı"
+    "message": "EDM uygulaması aldı"
   },
   "panelAppDownloading": {
-    "message": "dm uygulaması indiriyor"
+    "message": "EDM uygulaması indiriyor"
   },
   "panelNoAnswer": {
-    "message": "dm yanıt vermedi"
+    "message": "EDM yanıt vermedi"
   },
   "panelFailed": {
-    "message": "dm yanıt vermedi. Yeniden deneyin ya da videoya sağ tıklayıp “Medyayı dm ile indir” seçeneğini seçin."
+    "message": "EDM yanıt vermedi. Yeniden deneyin ya da videoya sağ tıklayıp “Medyayı EDM ile indir” seçeneğini seçin."
   },
   "panelHls": {
     "message": "HLS akışı, en iyi kalite"
@@ -310,7 +310,7 @@
     "message": "İndir"
   },
   "toastSentMany": {
-    "message": "$COUNT$ indirme dm’e gönderildi",
+    "message": "$COUNT$ indirme EDM’e gönderildi",
     "description": "The one toast for several downloads handed to the app together.",
     "placeholders": {
       "count": {

@@ -1,7 +1,7 @@
 # Arch as a person has it, for the Chromium check run elsewhere than Debian
-# (DM_DISTRO=arch in linux-chromium-human.sh). Arch's own images are x86_64;
+# (EDM_DISTRO=arch in linux-chromium-human.sh). Arch's own images are x86_64;
 # on arm64 BASE is Arch Linux ARM (menci/archlinuxarm), as arch-check.sh
-# uses. dm is built in the Debian image and copied in. Installed: Chromium
+# uses. EDM is built in the Debian image and copied in. Installed: Chromium
 # from Arch's repositories, what the PKGBUILD depends on, Mesa for GL under
 # Xvfb, and the test's own X server, window manager, xdotool, the
 # accessibility bus and ImageMagick for screenshots.

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""The README's pictures of the window dm ships, taken from the real window.
+"""The README's pictures of the window EDM ships, taken from the real window.
 
     python3 scripts/readme-shots.py             # into docs/
     python3 scripts/readme-shots.py some/folder
 
-dm's GPUI window (`target/debug/dm-gpui`, or DM_BINARY) is started
+EDM's GPUI window (`target/debug/edm-gpui`, or EDM_BINARY) is started
 with a home of its own, in the light look and then the dark one, and given
 four downloads from a server on 127.0.0.1, as a person would have them: one
 finished, one running (its server sends it slowly), one added for later
@@ -41,7 +41,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug/edm-gpui")
 OUT = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs"
 KiB = 1024
 
@@ -94,7 +94,7 @@ class Files(http.server.BaseHTTPRequestHandler):
 class Dm:
     def __init__(self, home):
         self.home = home
-        self.proc = subprocess.Popen([str(BINARY), "--control", "0"], env=dict(os.environ, DM_HOME=str(home)),
+        self.proc = subprocess.Popen([str(BINARY), "--control", "0"], env=dict(os.environ, EDM_HOME=str(home)),
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         port = home / "control.port"
         for _ in range(200):
@@ -129,22 +129,22 @@ class Dm:
         self.proc.wait(20)
 
 
-def in_front(dm):
-    """dm's windows in front, as a person looking at them has them: a window
+def in_front(edm):
+    """EDM's windows in front, as a person looking at them has them: a window
     behind another is drawn as one not in use."""
-    dm.call("ui.window", to="shown")
+    edm.call("ui.window", to="shown")
     subprocess.run(["osascript", "-e", 'tell application "System Events" to set frontmost of '
-                    f"(first process whose unix id is {dm.proc.pid}) to true"], capture_output=True)
+                    f"(first process whose unix id is {edm.proc.pid}) to true"], capture_output=True)
     time.sleep(1.0)
 
 
-def picture_dialog(dm, title, path):
-    """A dialog's own window, pictured from the screen over the rectangle dm
+def picture_dialog(edm, title, path):
+    """A dialog's own window, pictured from the screen over the rectangle EDM
     says it stands on (`screencapture -R`, in points), once it has stopped
     fitting itself to what it holds."""
     last, steady = None, 0
     for _ in range(60):
-        shown = [d for d in dm.call("ui.windows").get("dialogs", []) if title in d.get("title", "")]
+        shown = [d for d in edm.call("ui.windows").get("dialogs", []) if title in d.get("title", "")]
         box = shown[0].get("outer") if shown else None
         steady = steady + 1 if box and box == last else 0
         last = box
@@ -164,69 +164,69 @@ def take(look, base, work):
     # so the window is pictured as a person leaves it.
     (home / "settings.json").write_text(json.dumps({
         "theme": look, "download_dir": str(downloads), "show_progress": False, "show_complete": False,
-        # The settings' edition, or dm takes its defaults: every pop-up on.
+        # The settings' edition, or EDM takes its defaults: every pop-up on.
         "popups_version": 2,
     }), encoding="utf-8")
-    dm = Dm(home)
+    edm = Dm(home)
     try:
         suffix = "" if look == "light" else "-dark"
-        dm.call("downloads.add", urls=[f"{base}/file.zip"])
-        dm.wait("file.zip", {"completed"})
-        dm.call("downloads.add", urls=[f"{base}/large.iso"])
-        running = dm.wait("large.iso", {"running"})
-        dm.call("downloads.add", urls=[f"{base}/later.mkv"], later=True)
-        dm.call("downloads.add", urls=[f"{base}/gone.iso"])
-        dm.wait("gone.iso", {"failed"})
+        edm.call("downloads.add", urls=[f"{base}/file.zip"])
+        edm.wait("file.zip", {"completed"})
+        edm.call("downloads.add", urls=[f"{base}/large.iso"])
+        running = edm.wait("large.iso", {"running"})
+        edm.call("downloads.add", urls=[f"{base}/later.mkv"], later=True)
+        edm.call("downloads.add", urls=[f"{base}/gone.iso"])
+        edm.wait("gone.iso", {"failed"})
         time.sleep(1.0)
         # A link that answers 404 says so in a window of its own: closed, as a
         # person closes it.
         # Its button says Close (it said OK).
         for _ in range(10):
-            said = [t["text"] for t in dm.call("ui.texts").get("texts", []) if t.get("window") == "dialog"]
+            said = [t["text"] for t in edm.call("ui.texts").get("texts", []) if t.get("window") == "dialog"]
             button = next((b for b in ("Close", "OK") if b in said), None)
             if button is None:
                 break
-            dm.call("ui.click", text=button)
+            edm.call("ui.click", text=button)
             time.sleep(0.5)
         # A few seconds in, so its pieces and speed show.
         time.sleep(4)
-        dm.call("ui.select", ids=[running["id"]])
-        in_front(dm)
-        shot = dm.call("ui.screenshot", name=f"readme{suffix}")
+        edm.call("ui.select", ids=[running["id"]])
+        in_front(edm)
+        shot = edm.call("ui.screenshot", name=f"readme{suffix}")
         shutil.copy(shot["path"], OUT / f"screenshot{suffix}.png")
-        dm.call("ui.click", text="large.iso", double=True)
-        in_front(dm)
-        picture_dialog(dm, "large.iso", OUT / f"progress{suffix}.png")
-        dm.call("ui.key", key="Escape")
+        edm.call("ui.click", text="large.iso", double=True)
+        in_front(edm)
+        picture_dialog(edm, "large.iso", OUT / f"progress{suffix}.png")
+        edm.call("ui.key", key="Escape")
         time.sleep(0.6)
-        dm.call("command.run", id="downloads.options")
-        in_front(dm)
-        picture_dialog(dm, "Options", OUT / f"settings{suffix}.png")
-        dm.call("ui.key", key="Escape")
+        edm.call("command.run", id="downloads.options")
+        in_front(edm)
+        picture_dialog(edm, "Options", OUT / f"settings{suffix}.png")
+        edm.call("ui.key", key="Escape")
         time.sleep(0.6)
         # Add URL and the Scheduler, as the README's gallery shows them: in the dark look.
         if look == "dark":
             for command, title, name in (("program.add_url", "Add URL", "addurl"),
                                          ("downloads.scheduler", "Scheduler", "scheduler")):
-                dm.call("command.run", id=command)
-                in_front(dm)
-                picture_dialog(dm, title, OUT / f"{name}{suffix}.png")
-                dm.call("ui.key", key="Escape")
+                edm.call("command.run", id=command)
+                in_front(edm)
+                picture_dialog(edm, title, OUT / f"{name}{suffix}.png")
+                edm.call("ui.key", key="Escape")
                 time.sleep(0.6)
     finally:
-        dm.quit()
+        edm.quit()
 
 
 def main():
     if sys.platform != "darwin":
-        sys.exit("the README's pictures are taken on macOS, where dm's window is pictured by the system")
+        sys.exit("the README's pictures are taken on macOS, where EDM's window is pictured by the system")
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cargo build -p dm-gpui")
+        sys.exit(f"no EDM at {BINARY}: cargo build -p edm-gpui")
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Files)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_address[1]}/files"
     OUT.mkdir(parents=True, exist_ok=True)
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-readme-"))
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-readme-"))
     try:
         for look in ("light", "dark"):
             take(look, base, work)

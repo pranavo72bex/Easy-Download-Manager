@@ -7,14 +7,14 @@ copy several links while **Options › General › Offer to download links I
 copy** is on, and click **Download…** on the offer above the list (or at
 once, with **Take a copied link at once, without offering it first**).
 
-On a phone, sharing several links to dm from another app opens the same list
-as **Links shared with dm**, so you pick which to download; one shared link is
+On a phone, sharing several links to EDM from another app opens the same list
+as **Links shared with EDM**, so you pick which to download; one shared link is
 added at once.
 
 If the clipboard holds no link, the window does not open and the status bar
 says "There are no links on the clipboard."
 
-dm finds links in plain text, in lists, in a page's source and in a
+EDM finds links in plain text, in lists, in a page's source and in a
 `.url` or `.webloc` file's text. A link that starts with `http://`,
 `https://`, `ftp://`, `magnet:?` or a stream address is taken.
 
@@ -24,15 +24,15 @@ dm finds links in plain text, in lists, in a page's source and in a
   ("Found 5 links; 4 ticked.").
 - **Check all** and **Uncheck all:** tick or untick every link.
 - The list: each link with a tick box. Every link is ticked except one
-  already in dm's list, which says "(already in the list)".
+  already in EDM's list, which says "(already in the list)".
 - **Save to:**
-  - **Each file to the folder of its category:** as dm sorts any download.
+  - **Each file to the folder of its category:** as EDM sorts any download.
   - **Every file to this category:** every file to the folder of the kind
     picked beside it.
   - **Every file to this folder:** every file to the folder typed beside it,
     or chosen with **Browse…**. Typing in the field picks this choice. A
     name alone is a folder in the download folder, and a folder that is not
-    there yet is made. With no folder typed dm says "Choose the folder
+    there yet is made. With no folder typed EDM says "Choose the folder
     every file goes to."
 - **Add for later:** adds the ticked links to the Main queue without
   starting them.

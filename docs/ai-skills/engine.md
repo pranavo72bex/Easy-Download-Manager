@@ -1,7 +1,7 @@
 # The download engine
 
-`crates/dm-core` downloads (HTTP ranges over several connections, FTP, HLS and DASH video,
-torrents, archives), `crates/dm-net` speaks HTTP and TLS, `crates/dm-shell` is the
+`crates/edm-core` downloads (HTTP ranges over several connections, FTP, HLS and DASH video,
+torrents, archives), `crates/edm-net` speaks HTTP and TLS, `crates/edm-shell` is the
 application's rules around them. Read `AGENTS.md` ("Rules for a change", "Glossary") and
 `docs/how-it-works.md` for the part you touch.
 
@@ -9,18 +9,18 @@ application's rules around them. Read `AGENTS.md` ("Rules for a change", "Glossa
 
 - Never report a download `Completed` for bytes that were not all received and finalised.
 - Never let a name from a server or a page escape the download folder (path traversal).
-- Where a person's files live is asked of `dm_core::folders` alone.
+- Where a person's files live is asked of `edm_core::folders` alone.
 - No `unwrap`, `expect` or `panic` in shipped code; a new reader of outside input gets a
   property test in its crate's `tests/fuzz.rs`.
-- Log with `dm_core::note!(error | warn | info, "…", values)`, never `eprintln!`. A wait or a
+- Log with `edm_core::note!(error | warn | info, "…", values)`, never `eprintln!`. A wait or a
   timeout is a named `const` with a doc comment.
 
 ## How to test
 
-- Reproduce first: a failing test against the local server in `crates/dm-core/tests/common`
-  (shared helpers in `crates/dm-test-support`), never a real site.
-- `cargo nextest run -p dm-core -E 'test(~WORDS)'`; the server zoo:
-  `cargo test -p dm-core --test zoo`.
+- Reproduce first: a failing test against the local server in `crates/edm-core/tests/common`
+  (shared helpers in `crates/edm-test-support`), never a real site.
+- `cargo nextest run -p edm-core -E 'test(~WORDS)'`; the server zoo:
+  `cargo test -p edm-core --test zoo`.
 - Tests write only in their own temporary directories and reach only 127.0.0.1.
 
 ## Traps
@@ -33,7 +33,7 @@ application's rules around them. Read `AGENTS.md` ("Rules for a change", "Glossa
 ## Lessons
 
 - 2026-11-24: watch_estimating takes 5 arguments including downloaded_per_network: Option[ArcAtomicU64; 3], and Progress struct requires the per_network field.
-- 2026-11-25: In dm-js, Interp stores program: VecStmt and temporarily takes ownership via std::mem::take during evaluation to satisfy borrow checking without leaking memory via Box::leak.
+- 2026-11-25: In edm-js, Interp stores program: VecStmt and temporarily takes ownership via std::mem::take during evaluation to satisfy borrow checking without leaking memory via Box::leak.
 - 2026-11-26: The bot's summary claimed to add info_hash, name fields and magnet() method to Metainfo struct, but compilation errors show the struct only has trackers and info fields - the claimed changes were not actually
 - 2026-11-26: The HLS segment streaming fix introduced a clippy redundant closure error: use stream.map_err(std::io::Error::other) not stream.map_err(|e| std::io::Error::other(e)).
 - 2026-11-27: engine: failing tests show that download tasks must be spawned after the network client is ready, otherwise they deadlock.

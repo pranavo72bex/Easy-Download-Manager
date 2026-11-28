@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Whether a bot's pull request keeps every contract row main keeps (scripts/ai-merge.sh).

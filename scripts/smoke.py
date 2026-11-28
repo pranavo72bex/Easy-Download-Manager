@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Smoke test of an installed dm, the same on Linux, Windows and macOS:
+"""Smoke test of an installed EDM, the same on Linux, Windows and macOS:
 
-    python3 scripts/smoke.py /path/to/installed/dm-gpui
+    python3 scripts/smoke.py /path/to/installed/edm-gpui
 
 What a release's installer has to get right before anything else: the
 installed binary starts, answers a browser as its native host, opens its
@@ -51,7 +51,7 @@ def ok(what):
 
 
 class Files(http.server.BaseHTTPRequestHandler):
-    """One file, with ranges, so dm can split it across connections."""
+    """One file, with ranges, so EDM can split it across connections."""
 
     protocol_version = "HTTP/1.1"
 
@@ -89,7 +89,7 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 def native_host(env):
-    """A browser's first message to its native host, and dm's answer."""
+    """A browser's first message to its native host, and EDM's answer."""
     hello = json.dumps({"protocolVersion": 1, "type": "engine.hello"}).encode()
     # Pipes named, not capture_output: Python 3.6 (openSUSE Leap's) has none.
     done = subprocess.run([str(BINARY), "--native-host"], input=struct.pack("<I", len(hello)) + hello,
@@ -122,16 +122,16 @@ def window(env):
 
 
 def launch(argv, env):
-    """dm started in a process group of its own, so stopping it stops what
-    it started: an AppImage is a wrapper that runs dm as its child, and a
-    signal to the wrapper alone left that dm running, which the next launch
+    """EDM started in a process group of its own, so stopping it stops what
+    it started: an AppImage is a wrapper that runs EDM as its child, and a
+    signal to the wrapper alone left that EDM running, which the next launch
     then handed over to and quit (0.2.0's CI)."""
     extra = {"start_new_session": True} if os.name == "posix" else {}
     return subprocess.Popen(argv, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, **extra)
 
 
 def stop(app):
-    """Ends dm and everything in its group, then waits for it."""
+    """Ends EDM and everything in its group, then waits for it."""
     if app.poll() is not None:
         return
     if os.name == "posix":
@@ -150,18 +150,18 @@ def stop(app):
             os.killpg(app.pid, signal.SIGKILL)
         else:
             app.kill()
-    # The group's other members (the AppImage's dm) a moment to go.
+    # The group's other members (the AppImage's EDM) a moment to go.
     time.sleep(1)
 
 
 def main():
     if BINARY is None or not BINARY.exists():
-        fail(f"no dm at {BINARY}")
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-smoke-"))
+        fail(f"no EDM at {BINARY}")
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-smoke-"))
     home, out = work / "home", work / "downloads"
     home.mkdir()
     (home / "settings.json").write_text(json.dumps({"download_dir": str(out), "connections": 4}), encoding="utf-8")
-    env = dict(os.environ, DM_HOME=str(home))
+    env = dict(os.environ, EDM_HOME=str(home))
     server = Server(("127.0.0.1", 0), Files)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     app = None
@@ -170,16 +170,16 @@ def main():
         window(env)
 
         # The window check above was ended hard, which leaves its port file
-        # behind: the new dm's port is waited for, not the old one read.
+        # behind: the new EDM's port is waited for, not the old one read.
         port_file = home / "control.port"
         port_file.unlink(missing_ok=True)
         app = launch([str(BINARY), "--headless", "--control", "0"], env)
         deadline = time.time() + 60
         while not (port_file.exists() and port_file.read_text(encoding="utf-8").strip()):
             if app.poll() is not None:
-                fail(f"dm exited at start ({app.returncode}): {app.stderr.read().decode(errors='replace')[:500]}")
+                fail(f"EDM exited at start ({app.returncode}): {app.stderr.read().decode(errors='replace')[:500]}")
             if time.time() > deadline:
-                fail("dm never opened its control port")
+                fail("EDM never opened its control port")
             time.sleep(0.1)
         ok("starts with no window")
 
@@ -212,7 +212,7 @@ def main():
             stop(app)
         server.shutdown()
         shutil.rmtree(work, ignore_errors=True)
-    print("the installed dm works")
+    print("the installed EDM works")
 
 
 main()

@@ -8,7 +8,7 @@ nothing.
 The app (`crates/`) is the product and does the
 downloading; the browser extension catches downloads and hands them to it,
 and downloads nothing itself — with no app, the browser keeps its downloads.
-Everything is Rust: the extension is `crates/dm-catcher/` compiled to WebAssembly. Its
+Everything is Rust: the extension is `crates/edm-catcher/` compiled to WebAssembly. Its
 background and popup scripts are written by `scripts/package.sh` with the
 WebAssembly in them, so Rust registers the listeners on the worker's first
 turn (`web/listen.rs`); only the two page scripts (`content.js`,
@@ -16,8 +16,8 @@ turn (`web/listen.rs`); only the two page scripts (`content.js`,
 in-browser downloader) was removed on 2026-10-12 and is in git history.
 
 ## Core downloader
-- [x] A certificate failure is said by its cause, each with what to do and never a way around it: expired (the site must renew it; many sites, the computer's clock), not valid yet (the clock), for another site (the address; someone in between on a public network), from an issuer dm does not trust (a network that inspects traffic); any other, "couldn't be checked" (`format/reasons.rs`; `a_certificate_failure_is_said_by_its_cause`; `docs/guide/failures.md`; gaps row H8, closed 2026-11-24)
-- [x] A host that copies another in letters of another alphabet (a Cyrillic "а" in "apple.com") is shown in its `xn--` form everywhere an address is shown (`shown_url`), and Add URL (as it is typed) and Download details say "Look-alike letters from another alphabet: the real name is …"; an honest name in another alphabet (Russian under ".рф", German with umlauts) is shown as written (`dm-core/src/lookalike.rs`, two tests; `a_lookalike_address_is_said_in_add_url`; gaps row H7, closed 2026-11-24)
+- [x] A certificate failure is said by its cause, each with what to do and never a way around it: expired (the site must renew it; many sites, the computer's clock), not valid yet (the clock), for another site (the address; someone in between on a public network), from an issuer EDM does not trust (a network that inspects traffic); any other, "couldn't be checked" (`format/reasons.rs`; `a_certificate_failure_is_said_by_its_cause`; `docs/guide/failures.md`; gaps row H8, closed 2026-11-24)
+- [x] A host that copies another in letters of another alphabet (a Cyrillic "а" in "apple.com") is shown in its `xn--` form everywhere an address is shown (`shown_url`), and Add URL (as it is typed) and Download details say "Look-alike letters from another alphabet: the real name is …"; an honest name in another alphabet (Russian under ".рф", German with umlauts) is shown as written (`edm-core/src/lookalike.rs`, two tests; `a_lookalike_address_is_said_in_add_url`; gaps row H7, closed 2026-11-24)
 - [x] The last range still fetching, quiet for 1.5 s while another range ended after its last byte, is dropped and asked again rather than waited on: `bench/` `tailstall` (one answer stopped for 20 s once 90% is served) from 23.5 s to 5.0 s on the M1, `per_conn` and `flaky` unchanged (`ranged/helping.rs` `holds_the_end`; `tests/halving.rs` `a_range_stalled_at_the_end_is_asked_again_within_moments`; gaps row K1, closed 2026-11-24)
 - [x] A browser download whose signed address expired waits for a fresh one (`Entry::fresh_link`, saved with the row) and the browser's next hand-over of the same file, matched by name, exact size and family of servers, takes its place and resumes from the staged parts (`DownloadList::adopt_fresh_link`; `fresh_link.rs`)
 - [x] Every seam between ranges is fetched again over a fresh request and compared, 512 bytes a side, once, by whichever of its two ranges is whole second, while the download goes on, and the file's last 512 bytes once; so each range's end is looked at in the same request as the next range's start (ENG-D12, clean-room). A range's own checks, two at most, are asked at once, so the range whole last waits one round trip for them, not two. Bytes that differ, or the whole file answered under the validator, restart the file on one connection and the row says why (`download/assemble.rs` `check_seams`; `seam_check.rs`, `each_seam_is_asked_for_once_across_it_and_the_files_end_once`, `a_ranges_own_checks_are_asked_at_once`)
@@ -30,13 +30,13 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
 - [x] A small picture of the file's kind before each row's name, told apart by shape (play mark, note, lines, window, zip, hill and sun; none for other files) and not by colour alone (`icons.rs` `kind_shapes`; two unit tests; contract row B45)
 - [x] A double-click on a download that is running, waiting or stopped opens its progress window, whose title starts with how far it is (`37% Download progress — name`) and counts as it runs (`table.rs`; `dialogs/progress.rs` `title_with_percent`, three unit tests; `tests/window/dialogs.rs`; contract row B46)
 - [x] Add URL's Recent list keeps no address that carries a token, signature, key, password or session in its query, and offers none already kept (`dialogs/add.rs` `query_carries_a_secret`; contract row B47)
-- [x] Downloads that are a form's answer (POST): the form kept by the extension and sent again once by dm, in memory only (`cookies::Posted`, `SignIn::posting`, `download::with_form`, `decide::Forms`)
+- [x] Downloads that are a form's answer (POST): the form kept by the extension and sent again once by EDM, in memory only (`cookies::Posted`, `SignIn::posting`, `download::with_form`, `decide::Forms`)
 - [x] A link's `download` attribute names its file, from the page's links (`Batch.names`, `decide::link_names`)
 - [x] YouTube lines at two frame rates for one height, as reference A's (`choices`, `page_data::choices_of_player`, `Quality::frame_rate_of`, `youtube::choose`)
 - [x] A page with no title names its video from `og:title` (`decide::page_title`)
 - [x] Download links: Add for later to the queue chosen (`LinksImport::queue`)
-- [x] Windows' firewall question at the first torrent said on the row (`dm_shell::firewall::may_ask`), and what it is for in Options
-- [x] Options › Browser: the browsers dm takes from and the right-click menu's items, each chosen (`CatchRules::off_browsers`, `hidden_menus`, `browser_named`)
+- [x] Windows' firewall question at the first torrent said on the row (`edm_shell::firewall::may_ask`), and what it is for in Options
+- [x] Options › Browser: the browsers EDM takes from and the right-click menu's items, each chosen (`CatchRules::off_browsers`, `hidden_menus`, `browser_named`)
 - [x] Grabber: size filters, templates, the saved sign-in said, a Grabber projects node (`Search::min_kb`/`max_kb`, `lists::within_sizes`, `Dialogs::open_site_files_with`)
 - [x] Caption files as list lines: YouTube's tracks fetched as TTML, a page's own caption files (`page_data::caption_lines`, `youtube::caption_reading`, `Quality::caption_of`, `decide::page_lines` `add_captions`)
 - [x] A YouTube channel's address or tab, and a YouTube Music playlist, open the Playlist dialog with the channel's uploads or the list's videos (`youtube::channel_of`, `youtube::is_list`; `youtube_cover.rs` `a_channels_uploads_and_a_music_playlist_are_read_as_playlists`; contract row B02)
@@ -44,23 +44,23 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
 - [x] The video bar below a fixed header and compact on narrow videos (`decide::visible_box`, `panel_size`, `show::bar_over_top`)
 - [x] Help menu with reference A's items and a Tip of the day dialog; a user guide (`docs/user-guide.md`)
 - [x] Start downloading while Download details is open (`Settings::start_while_asking`, `DownloadList::settle_early`)
-- [x] Edge checks for the seven magnet variants and a master playlist's line (`DM_NO_SWARM` keeps the check's torrents off the network)
+- [x] Edge checks for the seven magnet variants and a master playlist's line (`EDM_NO_SWARM` keeps the check's torrents off the network)
 - [x] Served site rules name a title element (`SiteProfile::title`, `Rules::title_for`, `content.js` `dmTitleRule`)
 - [x] "Download links" as reference A's: Save to column and choice, Hide images, Hide repeated files, Edit (`dialogs/links.rs`, `LinksImport::visible`, `SaveTo`)
-- [x] Who opens magnet links and `.torrent` files, shown in Options › Browser on Windows, with Use dm (the other program's keys kept by `reg export`) and Give back (`register.rs` `magnet_owner`, `take_magnet_windows`, `give_back_magnet_windows`); a magnet opened through dm's key becomes a row in the running dm (`dm-desktop/tests/magnet_registry.rs`, run on Windows 11 on 2026-11-10); a copied link taken at once where that is on (`app/clipboard.rs`)
-- [x] Windows: dm listed in Settings › Default apps for magnet links and `.torrent` files, with ProgIds of its own, taking nothing from another program (`register.rs` `default_apps_keys`, `list_in_default_apps`, `unlist_from_default_apps`; tests `dm_is_listed_in_default_apps_with_keys_of_its_own_alone`, `taken_out_of_default_apps_only_dms_own_keys_are_deleted`); not yet seen in Windows' Settings by a person
-- [x] macOS: `magnet:` links and `.torrent` files open dm (Info.plist `CFBundleURLTypes` and `CFBundleDocumentTypes`; `opened.rs` takes the `GURL` and `odoc` Apple events from the event manager once AppKit says the app will finish launching; `shell::opened_by_system`, tested in `shell/tests.rs`). Clicked on a Mac with dm.app installed in /Applications on 2026-11-07: a magnet and a `.torrent` each started a download, with dm closed and with it running (gaps row 105, closed)
+- [x] Who opens magnet links and `.torrent` files, shown in Options › Browser on Windows, with Use EDM (the other program's keys kept by `reg export`) and Give back (`register.rs` `magnet_owner`, `take_magnet_windows`, `give_back_magnet_windows`); a magnet opened through EDM's key becomes a row in the running EDM (`edm-desktop/tests/magnet_registry.rs`, run on Windows 11 on 2026-11-10); a copied link taken at once where that is on (`app/clipboard.rs`)
+- [x] Windows: EDM listed in Settings › Default apps for magnet links and `.torrent` files, with ProgIds of its own, taking nothing from another program (`register.rs` `default_apps_keys`, `list_in_default_apps`, `unlist_from_default_apps`; tests `edm_is_listed_in_default_apps_with_keys_of_its_own_alone`, `taken_out_of_default_apps_only_dms_own_keys_are_deleted`); not yet seen in Windows' Settings by a person
+- [x] macOS: `magnet:` links and `.torrent` files open EDM (Info.plist `CFBundleURLTypes` and `CFBundleDocumentTypes`; `opened.rs` takes the `GURL` and `odoc` Apple events from the event manager once AppKit says the app will finish launching; `shell::opened_by_system`, tested in `shell/tests.rs`). Clicked on a Mac with EDM.app installed in /Applications on 2026-11-07: a magnet and a `.torrent` each started a download, with EDM closed and with it running (gaps row 105, closed)
 - [x] Torrents: peers connected and known and the bytes sent in the progress window; files chosen in Properties (`only_files`), those left out not moved in; a peer blocklist in Options › Advanced › BitTorrent, fetched through the proxy, failing closed (`torrent.rs` `Swarm`, `TorrentFile`, `blocklist_file`; `tests/torrent_features.rs`)
 - [x] The Scheduler lists the queues, each with hours of its own or the Main queue's, weekly or once on a date, with Start now and Stop; Start Queue and Stop Queue list the queues in the Downloads menu and beside the toolbar buttons (`dialogs/speed_schedule.rs` `SchedulerDraft`, `app/menus.rs` `queue_items`; `tests/window/speed_schedule.rs`, `tests/window/commands.rs`; contract rows B64, B65)
-- [x] The Scheduler chooses what dm does when the scheduled downloads are done (nothing, exit, sleep, hibernate, shut down, through the cancellable countdown) and how many times a failed download is tried again (`app/scheduled.rs`, four unit tests; `tests/window/choices.rs`; contract row B49)
+- [x] The Scheduler chooses what EDM does when the scheduled downloads are done (nothing, exit, sleep, hibernate, shut down, through the cancellable countdown) and how many times a failed download is tried again (`app/scheduled.rs`, four unit tests; `tests/window/choices.rs`; contract row B49)
 - [x] A listed address asks Show it / Resume it, Download again, Replace the old file, Cancel, with Remember my choice kept in Options › General (`dialogs/add.rs` `Dup`; `tests/window/choices.rs`; contract row B50)
-- [x] Options › Advanced shows the name dm sends to servers with an Identify as dm only switch (`dm_core::set_identify_as_dm`; `dm-core/tests/identify_as.rs`; contract row B51)
-- [x] A User-Agent and request headers of the person's own, for one download (File properties) or for a site (Options › Advanced › site rules), sent on every request in place of dm's own name (`dm_core::cookies::kept_headers`, `SignIn::agent`; `dm-core/tests/headers.rs` `a_user_agent_and_headers_of_the_persons_own_go_on_every_request`, window tests `properties_keep_a_downloads_own_user_agent_and_headers` and `a_site_rule_set_in_options_…`; contract row B51)
+- [x] Options › Advanced shows the name EDM sends to servers with an Identify as EDM only switch (`edm_core::set_identify_as_dm`; `edm-core/tests/identify_as.rs`; contract row B51)
+- [x] A User-Agent and request headers of the person's own, for one download (File properties) or for a site (Options › Advanced › site rules), sent on every request in place of EDM's own name (`edm_core::cookies::kept_headers`, `SignIn::agent`; `edm-core/tests/headers.rs` `a_user_agent_and_headers_of_the_persons_own_go_on_every_request`, window tests `properties_keep_a_downloads_own_user_agent_and_headers` and `a_site_rule_set_in_options_…`; contract row B51)
 - [x] The tray's Speed menu has Settings… (contract row B52); the Downloads menu's Speed limiter On/Off and Settings… already existed
 - [x] A running download's Connections section names each piece's own speed (contract row B53), and a failed download's window and Properties say one next step under the reason where the reason stops at what went wrong (row B54). Written 2026-11-01, not yet built or run.
-- [x] The browser panel's video list takes a part of the video: a "Part" line (start and end) whose times reach Download details filled in (contract row B59). Evidence: unit tests (`dm-protocol` `a_start_carries_the_part_of_a_video_and_an_older_one_has_none`, `dm-shell` host `the_part_asked_for_in_the_panel_reaches_the_app...`, `browser` `the_panels_part_line_hands_over_a_time_and_nothing_else`) and the window test `a_part_asked_for_in_the_browsers_panel_fills_download_details`. Run on real pages on Windows in Microsoft Edge, 2026-11-08 (`scripts/part-check.py`, the part 0:02 to 0:06): the hls.js demo playing Mux's HLS test stream, through the Part line, gave a 10.0 s file (a transport stream is joined at the pieces the part overlaps); dash.js's player of Akamai's DASH Big Buck Bunny, through the Part line and through Download details, gave 4.0 s; W3C's media page playing a plain MP4, whose file the panel hands without a list, gave 4.0 s through Download details; each with picture and sound. A page whose player loaded one stream gets it at once from the panel, its part set in Download details, which opens for it. Not cut: a WebM DASH pair is joined at its nearest pieces, not trimmed; a plain MP4 whose server gives no ranges or no length is refused (gaps row 45, closed). Found on the way and fixed: a part typed was dropped where Download details was off.
-- [x] "Copy details" on a failed download puts a support block with no secret in it on the clipboard (contract row B55). Evidence: unit tests in `crates/dm-desktop-base/src/view/details.rs` (`a_row_carrying_a_login_and_a_token_gives_away_neither`, `the_block_says_the_version_the_system_the_state_and_the_disk`, `a_status_is_read_from_the_words_and_not_from_an_address`, `an_address_in_a_reason_is_cut_to_its_host`, `a_finished_or_running_row_has_no_reason_line`); the clipboard check is `scripts/human-qa.py` B55. Written, not yet built or tested.
-- [x] Site rules served by the app (gaps rows 68, 69): `Rules::parse`, `Rules::newest`, `answers_for` (`dm-protocol/src/rules.rs` tests), the shipped and the home `rules.json` (`dm-shell/src/host/served.rs` tests, `host/tests.rs` `a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them`), the extension's merge (`crates/dm-catcher/src/decide/excluded.rs` and `rules.rs` tests) and the answer reader (`crates/dm-catcher/src/decide/answers.rs` tests). The update check fetches a `rules` entry of `latest.json` (`dm-desktop/src/update.rs` `rules_in`, `fetch_rules`; `dm-shell` `served::adopt`; tests in both). Written, not yet built or tested; no site has a rule yet.
+- [x] The browser panel's video list takes a part of the video: a "Part" line (start and end) whose times reach Download details filled in (contract row B59). Evidence: unit tests (`edm-protocol` `a_start_carries_the_part_of_a_video_and_an_older_one_has_none`, `edm-shell` host `the_part_asked_for_in_the_panel_reaches_the_app...`, `browser` `the_panels_part_line_hands_over_a_time_and_nothing_else`) and the window test `a_part_asked_for_in_the_browsers_panel_fills_download_details`. Run on real pages on Windows in Microsoft Edge, 2026-11-08 (`scripts/part-check.py`, the part 0:02 to 0:06): the hls.js demo playing Mux's HLS test stream, through the Part line, gave a 10.0 s file (a transport stream is joined at the pieces the part overlaps); dash.js's player of Akamai's DASH Big Buck Bunny, through the Part line and through Download details, gave 4.0 s; W3C's media page playing a plain MP4, whose file the panel hands without a list, gave 4.0 s through Download details; each with picture and sound. A page whose player loaded one stream gets it at once from the panel, its part set in Download details, which opens for it. Not cut: a WebM DASH pair is joined at its nearest pieces, not trimmed; a plain MP4 whose server gives no ranges or no length is refused (gaps row 45, closed). Found on the way and fixed: a part typed was dropped where Download details was off.
+- [x] "Copy details" on a failed download puts a support block with no secret in it on the clipboard (contract row B55). Evidence: unit tests in `crates/edm-desktop-base/src/view/details.rs` (`a_row_carrying_a_login_and_a_token_gives_away_neither`, `the_block_says_the_version_the_system_the_state_and_the_disk`, `a_status_is_read_from_the_words_and_not_from_an_address`, `an_address_in_a_reason_is_cut_to_its_host`, `a_finished_or_running_row_has_no_reason_line`); the clipboard check is `scripts/human-qa.py` B55. Written, not yet built or tested.
+- [x] Site rules served by the app (gaps rows 68, 69): `Rules::parse`, `Rules::newest`, `answers_for` (`edm-protocol/src/rules.rs` tests), the shipped and the home `rules.json` (`edm-shell/src/host/served.rs` tests, `host/tests.rs` `a_hello_serves_the_site_rules_and_a_newer_file_in_the_home_replaces_them`), the extension's merge (`crates/edm-catcher/src/decide/excluded.rs` and `rules.rs` tests) and the answer reader (`crates/edm-catcher/src/decide/answers.rs` tests). The update check fetches a `rules` entry of `latest.json` (`edm-desktop/src/update.rs` `rules_in`, `fetch_rules`; `edm-shell` `served::adopt`; tests in both). Written, not yet built or tested; no site has a rule yet.
 - [x] Find previous, Shift-F3, in the Downloads menu beside Find next, wrapping round from the first row to the last (`app/search.rs` `next_match`, five unit tests; `tests/window/lists.rs`; contract row B48)
 - [x] HTTP/HTTPS downloading
 - [x] Multi-connection downloading — and a limit of a site's own (Options ›
@@ -114,10 +114,10 @@ in-browser downloader) was removed on 2026-10-12 and is in git history.
       sparse file (gaps row 166, `tests/by_range.rs`)
 
 ## Browser integration
-- [x] The toolbar popup lists what dm is fetching and its last failure (gaps row U18, 2026-11-16): the window writes `going.json` (`dm_shell::app::going`), the host answers `downloads.list` from it (`feature::LISTS_DOWNLOADS`), the popup asks every 2 s while open; not connected is one line, two steps and the command folded under them, connecting by itself, with "!" on the toolbar icon (`decide::badge`). Checked by `chrome-check.py` (the list, the steps, the badge, reconnecting with the popup open) and `going/tests.rs`, `host::tests::the_popup_is_told_what_the_window_is_fetching`.
-- [x] The toolbar popup's recent downloads and buttons (gaps row C12, 2026-11-23): Stop beside each running download; under "Recent", the ten stopped or finished last with Open and Open folder, Resume or Retry; Clear finished. `downloads.act` (`feature::ACTS_ON_DOWNLOADS`) is left in the inbox and done by the window's own commands where they apply (`app::going::command_for`, `run::session::asked`). Checked by `dm-protocol` tests (old app with new extension, new app with old extension), `going/tests.rs`, `host::tests::the_popups_ask_is_left_for_the_window`, `run::session::tests::the_popups_asks_are_the_windows_own_commands` and the catcher's `the_popup_gives_each_download_what_can_be_done_to_it`; not yet clicked in a browser.
-- [x] The extension does the bare minimum and the app decides (gaps row A22, 2026-11-15): the app's hello serves the right-click menu (`served_menus`, items named by mechanism, `menu_does`), a click on an item the app added goes to it (`menu.clicked`, `host::menu_start`), each caught download is judged by the app's rules as saved now (`catch.judge`, `Judge::judged_by`), the app may send the browser's words (`Notice`, `Hello::status`) and makes the panel's list (`media.streams`, `dm_protocol::media::panel_list`); each by a `feature` name, so an older side on either end goes on as before. Extension 3.5.0's frames frozen (`tests/wire/extension-3.5.0.json`), answered by the app (`every_frame_a_released_extension_sends_is_answered`) and read by the extension (`the_app_drives_the_menu_the_catch_its_words_and_the_panel_list`, `decide/contract/tests.rs`). Held to 95% line coverage per file before a merge (`scripts/contract-coverage.py`, CI): 97.8% of 6,345 lines.
-- [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`crates/dm-catcher/src/decide/excluded.rs`)
+- [x] The toolbar popup lists what EDM is fetching and its last failure (gaps row U18, 2026-11-16): the window writes `going.json` (`edm_shell::app::going`), the host answers `downloads.list` from it (`feature::LISTS_DOWNLOADS`), the popup asks every 2 s while open; not connected is one line, two steps and the command folded under them, connecting by itself, with "!" on the toolbar icon (`decide::badge`). Checked by `chrome-check.py` (the list, the steps, the badge, reconnecting with the popup open) and `going/tests.rs`, `host::tests::the_popup_is_told_what_the_window_is_fetching`.
+- [x] The toolbar popup's recent downloads and buttons (gaps row C12, 2026-11-23): Stop beside each running download; under "Recent", the ten stopped or finished last with Open and Open folder, Resume or Retry; Clear finished. `downloads.act` (`feature::ACTS_ON_DOWNLOADS`) is left in the inbox and done by the window's own commands where they apply (`app::going::command_for`, `run::session::asked`). Checked by `edm-protocol` tests (old app with new extension, new app with old extension), `going/tests.rs`, `host::tests::the_popups_ask_is_left_for_the_window`, `run::session::tests::the_popups_asks_are_the_windows_own_commands` and the catcher's `the_popup_gives_each_download_what_can_be_done_to_it`; not yet clicked in a browser.
+- [x] The extension does the bare minimum and the app decides (gaps row A22, 2026-11-15): the app's hello serves the right-click menu (`served_menus`, items named by mechanism, `menu_does`), a click on an item the app added goes to it (`menu.clicked`, `host::menu_start`), each caught download is judged by the app's rules as saved now (`catch.judge`, `Judge::judged_by`), the app may send the browser's words (`Notice`, `Hello::status`) and makes the panel's list (`media.streams`, `edm_protocol::media::panel_list`); each by a `feature` name, so an older side on either end goes on as before. Extension 3.5.0's frames frozen (`tests/wire/extension-3.5.0.json`), answered by the app (`every_frame_a_released_extension_sends_is_answered`) and read by the extension (`the_app_drives_the_menu_the_catch_its_words_and_the_panel_list`, `decide/contract/tests.rs`). Held to 95% line coverage per file before a merge (`scripts/contract-coverage.py`, CI): 97.8% of 6,345 lines.
+- [x] A built-in exclusion list the extension never catches: advert and tracker hosts, beacons, a page's own sounds and furniture, an ad server named in its `Server` header, Windows media of 100 KB or less, a player under 15 by 10 pixels (`crates/edm-catcher/src/decide/excluded.rs`)
 State of the Rust extension, 2026-10-12. What the JavaScript one had
 verified (Firefox 145 install, its own Chrome suite) was of different code
 and is not carried over.
@@ -127,23 +127,23 @@ and is not carried over.
       first turn, the id is the one the manifest key fixes, and the worker
       logs no errors. Also in CI under Xvfb (written, not yet run there)
 - [ ] Safari extension (gaps row R4, 2026-11-18) — `dist/safari` inside
-      `dm Safari Extension.appex` in dm.app (`scripts/safari-extension.sh`), its
-      program Rust (`crates/dm-safari`) starting `dm --native-host` per
-      message. Checked: `pluginkit -m -i com.dm.desktop.safari-extension` lists
-      it from a dm.app in /Applications; a `download.start` handed to the host
-      from inside the extension's sandbox (its entitlements) opened dm through
+      `EDM Safari Extension.appex` in EDM.app (`scripts/safari-extension.sh`), its
+      program Rust (`crates/edm-safari`) starting `EDM --native-host` per
+      message. Checked: `pluginkit -m -i com.edm.desktop.safari-extension` lists
+      it from an EDM.app in /Applications; a `download.start` handed to the host
+      from inside the extension's sandbox (its entitlements) opened EDM through
       `open` and the file landed byte-exact (SHA-256 checked). Not checked: the
       extension run in Safari itself, which waits on Develop › Allow Unsigned
       Extensions (a person's password). In the .dmg (2026-11-19,
       `safari-extension.sh --dmg`, `make build-safari`, the desktop
-      workflow's step): a release .dmg's dm.app verified, held the arm64
+      workflow's step): a release .dmg's EDM.app verified, held the arm64
       extension with its sandbox and passed `smoke.py` on the Mac; a CI run
       at a tag not yet
 - [x] Firefox extension — `dist/firefox` (Firefox MV3, `background.scripts`,
       `wasm-unsafe-eval`), driven in Firefox 157 by `scripts/firefox-check.py
-      native`, which fetches Firefox into `~/.cache/dm-firefox` rather than
+      native`, which fetches Firefox into `~/.cache/edm-firefox` rather than
       installing it. It installs with no warnings, the WebAssembly loads, a
-      download is caught and lands in dm's folder, "Download link with dm"
+      download is caught and lands in EDM's folder, "Download link with EDM"
       works, and the "Download video" panel shows and hands its file.
       Its first run found that the panel's click failed in Firefox: a module
       a page script imports does not see `browser`, so the loader now hands
@@ -151,17 +151,17 @@ and is not carried over.
 - [x] Detect downloadable files — the app's catch rules (`catch` in its
       settings: common download file types by default, a size floor, sites to skip),
       fetched with `settings.get`; matched on the browser's name, the URL and
-      the server's type. `dm-protocol` tests; `chrome-check.py` shows a
+      the server's type. `edm-protocol` tests; `chrome-check.py` shows a
       listed type caught and an unlisted one, and one the app's settings
       leave out, finished in the browser
 - [x] Intercept download links — a clicked link's download is paused, handed
       over, and cancelled and erased in the browser once the app has it; on
       a new install the app opens Download details for it first (Options ›
       General turns that off, and an older install keeps starting at once):
-      `chrome-check.py`, file byte-exact in dm's folder, the browser's list
+      `chrome-check.py`, file byte-exact in EDM's folder, the browser's list
       and folder empty
 - [x] Send downloads to desktop application — over native messaging with the
-      one protocol crate (`dm-protocol`) both sides use. Never loses one: no
+      one protocol crate (`edm-protocol`) both sides use. Never loses one: no
       host, no answer or a refusal resumes the browser's download
       (`chrome-check.py`, host unregistered). A download the extension
       restarted itself is not caught again (unit-tested; the restart path is
@@ -180,8 +180,8 @@ and is not carried over.
       (unit-tested, 2026-10-17); two cancelled hand-offs from one site have
       the app offer to leave that site to the browser. In Firefox the menu is used for
       real: `scripts/linux-firefox-check.sh` right-clicks a link with X11
-      input and picks "Download link with dm" with real keys, and dm fetches
-      it (2026-10-13). Chrome's menu was clicked for real in UI round 10 (2026-10-19). `dm-desktop --register` replaces
+      input and picks "Download link with EDM" with real keys, and EDM fetches
+      it (2026-10-13). Chrome's menu was clicked for real in UI round 10 (2026-10-19). `edm-desktop --register` replaces
       `engine/install.mjs` and refuses a binary macOS keeps from browsers
 - [x] Handle authentication/cookies — Basic from the address or Options ›
       Sign-ins, Digest where the server asks for it (`auth.rs`,
@@ -193,19 +193,19 @@ and is not carried over.
       unless the popup's "Hand over this site's sign-in" is on for the site,
       when they travel with the hand-off and the row keeps them
       (`tests/cookies.rs`, `host.rs`); a hand-off
-      carries the page's referrer (`chrome-check.py` sees dm's requests carry
+      carries the page's referrer (`chrome-check.py` sees EDM's requests carry
       it). The host asks the server once before taking a caught download, so a link
       only the signed-in browser can fetch is refused and finishes in the
       browser (`chrome-check.py`, a cookie-gated file) — and so is one the
-      site answers dm with a sign-in page for: the browser's type goes with
-      the hand-off, and HTML served to dm for a download the browser was not
+      site answers EDM with a sign-in page for: the browser's type goes with
+      the hand-off, and HTML served to EDM for a download the browser was not
       getting as HTML is refused (`host.rs`, unit-tested, 2026-10-17)
 - [x] Handle redirects — the browser's `finalUrl` is what is handed over
 
 ## Media
 - [x] Video detection — the extension extracts no video. "Download media with
-      dm" on a `blob:` (Media Source) player hands the page to the client,
-      which reads a YouTube page itself. The toolbar button only brings dm's window up
+      EDM" on a `blob:` (Media Source) player hands the page to the client,
+      which reads a YouTube page itself. The toolbar button only brings EDM's window up
       (2026-10-14: it used to hand the page over too, downloading a video
       nobody asked for)
       (driven in `app-check.py`). With no app the notification names the fix;
@@ -214,9 +214,9 @@ and is not carried over.
       an app registered since is found without a browser restart. The
       "Download video" panel shows over players, specified line by line
       with its tests in `docs/video-panel.md`. It
-      is a compact bar (dm's mark, "Download video", ▾ on a player page,
+      is a compact bar (EDM's mark, "Download video", ▾ on a player page,
       ? and ×) in the player's top corner. A click on a player page lists the
-      qualities dm reads from the page (`media.formats`), one
+      qualities EDM reads from the page (`media.formats`), one
       line per height with its size, then the sound alone. The line picked
       reaches the app with its quality and container, so an "MP4" line
       arrives as .mp4. The app then opens "Download details"
@@ -227,13 +227,13 @@ and is not carried over.
       pages (an overlay over the video, a MediaSource player, a 96px clip
       that gets none). `scripts/youtube-check.py` drives it by hand on a real
       YouTube watch page: hover, rest five seconds, click, and the video is
-      in dm's folder. That run found the panel vanishing
+      in EDM's folder. That run found the panel vanishing
       under a resting pointer, because YouTube puts `pointer-events: none`
       on its player as the controls fade. A site whose CSP forbids
       WebAssembly gets no panel; its right-click menu still works
 - [x] Generic media downloads — a direct media file still downloads directly
 - [x] Playlist handling where technically supported — HLS in the client;
-      a YouTube page's streams are read by dm itself
+      a YouTube page's streams are read by EDM itself
 - [x] Filename detection — the client's, held to the cases in
       `shared/naming-cases.json`. The extension names nothing any more
 
@@ -241,50 +241,50 @@ and is not carried over.
 - [x] The phone draws no line that does nothing there (gaps row N24, closed 2026-11-24): View's side panel, toolbar, drop target and columns, Help › Check for updates, Options › General › Sounds, Pop-ups' progress and Download complete windows, the computer's proxy settings and a video part as a GIF are not drawn on the phone, each seen on the emulator; Delete says the file goes for good; Options › General's "Double-clicking a download" reads "Tapping a download" there, translated
 - [x] Every text size and gap outside `widgets/` and the theme is a named step (gaps row V13, closed 2026-11-24): the type ramp beside `native::TEXT` and `SMALL_TEXT` (`MARK_TEXT`, `CAPTION_TEXT`, `SUBTITLE_TEXT`, `TITLE_TEXT`) and `space::SECTION`; `widgets/space.rs` `no_bare_size_outside_the_widgets` fails on a bare `px(…)` size
 - [x] The progress window ranked (gaps row E9, closed 2026-11-24, the maintainer's word): how far, how fast and how long in one line of larger type over the bar; then the address, File size, Downloaded and Can resume, no fact repeated; Speed limit, When done and Connections as lines that open, each saying how it is set (`dialogs/progress/sections.rs` `opener`; `the_progress_window_limits_its_own_download`, `when_this_download_is_done_opens_it`; contract B53); seen in a picture of the window itself (`ui-shot.py` now pictures a dialog's own window)
-- [x] Motion, dm's own (gaps row K7, closed 2026-11-24, the maintainer's word): a progress bar glides to its new width over 300 ms; a row or a phone's card just added fades in over 150 ms; one deleted or removed fades out over 150 ms before the list is read again (Undo offered then; contract B23); a finished bar fills and fades over 600 ms. GPUI's own animations, frames only while one runs, none where the system asks for less motion (`table/cells.rs` `glided`, `arriving`, `leave`, `settling`; four tests). The speed figure is not animated (`docs/decisions.md`)
+- [x] Motion, EDM's own (gaps row K7, closed 2026-11-24, the maintainer's word): a progress bar glides to its new width over 300 ms; a row or a phone's card just added fades in over 150 ms; one deleted or removed fades out over 150 ms before the list is read again (Undo offered then; contract B23); a finished bar fills and fades over 600 ms. GPUI's own animations, frames only while one runs, none where the system asks for less motion (`table/cells.rs` `glided`, `arriving`, `leave`, `settling`; four tests). The speed figure is not animated (`docs/decisions.md`)
 - [x] Download manager — the client's. Its window is drawn in Rust with
-      GPUI (`crates/dm-gpui`), no web view: the one built and
+      GPUI (`crates/edm-gpui`), no web view: the one built and
       shipped on macOS since its .dmg held the behaviour contract
       (64 of 64, 2026-11-10), on Windows and Linux since 2026-11-11 (gaps G9), held to
-      `scripts/human-qa.py`. The older egui window (`crates/dm-desktop`,
+      `scripts/human-qa.py`. The older egui window (`crates/edm-desktop`,
       which replaced a Tauri web-view window on 2026-10-11) was removed on
       2026-11-13 with its fonts (Inter, Selawik, the Fluent icon font), its
       three vendored patches (winit, egui-winit, eframe) and its scripts and
       targets (gaps G9, A3), once every test of it had been ported to the
       GPUI window's harness, moved to a shared crate or dropped (A2). The
-      installers' icons and `Info.plist` moved into `dm-gpui`, whose
-      `Cargo.toml` now holds dm's version. Evidence: `cargo tree` has no
+      installers' icons and `Info.plist` moved into `edm-gpui`, whose
+      `Cargo.toml` now holds EDM's version. Evidence: `cargo tree` has no
       egui, eframe or winit; `cargo test --workspace` passes
 - [x] The window's scale (issue #32, 2026-11-11): Options › General ›
       Appearance's Text size slider with four stops, 60, 80, 100 (the
       default) and 120 percent, the percentage beside it; View › Text size ›
       Larger, Smaller, Normal size and Ctrl (⌘) with +, − and 0 step the same
       stops. Everything the GPUI window draws goes through one scale
-      (`dm-gpui` `zoom.rs`), so words, rows, controls, pictures and every
+      (`edm-gpui` `zoom.rs`), so words, rows, controls, pictures and every
       dialog's window grow together, at once; kept in `settings.json`
       (`text_size`), the older egui window's Small, Medium and Large read as
       80, 100 and 120. Contract row B66. Checked on macOS over the control port;
       Linux and Windows owed
 - [x] Save to for links added together (issue #32, 2026-11-11): Links on
-      the clipboard and Download links share one Save to (`dm-desktop-base`
-      `save_to.rs`, drawn by `dm-gpui` `savefolder.rs`): each to its
+      the clipboard and Download links share one Save to (`edm-desktop-base`
+      `save_to.rs`, drawn by `edm-gpui` `savefolder.rs`): each to its
       category's folder, one category, or one folder typed or chosen with
       Browse… (the system's folder panel, where a folder can be made); a
       folder not there yet is made when the links are added, one that cannot
       be is said and the dialog stays. Contract row B67. Checked on macOS over
       the control port; Linux and Windows owed
-- [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of dm's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds dm's window until it is answered; dm's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `vendor/README.md`). Contract row B42.
+- [x] Every dialog is a window of its own (maintainer, 2026-11-01): the system's title bar with the dialog's title and its close button, over the middle of EDM's window to begin with and movable anywhere on the screen; a dialog that keeps the clicks to itself holds EDM's window until it is answered; EDM's close ends them. One place does it for all (`dialogs/apart.rs`, `Dialog::show`); the control port's `ui.texts`, `ui.click`, `ui.type` and `ui.key` reach them, `ui.windows` says where they stand and `ui.move_window` moves one (`app/human.rs`; a vendored `egui-winit`, `vendor/README.md`). Contract row B42.
 - [x] The window — menu bar (Program, File, Downloads, View, Help),
       toolbar, category tree with Everything, In progress, Done and Queues,
       a sortable table (Name, Queue, Size, Status, Time left, Speed, Date,
-      Note, Referrer, Folder), the row menu, and dm's dialogs: Add URL with
+      Note, Referrer, Folder), the row menu, and EDM's dialogs: Add URL with
       "Needs a sign-in" (an address already listed is asked about first),
       Download details (folder, Save as, Note, Start now / Add for later),
       a progress window per download with each connection, Download
       complete, Properties with Update download link, Add numbered series,
       Add links from clipboard, Site files (pages deep on one site,
       or an FTP server's folders read by MLSD or LIST, FTP over TLS included; path filters, saved
-      searches that run on a timer and can stop reading after so many minutes), Import/Export as dm's
+      searches that run on a timer and can stop reading after so many minutes), Import/Export as EDM's
       `.dmlist` (plain lists of links import too), Find, a Filter over the list that narrows it as one types, Scheduler, Speed
       limiter, Options (General, Folders, Downloads, Browser, Network,
       Proxy, Sign-ins). Every action is a named command (`commands.rs`),
@@ -329,13 +329,13 @@ and is not carried over.
       on the window is read for links and they are queued (a `.url` from a
       real GTK file chooser watched downloading, round 9). Since 2026-10-21 a
       link dragged from a browser is taken too, where winit took files only:
-      on macOS by dm's own handler on winit's window delegate (tested on a
-      real pasteboard), on Windows by dm's own OLE drop target (compiled and
+      on macOS by EDM's own handler on winit's window delegate (tested on a
+      real pasteboard), on Windows by EDM's own OLE drop target (compiled and
       unit-tested, run in CI), and on X11 by a patched, vendored winit
       (`vendor/winit`) that reads `_NETSCAPE_URL` and text —
       `scripts/linux-drag-check.sh` drags a link from real Firefox with
       xdotool and sees it queued. Finished files drag out on macOS and
-      Windows (`drag` crate) and on X11 by dm's own XDND source (`xdnd.rs`),
+      Windows (`drag` crate) and on X11 by EDM's own XDND source (`xdnd.rs`),
       watched landing in Firefox by the same script. Wayland since
       2026-10-22, in the same vendored winit (`wayland/dnd.rs`): drops read
       as `text/uri-list`, `text/x-moz-url` or text, and a drag out started on
@@ -347,15 +347,15 @@ and is not carried over.
       system as it leaves the window, on macOS and Wayland by GPUI and on
       X11 by an XDND source in the vendored GPUI; built and unit-tested, not
       yet watched landing; not on Windows yet
-- [x] Start on login — on for a new install (Options › General turns it off; an older install keeps its choice), registers dm as a
+- [x] Start on login — on for a new install (Options › General turns it off; an older install keeps its choice), registers EDM as a
       login item so a browser hand-off always has an app to land in.
       Launched by the login item it stays in the tray (`--hidden`) rather
-      than opening a window over the desktop. On Linux the entry is dm's own
+      than opening a window over the desktop. On Linux the entry is EDM's own
       XDG autostart file (`autostart.rs`): quoted per the desktop-entry spec,
       aimed at the AppImage itself rather than its vanishing mount, and one
-      an older dm wrote is replaced. `scripts/linux-gui-check.sh` turns it on,
+      an older EDM wrote is replaced. `scripts/linux-gui-check.sh` turns it on,
       has `dex` start the autostart folder as a session does at login, and
-      sees dm in the tray with no window, its Show dm working, and the entry
+      sees EDM in the tray with no window, its Show EDM working, and the entry
       gone when turned off. macOS and Windows use `auto-launch`, not yet
       watched at a real login. Window size and position are remembered
       across launches
@@ -365,17 +365,17 @@ and is not carried over.
       macOS the Dock icon reopens it. Cmd+Q still quits. On Wayland a program
       cannot hide its own window, so closing minimizes it and the task
       manager restores it, not the tray's Show: checked under sway
-      and under KWin 6.8.1 in Docker, not on a real KDE session. One dm at a time: a
-      lock under dm's home says it is running, so a browser hand-off no
+      and under KWin 6.8.1 in Docker, not on a real KDE session. One EDM at a time: a
+      lock under EDM's home says it is running, so a browser hand-off no
       longer starts a second copy beside the first, and a second launch by
       hand — or a `.desktop` entry opening a link — hands its links to the
       running one and asks it to show itself. `scripts/app-check.py` drives
       the real binary through all of it: the lock, the second launch, the
-      hand-off landing in the running dm and starting one when none runs.
+      hand-off landing in the running EDM and starting one when none runs.
       On Linux the tray is a StatusNotifierItem over D-Bus (`ksni`, no GTK),
       what GNOME's extension, KDE and waybar show: made whether or not a
       panel is up yet, kept registered across a panel restart, and closing
-      the window hides only when the panel lists dm's item, otherwise quits.
+      the window hides only when the panel lists EDM's item, otherwise quits.
       `scripts/linux-gui-check.sh` drives it as a panel does, 70/70
 - [x] Problems that no row can carry are shown — the queue file that could
       not be written, parts that could not be removed, a saved proxy that
@@ -396,24 +396,24 @@ and is not carried over.
 
 ## Reliability
 - [x] Unit tests — all Rust: the desktop workspace and the extension's host
-      tests (`cargo test --workspace`, `cd crates/dm-catcher && cargo test`); there is no
+      tests (`cargo test --workspace`, `cd crates/edm-catcher && cargo test`); there is no
       JavaScript suite. Counts are not kept here: `docs/scorecard.md`
       is generated and `docs/testing.md` says how each check is run
 - [x] Integration tests — Rust against a real HTTP server; the extension in
-      Chrome for Testing against a real dm (`chrome-check.py`).
+      Chrome for Testing against a real EDM (`chrome-check.py`).
       `integrity.rs` holds the cases a 2026-10-11 integrity audit
       found: a file republished between runs, a server without
       ranges retried, unknown length, a dropped range, empty files.
       Per-behaviour status with evidence: `docs/parity.md`
 - [x] Startup that says what it did — a `--hidden` launch makes no window
       until one is asked for (the tray's Show, a second launch, the Dock,
-      no tray to wait in): dm runs its own event loop and hands it to
+      no tray to wait in): EDM runs its own event loop and hands it to
       eframe then, so a login launch waits in the tray in 13 MB rather than
       43 and never flashes a window (2026-10-20). `app-check.py` counts windows under Xvfb in the Linux
       container — one normally, none with `--hidden`; on this Mac the shell
       may not script System Events, so there it says "not checked" rather
       than "ok", which it used to
-- [x] Window tests — `crates/dm-gpui/src/window_tests/` (ported
+- [x] Window tests — `crates/edm-gpui/src/window_tests/` (ported
       from the egui window's `tests/window.rs`), in CI: the window opened in
       GPUI's test platform and driven through its control port's methods
       against a real queue,
@@ -435,13 +435,13 @@ and is not carried over.
       saved as "get"
 - [x] Measured and kept honest — `cargo xtask scorecard` (generated,
       held current by a test), `cargo xtask layers`, `cargo xtask privacy`
-      (no analytics, crash reporting or stray addresses — dm is free and
+      (no analytics, crash reporting or stray addresses — EDM is free and
       stays free)
-- [x] Headless and MCP — `--headless --control 0` runs dm with no window;
-      `dm-desktop mcp` gives an AI client dm's commands as tools; both driven
+- [x] Headless and MCP — `--headless --control 0` runs EDM with no window;
+      `edm-desktop mcp` gives an AI client EDM's commands as tools; both driven
       against the real binary in `app-check.py`
-- [x] Command line — `dm-desktop list|status|pause|resume|cancel [--json]`
-      against a running dm (`--control`), another client of the same control
+- [x] Command line — `edm-desktop list|status|pause|resume|cancel [--json]`
+      against a running EDM (`--control`), another client of the same control
       protocol; exit codes 0, 1, 2 and 3; nothing private printed. Found by
       `--control` or by Options › General › Let the command line…
 - [x] Network failure tests
@@ -458,12 +458,12 @@ and is not carried over.
 - [x] No lock held across slow work — no lock of the queue's is held while
       the disk or the network is waited for, except the one that keeps two
       writes of the queue file in order, and the order they are taken in is
-      written above `Inner` (`dm-core/src/queue/mod.rs`). A write of the
+      written above `Inner` (`edm-core/src/queue/mod.rs`). A write of the
       queue file made to take 2 s holds back no read of the list, no
       download's progress, and no change made meanwhile
-      (`dm-core/tests/locks.rs`, gaps row 184, 2026-11-12, macOS)
+      (`edm-core/tests/locks.rs`, gaps row 184, 2026-11-12, macOS)
 - [x] Heavy work bounded and cancellable — digests, joins, MP3 and GIF making
-      and ZIP extraction take turns, half the cores at once (`dm_core::heavy`);
+      and ZIP extraction take turns, half the cores at once (`edm_core::heavy`);
       a Cancel stops a digest or a join of a 2 GB file within a second, and a
       disk held to 1 MB/s slows the download without growing its memory
       (`checksum.rs`, `download/mod.rs`, `tests/slow_disk.rs`; gaps row 185,
@@ -494,7 +494,7 @@ and is not carried over.
       Unchecked: a real desktop install of each, and the release workflow's
       packages from a draft
 - [ ] Windows — run on CI's Windows machines and, since 2026-11-11, on a
-      person's: the GPUI window's NSIS installer (`cargo packager -p dm-gpui
+      person's: the GPUI window's NSIS installer (`cargo packager -p edm-gpui
       --formats nsis`) held 63 of 64 contract rows installed on a Windows
       laptop, with the tray, the login launch, the jump list, taskbar
       progress and High Contrast (gaps G7, G8). The
@@ -503,17 +503,17 @@ and is not carried over.
       `scripts/smoke.py` passed against the installed binary: native host,
       the window (on Mesa's software OpenGL), headless, a byte-exact
       download; the uninstaller removed it. And the whole of `app-check.py`
-      passed against the real `dm-desktop.exe`, the egui window's program, there (`windows-check.yml`,
+      passed against the real `edm-desktop.exe`, the egui window's program, there (`windows-check.yml`,
       2026-10-21), which found and fixed a native host that held the
-      browser's pipes open through the dm it started. `scripts/windows-check.sh`
+      browser's pipes open through the EDM it started. `scripts/windows-check.sh`
       compiles it from this Mac. Unchecked: a whole `human-qa.py` run on an
       installer built after the review fixes of 2026-11-11 (G7), and the
       release workflow's installer from a draft (G8)
 - [x] Installer — `cargo packager` (no Tauri) builds a 7.9 MB dmg and
-      `dm.app` on macOS, and the binary inside the .app passes every
+      `EDM.app` on macOS, and the binary inside the .app passes every
       `app-check.py` check. The dmg step runs a Finder AppleScript that is
       skipped when CI is set; `make app` sets it
-- [x] When done — Downloads › When done: nothing, exit dm, sleep, hibernate
+- [x] When done — Downloads › When done: nothing, exit EDM, sleep, hibernate
       (greyed where the computer has no such command) or turn
       off, for this session only, with a 30-second countdown that can be
       cancelled; an optional sound when a download finishes, and another
@@ -522,26 +522,26 @@ and is not carried over.
 - [ ] Auto-update — About › Check for updates reads the release's own
       latest.json, which now lists every installer. When a newer version is
       out, "Download the update" queues the installer for this OS and
-      processor as an ordinary dm download; once it is whole and checked a
-      bar over the list offers Install now, which opens it and closes dm
+      processor as an ordinary EDM download; once it is whole and checked a
+      bar over the list offers Install now, which opens it and closes EDM
       (an AppImage's folder is shown instead). Nothing installs unasked. The release lists each installer's SHA-256 and the
       download is checked against it: one that does not match is removed,
       and one with no digest listed is not offered. The picker is unit-tested and the button is driven in
       `window.rs`. Never run against a real release: none has been published
 - [ ] Code signing / notarisation
 - [ ] Android (gaps rows N1 to N17, 2026-11-20) — coded, not run. The phone
-      app is dm-gpui's window on gpui-android (`crates/dm-android`,
+      app is edm-gpui's window on gpui-android (`crates/edm-android`,
       `docs/android.md`), with the narrow layout below 600 points, shares,
       magnets and `.torrent` files, the Keystore's sealed secrets, the wake
       lock and notifications, a Gradle project and `android.yml`'s build,
       emulator and release jobs. Checked: `cargo check --target
-      aarch64-linux-android` of dm-android, dm-gpui and dm-desktop-base (a
-      stand-in C compiler for ring, no NDK); dm-android's host tests; the
+      aarch64-linux-android` of edm-android, edm-gpui and edm-desktop-base (a
+      stand-in C compiler for ring, no NDK); edm-android's host tests; the
       narrow layout's window tests at 412 × 915 on the desktop. Not checked:
       a link with the NDK, an APK, a run on an emulator or a phone, any CI job
       Since run on a phone (2026-11-21, `docs/android.md`). Going on once
       closed (Options › Downloads, "Keep downloads and torrents going when
-      dm is closed"): checked on the phone with two public torrents, closed
+      EDM is closed"): checked on the phone with two public torrents, closed
       mid-download, reopened, and left to finish and let the process go
       (`android/engine.rs`, `headless::QUIT_WHEN_IDLE`; the idle rule's
       host test in `headless/tests.rs`)
@@ -552,11 +552,11 @@ of them.
 - [x] Categories (Videos, Audio, Documents, Apps, Archives, Pictures, Other
       folders) — client, configurable
 - [x] Speed limiting — client. One ceiling shared by every connection of
-      every download dm fetches itself, and a limit of a download's own,
+      every download EDM fetches itself, and a limit of a download's own,
       set in its progress window and kept with its row, held beside it.
-      A torrent or a video run, which dm cannot meter chunk by chunk, holds a
+      A torrent or a video run, which EDM cannot meter chunk by chunk, holds a
       share while it runs: with n of them the ceiling is split n+1 ways, one
-      part for dm's own downloads (`limit.rs` tests). A torrent re-reads its
+      part for EDM's own downloads (`limit.rs` tests). A torrent re-reads its
       part every tick; a video run keeps the part it started with
 - [x] Scheduler (download between set hours) — client. Local time, wraps past
       midnight, and does not restart what a person paused on purpose; and
@@ -589,17 +589,17 @@ of them.
       `an_unfinished_download_given_another_folder_and_name_lands_there`;
       contract row B54, 2026-11-18)
 - [x] Proxy: an automatic configuration script (PAC) and per-protocol proxies, in Options › Advanced › Proxy (`pac::way_to`, `Proxy::script`, `Proxy::per_scheme`, `proxy::route_for` for the tools; `tests/proxy.rs`)
-- [x] Dial-up and VPN connections (Windows): Options › Advanced › Dial Up / VPN, as reference A's last tab; each download waits while dm dials the connection (Windows' RAS) and redials as set, and is never sent without it (`dm-core` `connect_first.rs`, `dm-shell` `dialup.rs`; `tests/connect_first.rs`, `dialup::tests`, run beside reference A on 2026-11-08)
-- [x] The Scheduler's "Hang up modem when done" (Windows, reference A's, off): when the scheduled downloads are done, the connection Options sets is hung up if it is up, after a dial under way, and the status line says so (`dm-shell` `dialup.rs` `hang_up`, `platform/dialup/ras.rs`; `app/scheduled.rs` `end_of_window`; `dialogs/speed_schedule.rs`; contract row B49)
+- [x] Dial-up and VPN connections (Windows): Options › Advanced › Dial Up / VPN, as reference A's last tab; each download waits while EDM dials the connection (Windows' RAS) and redials as set, and is never sent without it (`edm-core` `connect_first.rs`, `edm-shell` `dialup.rs`; `tests/connect_first.rs`, `dialup::tests`, run beside reference A on 2026-11-08)
+- [x] The Scheduler's "Hang up modem when done" (Windows, reference A's, off): when the scheduled downloads are done, the connection Options sets is hung up if it is up, after a dial under way, and the status line says so (`edm-shell` `dialup.rs` `hang_up`, `platform/dialup/ras.rs`; `app/scheduled.rs` `end_of_window`; `dialogs/speed_schedule.rs`; contract row B49)
 - [x] Proxy support — client. HTTP, HTTPS, SOCKS4 and SOCKS5, with credentials,
       or the computer's own settings; a list of sites fetched directly. FTP
       goes through SOCKS or HTTP CONNECT (`tests/ftp.rs`); an HTTPS proxy
       refuses FTP rather than being gone around.
-      Every request of dm's own, and a torrent's
+      Every request of EDM's own, and a torrent's
       trackers and peers over SOCKS5; a torrent under any other kind of proxy
       is refused with the reason rather than sent out around it. A saved
       proxy that no longer parses is turned off for every route at startup,
-      not bypassed by dm's client while still handed to the tools
+      not bypassed by EDM's client while still handed to the tools
 - [x] Download history — client. Finished rows are kept with the time they
       finished, sortable and clearable
 - [x] Recheck queue — on a timer (Options › Downloads) or "Start queue" on it asks the server
@@ -611,20 +611,20 @@ of them.
       every mirror, drops any that disagree about the length, and gives each
       range its own mirror so all of them are in use at once
 - [x] HLS / DASH — HLS is done in the client (and a stream that arrives
-      as `.ts` is put into an MP4 by dm, `tsmux.rs`): master and media playlists, rendition
+      as `.ts` is put into an MP4 by EDM, `tsmux.rs`): master and media playlists, rendition
       choice, AES-128 with per-segment vectors, fMP4 initialisation segments,
       a live stream recorded as it goes until Stop or its end (2026-10-22, `record_live`),
       and resume from the segments already fetched — of the same rendition:
       the one chosen is written beside the parts, and segments of another
       are discarded rather than spliced in after a quality change. The page's
       referrer goes on every request of the stream, not only the probe; a
-      test serves a stream only to its page and gets it. DASH is read by dm itself
+      test serves a stream only to its page and gets it. DASH is read by EDM itself
       (2026-10-25, `download/dash.rs`): templates (number, time,
       timeline), segment lists with byte ranges, and single files; the picture
       and sound are chosen by the quality and container asked for, each fetched
       piece by piece (a byte range a server does not honour is an error, not
       the whole file written in as one piece), resumed from the pieces already
-      whole, and joined by dm's own muxer (`mp4mux`, `mkvmux`). A manifest of
+      whole, and joined by EDM's own muxer (`mp4mux`, `mkvmux`). A manifest of
       several periods has its alike periods (codec, size, sound rate, and first
       boxes checked alike when fetched) joined in order into one file, a period
       in another format (an advert) left out and the row saying so; a live
@@ -641,7 +641,7 @@ of them.
       leave the folder, links, devices, passwords, repeated names, size and
       ratio limits), always a new folder, the archive kept, nothing run.
       ZIP: Deflate and Stored only. A tar, plain or gzipped, and a 7z
-      (Copy, LZMA, LZMA2, solid, by dm's own decoders in
+      (Copy, LZMA, LZMA2, solid, by EDM's own decoders in
       `extract/sevenz/lzma.rs`) under the same rules; other 7z methods,
       passwords and RAR are refused
 - [x] Watched folder — Options › Downloads: links saved there (`.url`,
@@ -652,10 +652,10 @@ of them.
 - [x] Properties: SHA-256 and a digest check; Move/Rename by a pattern
 - [x] Recording time limit — Options › Downloads stops a live recording after
       a set number of minutes and keeps what it has (`Options::record_limit`)
-- [x] RTMP, RTSP and MMS streams — client (`live.rs`): RTMP and RTMPS by dm's own client (`rtmp.rs`), RTSP
+- [x] RTMP, RTSP and MMS streams — client (`live.rs`): RTMP and RTMPS by EDM's own client (`rtmp.rs`), RTSP
       through `retina` (`rtsp.rs`), both recorded into a fragmented MP4 that
       plays if cut short (`fmp4.rs`) and rewritten plain at the end; MMS over
-      HTTP (`mms.rs`), kept as the Windows Media it is. RTMPT through dm's
+      HTTP (`mms.rs`), kept as the Windows Media it is. RTMPT through EDM's
       own HTTP tunnel (2026-10-21, `tests/live.rs` through an RTMPT relay,
       every picture identical) and RTSPS through a loopback TLS bridge in
       front of retina (unit-tested against a TLS server; no real camera
@@ -666,7 +666,7 @@ of them.
       checked by hand
 - [x] BitTorrent — client only, which is the only place it can be: an
       extension has no sockets. A magnet or a `.torrent` (fetched, or one on
-      this computer opened with dm) is routed to
+      this computer opened with EDM) is routed to
       `librqbit` before the HTTP path, reports progress on the same row as
       any download, is given the speed ceiling, and pauses and resumes from
       the files on disk. Staged under the row's own parts directory like
@@ -679,9 +679,9 @@ of them.
       fetched over HTTP carries the page's referrer. A test stands up a
       one-seeder swarm on loopback and fetches a file through it, so the
       bytes really cross a BitTorrent connection rather than being copied
-- [x] Player-only sites — a YouTube watch page is read by dm itself
+- [x] Player-only sites — a YouTube watch page is read by EDM itself
       (`youtube.rs`): the page, the player API as a TV client and the player
-      script, whose checks dm answers itself as reference A does, the player
+      script, whose checks EDM answers itself as reference A does, the player
       cut down to what answers them (`youtube/player.rs`) and run in the
       computer's own JavaScript engine (`javascript.rs`: Windows' own Chakra,
       macOS's JavaScriptCore, WebKitGTK's on Linux, which the packages depend
@@ -691,7 +691,7 @@ of them.
       installed (`out-of-box-check.py`: an ordinary video, 1080p, a 4K music
       video locked behind signatures at its best, 720p MP4, 480p WebM and its
       sound, each whole, nothing fetched), and its picture and
-      sound are fetched by dm's own engine and joined by dm (`mp4mux.rs`; an
+      sound are fetched by EDM's own engine and joined by EDM (`mp4mux.rs`; an
       HLS transport stream is put into an MP4 by `tsmux.rs`). Another site's
       video comes from the browser extension's caught player requests; the
       panel names such a stream by what its playlist says (a master playlist
@@ -710,4 +710,4 @@ of them.
 - Linux (Debian 12 container under X, `sh scripts/linux-human-qa.sh`): 61 of 66; B25, B46, B53, B35 and B36 are gaps rows Q1 to Q3.
 - Rerun after the fixes (same day): macOS 66 of 66, Linux 66 of 66, `cargo test --workspace` 2,259 passed. Found and fixed on the way:
   B46/B53 on Linux, the list's sideways scroll bar (always shown on Windows and Linux) lay over the last row and took the double-click; B35/B36, the QA container had no JavaScriptCore (the .deb brings it; the image now has it); B14/B41/B54/B55 on macOS, a 404 from a server on port 50587 was read as a 505 (`refuses_http1` matched "505" in the address) and asked again over HTTP/2; the Linux session hung on a leftover `xclip`, so its pictures never came back (the Linux baselines are now saved); a window test was flaky because every test's window took orders from one shared inbox (`harness::Inbox`).
-- Release check, 2026-11-13 (main 7da2a153: dm-js in place of the computer's engine): macOS human QA 66 of 66, Linux (Debian 12 container) 66 of 66, `cargo test --workspace` 2,279 passed. Benchmark on macOS (release): faster than reference A's floor in every timed measure (big40 13.3 s against 15.4 s, first request 14 ms, finish 89 ms), WORSE in peak memory in every scenario (109 to 139 MiB against 21 to 40 MiB, gaps row 175) and the outage's recovery (76 ms against 0).
+- Release check, 2026-11-13 (main 7da2a153: edm-js in place of the computer's engine): macOS human QA 66 of 66, Linux (Debian 12 container) 66 of 66, `cargo test --workspace` 2,279 passed. Benchmark on macOS (release): faster than reference A's floor in every timed measure (big40 13.3 s against 15.4 s, first request 14 ms, finish 89 ms), WORSE in peak memory in every scenario (109 to 139 MiB against 21 to 40 MiB, gaps row 175) and the outage's recovery (76 ms against 0).

@@ -1,6 +1,6 @@
-# Translating dm
+# Translating EDM
 
-dm's window speaks English and fifteen other languages. Each language is one
+EDM's window speaks English and fifteen other languages. Each language is one
 file of the English and its translation, and anyone who speaks a language can
 mend it, read what no native speaker has read yet, or start a new one. You need
 no Rust to do it, though the check below runs best with it.
@@ -62,7 +62,7 @@ own checks catch a malformed file too.
   give them (one, few, many, other): Russian and Polish three, German two,
   Japanese and Turkish one. Use no `||` where the English has none.
 - **Line breaks** are written `\n`, and a `"` inside a translation is `\"`.
-- **dm** is dm in every language. Keep the names of keys (Ctrl, Shift), of
+- **EDM** is EDM in every language. Keep the names of keys (Ctrl, Shift), of
   menus a system draws, and of file formats as the system shows them in your
   language.
 - **Short and plain.** The English is short on purpose: buttons and menu items
@@ -105,10 +105,10 @@ Any other string you find wrong, unread or not, can be mended the same way.
    says where the words are shown. A word the window and the extension both
    say is translated alike in both.
 5. Send a pull request. The maintainer then adds the language to the list
-   dm offers (View › Language and Options › General), with its plural rule and
+   EDM offers (View › Language and Options › General), with its plural rule and
    its name in itself, and checks the window draws it right before it ships.
 
-Languages dm lacks that many people speak: Hindi, Vietnamese and Ukrainian.
+Languages EDM lacks that many people speak: Hindi, Vietnamese and Ukrainian.
 
 ## Right to left
 
@@ -117,4 +117,4 @@ toolbar, columns and status bar laid out from the right (gaps row U35). Their
 translations were written without a native speaker, so every string of them is
 in their unread lists. Persian and Urdu would read the same way: a new
 right-to-left language is added to `Direction::of` in
-`crates/dm-desktop-base/src/view/i18n.rs` with its catalog.
+`crates/edm-desktop-base/src/view/i18n.rs` with its catalog.

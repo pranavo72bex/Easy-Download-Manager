@@ -1,7 +1,7 @@
-# How dm works
+# How EDM works
 
 The technical overview: how the app and the extension fit together, how
-dm is measured, and how to build it. To install dm, see the
+EDM is measured, and how to build it. To install EDM, see the
 [README](../README.md).
 
 A download manager in the classic desktop shape: a desktop app that does the
@@ -14,7 +14,7 @@ Where each part of the engine lives, and the layers the app is built in, is in
 how each part is tested is in [feature-status.md](feature-status.md) and
 [testing.md](testing.md).
 
-dm splits a file across several connections, resumes what was interrupted,
+EDM splits a file across several connections, resumes what was interrupted,
 keeps a queue, and takes the downloads you start by clicking a link — the
 things a download manager is used for.
 
@@ -25,7 +25,7 @@ things a download manager is used for.
   the extension: is it a file type the app catches?    (no: the browser keeps it)
         │  native messaging: download.start {url, referrer}
         ▼
-  dm, the app: can it fetch this itself?               (no: the browser keeps it)
+  EDM, the app: can it fetch this itself?               (no: the browser keeps it)
         │
         ├── probe: how big, can it resume?
         ├── split into ranges, fetch them all at once
@@ -38,7 +38,7 @@ every download stays with the browser.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="screenshot-dark.png">
-  <img alt="The dm window: a menu bar with a search box, a toolbar of Add URL, Resume, Stop and the rest, a category tree, and the downloads as a table with Name, Size, Status, Time left, Speed and Date" src="screenshot.png">
+  <img alt="The EDM window: a menu bar with a search box, a toolbar of Add URL, Resume, Stop and the rest, a category tree, and the downloads as a table with Name, Size, Status, Time left, Speed and Date" src="screenshot.png">
 </picture>
 
 <sub>The GPUI window on macOS, light or dark as Options › General ›
@@ -55,36 +55,36 @@ its dialogs: Add URL, Download details, a progress window with each
 connection, Download complete, Properties, Add numbered series, Files on a
 site, Scheduler, Speed limiter, Options. It is held together like this:
 
-- **A command registry** (`dm_shell::app::commands`: each command's name,
-  label and keys; the GPUI window's menus in `crates/dm-gpui/src/window/menus.rs`). The menus,
+- **A command registry** (`edm_shell::app::commands`: each command's name,
+  label and keys; the GPUI window's menus in `crates/edm-gpui/src/window/menus.rs`). The menus,
   the toolbar, the row menu, the keyboard and the control protocol all run
   the same named commands.
-- **An application layer under the window** (`dm_shell::app`,
+- **An application layer under the window** (`edm_shell::app`,
   `docs/architecture/`): what the window shows comes from it, and what a
   person asks for is done by it; the window draws and asks.
 - **The window's thread does not wait on slow work.** What a handler asks
   for that can take long (a command on thousands of rows, a file moved to
   another disk, the Trash, Export) runs on one errand thread in the order
-  asked (`dm_shell::app::errands`, `Backend::later`), and its answer is
+  asked (`edm_shell::app::errands`, `Backend::later`), and its answer is
   shown on the window's thread; the open and save panels are begun without
   a modal loop. `scripts/stress-check.py handlers` holds the window to an
   answer in under 100 ms throughout.
 - **The whole window held to the behaviour contract**
   (`scripts/human-qa.py`, in a visible window, against the GPUI window as
   shipped), and the control port's checks (`scripts/app-check.py`). The
-  window's own tests (`crates/dm-gpui/src/window_tests/`) open it in
+  window's own tests (`crates/edm-gpui/src/window_tests/`) open it in
   GPUI's test platform over a real queue and drive it through the control
   port's methods (`src/harness.rs`): menus, toolbar, row commands, dialogs
   and Options, each checked for what it does.
-- **A control protocol** (`dm-desktop-base/src/run/control.rs`): `dm-gpui --control <port>` takes
+- **A control protocol** (`edm-desktop-base/src/run/control.rs`): `edm-gpui --control <port>` takes
   JSON lines on loopback with a private token, to list and run commands,
   add downloads, run a batch of up to 256 steps, read the window back and
-  take screenshots. `--headless` runs dm with no window at all, and
-  `dm-gpui mcp` serves the same as tools to an AI client over the Model
+  take screenshots. `--headless` runs EDM with no window at all, and
+  `edm-gpui mcp` serves the same as tools to an AI client over the Model
   Context Protocol.
 - **A server zoo with a ratchet** ([docs/zoo.md](zoo.md)): 31 ways real
   servers behave — lying ranges, cut-off bodies, redirect loops, names only
-  in a header — each with what dm must do, held to a floor that only rises,
+  in a header — each with what EDM must do, held to a floor that only rises,
   with curl fetching the same files as a second opinion.
 - **Never crash on outside input.** No `unwrap`, `expect` or `panic` in
   shipped code, enforced by clippy in every crate, and every reader of
@@ -95,7 +95,7 @@ site, Scheduler, Speed limiter, Options. It is held together like this:
 
 ### Free, and it stays free
 
-dm costs nothing and needs nothing that costs money: no account, no server,
+EDM costs nothing and needs nothing that costs money: no account, no server,
 no subscription, no paid service behind it. It contains no analytics, no
 crash reporting and no tracking — `cargo xtask privacy` fails the build if a
 crate that reports anywhere appears, or if shipped code names any address
@@ -132,7 +132,7 @@ you visit. A download manager whose extension is on the Web Store can get to
 one click, because an installer may name a Store extension in a policy.
 
 ```sh
-make register              # tell the browsers where dm is (done by make install)
+make register              # tell the browsers where EDM is (done by make install)
 make register EXT_ID=<id>  # also allow a Chrome Web Store build's id
 make doctor                # what is installed, what is missing
 make uninstall             # all of it back out
@@ -148,8 +148,8 @@ installs system-wide instead of under `~/.local`.
 
 ```sh
 sh scripts/package.sh                         # dist/chrome, dist/firefox and their zips
-cargo build --release -p dm-gpui
-target/release/dm-gpui --register     # from a copy outside ~/Downloads on macOS
+cargo build --release -p edm-gpui
+target/release/edm-gpui --register     # from a copy outside ~/Downloads on macOS
 ```
 
 **Chrome, Edge, Brave, Vivaldi, Opera** — `chrome://extensions`, turn on
@@ -163,39 +163,39 @@ Firefox closes. People install the released extension from
 On macOS the client must not be registered from `~/Downloads`, `~/Desktop`
 or `~/Documents`: a browser is not allowed to run a program from those, and
 the failure is silent — the host hangs in the loader and the extension
-reports that dm did not answer. `--register` refuses such a path and says
+reports that EDM did not answer. `--register` refuses such a path and says
 why. Install to `/Applications` (or `make install`) and register that copy.
 
 ## Using it
 
 | | |
 |---|---|
-| **Click a download link** | If it is one of the file types dm catches, the browser's download is paused, handed to dm, and removed from the browser's list once dm has it. dm's window shows it. |
-| **Right-click a link** | *Download link with dm* — any link, whatever its type, and magnets. |
-| **Right-click a video or audio** | *Download media with dm*. A player that streams from a `blob:` address has no file to fetch; its page is handed over instead; dm reads a YouTube page itself, and for any other site the extension's caught player requests are what is offered. |
-| **Right-click a page** | *Download all links with dm*: the page's links, in dm's list to pick from. |
-| **The toolbar button** | A popup: whether the dm app answers, a switch for catching downloads, a switch for the "Download video" panel on this site, and **Open dm**. It downloads nothing. |
-| **No app** | A caught download stays with the browser as if dm were not there. The menus and the button say, in a notification, that dm isn't connected to this browser yet and to open dm (again, if it is open), with `--register` for advanced users; the popup says the same and hides Open dm. |
-| **A link only the browser can fetch** | dm asks the server once before it takes a download from the browser. A file behind a sign-in (whose cookies stay in the browser) is refused by dm and the browser finishes it. |
-| **Private windows** | Their downloads are left alone, so nothing from them lands in dm's queue or history. |
+| **Click a download link** | If it is one of the file types EDM catches, the browser's download is paused, handed to EDM, and removed from the browser's list once EDM has it. EDM's window shows it. |
+| **Right-click a link** | *Download link with EDM* — any link, whatever its type, and magnets. |
+| **Right-click a video or audio** | *Download media with EDM*. A player that streams from a `blob:` address has no file to fetch; its page is handed over instead; EDM reads a YouTube page itself, and for any other site the extension's caught player requests are what is offered. |
+| **Right-click a page** | *Download all links with EDM*: the page's links, in EDM's list to pick from. |
+| **The toolbar button** | A popup: whether the EDM app answers, a switch for catching downloads, a switch for the "Download video" panel on this site, and **Open EDM**. It downloads nothing. |
+| **No app** | A caught download stays with the browser as if EDM were not there. The menus and the button say, in a notification, that EDM isn't connected to this browser yet and to open EDM (again, if it is open), with `--register` for advanced users; the popup says the same and hides Open EDM. |
+| **A link only the browser can fetch** | EDM asks the server once before it takes a download from the browser. A file behind a sign-in (whose cookies stay in the browser) is refused by EDM and the browser finishes it. |
+| **Private windows** | Their downloads are left alone, so nothing from them lands in EDM's queue or history. |
 
 ## The desktop client
 
-The app is all Rust, one crate per folder in `crates/`: `dm-core` is the
-engine and has no idea a screen exists; `dm-net` is how it reaches a server (the HTTP client,
-proxies, sign-ins, cookies, `Error`); `dm-media` is dm's own media code (the muxers, the MP3
-and GIF encoders, the decoders), files in and files out, which the engine calls; `dm-shell` is the settings, the
-browser hand-off, startup and the application layer; `dm-desktop-base` is what
+The app is all Rust, one crate per folder in `crates/`: `edm-core` is the
+engine and has no idea a screen exists; `edm-net` is how it reaches a server (the HTTP client,
+proxies, sign-ins, cookies, `Error`); `edm-media` is EDM's own media code (the muxers, the MP3
+and GIF encoders, the decoders), files in and files out, which the engine calls; `edm-shell` is the settings, the
+browser hand-off, startup and the application layer; `edm-desktop-base` is what
 the program does that is not drawing (the control port, the command line,
-MCP, the words); `dm-gpui` is the window, drawn with GPUI — no web view, no
+MCP, the words); `edm-gpui` is the window, drawn with GPUI — no web view, no
 Electron.
 
 ```sh
-cargo run -p dm-gpui          # the window
+cargo run -p edm-gpui          # the window
 cargo test --workspace        # the engine against a real HTTP server, a loopback BitTorrent
                               # swarm, and the window driven through its control port
 cargo xtask package           # this system's .dmg, NSIS installer, .deb or AppImage
-                              # (cargo packager, run in crates/dm-gpui for dm-gpui alone)
+                              # (cargo packager, run in crates/edm-gpui for edm-gpui alone)
 cargo xtask verify-release <folder>   # a downloaded release against its signed SHA256SUMS
 ```
 
@@ -211,7 +211,7 @@ signed by the project's key (`SHA256SUMS`, `SHA256SUMS.sig`); RELEASING.md's
 To have the browser hand downloads to it:
 
 ```sh
-dm-gpui --register [<store extension id>]
+edm-gpui --register [<store extension id>]
 ```
 
 On macOS the binary must not live in `~/Downloads`, `~/Desktop` or
@@ -223,13 +223,13 @@ failure is silent. Install to `/Applications` and register that;
 
 | | |
 |---|---|
-| **Archives** | A finished `.zip`, `.tar`, `.tar.gz`, `.tgz` or `.7z` is extracted from its row menu: **Extract here** (a new folder beside it) or **Extract to…** (a new folder inside one the person picks). `dm-core`'s `extract.rs` judges every entry before it writes any: a path that leaves the folder (`..`, absolute, drive, backslash), a symlink or device file, a password, a repeated name (also in another case) or totals of entries, bytes and compression ratio past its limits fail the whole archive; the bytes actually written are counted against the sizes the header claims; the folder is always new, so nothing is replaced; the archive is kept and nothing extracted is opened or run. Only Deflate and Stored entries — the `zip` crate is built without its C-backed codecs. A tar is read by dm's own `extract/tar.rs`; a 7z by `extract/sevenz.rs` (its header, `sevenz/header.rs`) with dm's own LZMA and LZMA2 decoders (`sevenz/lzma.rs`), solid archives included, every file's CRC32 checked as it is written; BCJ filters, PPMd, BZip2, AES passwords and split archives are refused by name before anything is written. **Unpack when done** (gaps row W14): `dm_shell::app::unpack`, called by `Session::read` for the rows a read found finished, unpacks one whose own box (`Entry::unpack`, from Download details) or whose kind (`FolderSettings::unpack_kinds`, Options › Folders) is ticked through `files::extract_later_with` under the same rules, then keeps the archive or sends it to the Trash (`Platform::trash`, `unpack_trash`) and says on the row what became of it (`dm_core::NOTES[4..]`, set by `DownloadList::set_said`); a run of the row again clears that note |
+| **Archives** | A finished `.zip`, `.tar`, `.tar.gz`, `.tgz` or `.7z` is extracted from its row menu: **Extract here** (a new folder beside it) or **Extract to…** (a new folder inside one the person picks). `edm-core`'s `extract.rs` judges every entry before it writes any: a path that leaves the folder (`..`, absolute, drive, backslash), a symlink or device file, a password, a repeated name (also in another case) or totals of entries, bytes and compression ratio past its limits fail the whole archive; the bytes actually written are counted against the sizes the header claims; the folder is always new, so nothing is replaced; the archive is kept and nothing extracted is opened or run. Only Deflate and Stored entries — the `zip` crate is built without its C-backed codecs. A tar is read by EDM's own `extract/tar.rs`; a 7z by `extract/sevenz.rs` (its header, `sevenz/header.rs`) with EDM's own LZMA and LZMA2 decoders (`sevenz/lzma.rs`), solid archives included, every file's CRC32 checked as it is written; BCJ filters, PPMd, BZip2, AES passwords and split archives are refused by name before anything is written. **Unpack when done** (gaps row W14): `edm_shell::app::unpack`, called by `Session::read` for the rows a read found finished, unpacks one whose own box (`Entry::unpack`, from Download details) or whose kind (`FolderSettings::unpack_kinds`, Options › Folders) is ticked through `files::extract_later_with` under the same rules, then keeps the archive or sends it to the Trash (`Platform::trash`, `unpack_trash`) and says on the row what became of it (`edm_core::NOTES[4..]`, set by `DownloadList::set_said`); a run of the row again clears that note |
 | **Live streams** | RTMP, RTSP and MMS are recorded as they come (`live.rs`). Options › Downloads › *Stop recording a live stream after, minutes* ends a recording the way Stop does — the file closed first — and keeps and places what was recorded; 0 records until the stream ends or Stop |
-| **Command line** | `dm-gpui list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`dm-desktop-base/src/run/cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. dm must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no dm |
+| **Command line** | `edm-gpui list`, `status ID`, `pause`, `resume`, `cancel ID…`, `--json` (`edm-desktop-base/src/run/cli.rs`): another client of the control protocol, so there is one engine and nothing new listens. EDM must run with `--control`; exit codes are 0 done, 1 refused, 2 misuse, 3 no EDM |
 | **Watched folder** | `app/watch.rs`: every five seconds a folder named in Options is read for links saved as `.url`, `.webloc`, text or `.torrent`, read as a drop is read; handled files move to its `done` folder |
 | **Site rules** | `Settings::with_site_rule` gives a site's downloads a folder and a speed of their own at the moment a row is added, whatever the way in; what a person chose for one download stands |
 | **Checking and naming** | Properties shows a finished file's SHA-256 (hashed on the app's runtime) and checks a pasted digest; Move/Rename of several files takes a `{n}`/`{name}` pattern |
-| **Closing the window** | With a tray, closing hides the window and the queue keeps going. On Wayland a program cannot hide or unminimize its own window, so dm minimizes it and keeps drawing; the task manager restores it |
+| **Closing the window** | With a tray, closing hides the window and the queue keeps going. On Wayland a program cannot hide or unminimize its own window, so EDM minimizes it and keeps drawing; the task manager restores it |
 
 Down the left is a rail of places, and each is a filter over the one list
 rather than a list of its own — by state, or by the kind of file, with a count
@@ -262,44 +262,44 @@ registered with `--register`.
 
 ### The system's programs
 
-The few programs of the system's own that dm starts, each behind one named function in its
-crate's `platform` module (gaps row P8), and why each is a program and not a call. dm itself (the
+The few programs of the system's own that EDM starts, each behind one named function in its
+crate's `platform` module (gaps row P8), and why each is a program and not a call. EDM itself (the
 native host starting the window, Safari's relay starting the host), a program a person names (run
 when the queue is done or on a finished file, Open with's application) and a test's stand-in are
 not in this list.
 
 | Program | System | Function | What for | Why a program |
 |---|---|---|---|---|
-| `reg.exe` `export`/`import` | Windows | `dm_shell::platform::programs::reg_exe` | the `.reg` copy of another program's magnet or `.torrent` key | only `reg.exe` writes and reads the whole `.reg` format; the rest of the registry is the API's (`dm_shell::registry`) |
-| `/bin/ps -o comm= -p` | macOS, Linux | `dm_shell::platform::programs::process_name` | the browser that started the native host | no portable call names another process's program; Windows reads its process list |
-| `/usr/bin/open -a … --args --desktop` | macOS | `dm_shell::platform::programs::open_app` | dm's window from Safari's sandbox | it opens the app outside the sandbox, as a click does |
-| `open`, `open -R`; `explorer`; `xdg-open`, `gio open`, `kde-open`, `kde-open5`, `exo-open` | macOS; Windows; Linux | `dm_shell::platform::opener` | opening a finished file and showing it in its folder | each system's own opener, with its file associations |
-| `security` | macOS | `dm_core::platform::programs::secret_tool` | the keychain, where Sign-ins' passwords are kept | no new crate (`docs/decisions.md`, the secret store) |
-| `secret-tool` | Linux | `dm_core::platform::programs::secret_tool` | the session's Secret Service | no new crate and no linking to libsecret, which a build on CI would need |
-| `/usr/sbin/scutil --proxy` | macOS | `dm_net::platform::programs::proxy_settings` | the network settings' proxies | the proxy dictionary without a framework binding |
-| `/usr/sbin/networksetup -listallhardwareports` | macOS | `dm_net::platform::programs::hardware_ports` | the interfaces' names for the second path ("iPhone USB") | the hardware ports' names without a framework binding |
-| `pmset`, `osascript`; `systemctl`; `shutdown` | macOS; Linux; Windows | `dm_desktop_base::platform::power::run` | sleep, hibernate or shut down when the queue is done | each system's own way, with its own permission; Windows sleeps through `SetSuspendState` |
-| `afplay`; `canberra-gtk-play`, `paplay` | macOS; Linux | `dm_desktop_base::platform::power::play`, `play_file` | the finished and failed sounds | the system's sounds and player; Windows plays them in dm |
-| `defaults read -g` | macOS | `dm_desktop_base::platform::region` | the region and 12- or 24-hour clock | the global preferences as the system keeps them |
-| `gsettings get` | Linux | `dm_desktop_base::platform::system_theme::run` | a dark or light desktop | GNOME's settings without a D-Bus client |
-| `/usr/sbin/screencapture` | macOS | `dm_gpui::platform::syswindow` `picture` | the window's own picture (QA's baseline) | the window as the screen shows it, without its shadow |
+| `reg.exe` `export`/`import` | Windows | `edm_shell::platform::programs::reg_exe` | the `.reg` copy of another program's magnet or `.torrent` key | only `reg.exe` writes and reads the whole `.reg` format; the rest of the registry is the API's (`edm_shell::registry`) |
+| `/bin/ps -o comm= -p` | macOS, Linux | `edm_shell::platform::programs::process_name` | the browser that started the native host | no portable call names another process's program; Windows reads its process list |
+| `/usr/bin/open -a … --args --desktop` | macOS | `edm_shell::platform::programs::open_app` | EDM's window from Safari's sandbox | it opens the app outside the sandbox, as a click does |
+| `open`, `open -R`; `explorer`; `xdg-open`, `gio open`, `kde-open`, `kde-open5`, `exo-open` | macOS; Windows; Linux | `edm_shell::platform::opener` | opening a finished file and showing it in its folder | each system's own opener, with its file associations |
+| `security` | macOS | `edm_core::platform::programs::secret_tool` | the keychain, where Sign-ins' passwords are kept | no new crate (`docs/decisions.md`, the secret store) |
+| `secret-tool` | Linux | `edm_core::platform::programs::secret_tool` | the session's Secret Service | no new crate and no linking to libsecret, which a build on CI would need |
+| `/usr/sbin/scutil --proxy` | macOS | `edm_net::platform::programs::proxy_settings` | the network settings' proxies | the proxy dictionary without a framework binding |
+| `/usr/sbin/networksetup -listallhardwareports` | macOS | `edm_net::platform::programs::hardware_ports` | the interfaces' names for the second path ("iPhone USB") | the hardware ports' names without a framework binding |
+| `pmset`, `osascript`; `systemctl`; `shutdown` | macOS; Linux; Windows | `edm_desktop_base::platform::power::run` | sleep, hibernate or shut down when the queue is done | each system's own way, with its own permission; Windows sleeps through `SetSuspendState` |
+| `afplay`; `canberra-gtk-play`, `paplay` | macOS; Linux | `edm_desktop_base::platform::power::play`, `play_file` | the finished and failed sounds | the system's sounds and player; Windows plays them in EDM |
+| `defaults read -g` | macOS | `edm_desktop_base::platform::region` | the region and 12- or 24-hour clock | the global preferences as the system keeps them |
+| `gsettings get` | Linux | `edm_desktop_base::platform::system_theme::run` | a dark or light desktop | GNOME's settings without a D-Bus client |
+| `/usr/sbin/screencapture` | macOS | `edm_gpui::platform::syswindow` `picture` | the window's own picture (QA's baseline) | the window as the screen shows it, without its shadow |
 
 ### On Android
 
 The phone app is in development: coded, not yet run on a phone
 ([android.md](android.md), gaps rows N1 to N17). It is the same window, not
-a second one. `crates/dm-android` holds only what a phone adds.
+a second one. `crates/edm-android` holds only what a phone adds.
 
 - **Start.** `android_main` (`src/android.rs`) opens the Java side (`jvm.rs`),
-  then hands `dm_desktop_base::phone::set_phone` its `phone::Phone`. It sets
-  dm's folders: `DM_HOME` is the app's `files/dm`, `TMPDIR` a folder in it,
-  and `dm_core::folders::set_phone_folders` gets the download folder
-  (`Download/dm` in shared storage, else the app's own folder there). It hands
-  `secretstore` the Keystore's store. Then it calls `dm_gpui::run_app` with
-  GPUI's application on gpui-android's platform. From there dm starts as on a
+  then hands `edm_desktop_base::phone::set_phone` its `phone::Phone`. It sets
+  EDM's folders: `EDM_HOME` is the app's `files/EDM`, `TMPDIR` a folder in it,
+  and `edm_core::folders::set_phone_folders` gets the download folder
+  (`Download/EDM` in shared storage, else the app's own folder there). It hands
+  `secretstore` the Keystore's store. Then it calls `edm_gpui::run_app` with
+  GPUI's application on gpui-android's platform. From there EDM starts as on a
   computer: the engine, the settings, the queue, the window. When the activity
   is destroyed GPUI quits, and the downloads are stopped and saved to resume.
-- **The seam.** What only a phone does goes through `dm_desktop_base::phone`:
+- **The seam.** What only a phone does goes through `edm_desktop_base::phone`:
   `PhoneServices` (notify, open, reveal, the clipboard, keep awake, the Trash),
   each with a default. Each `platform/` module's Android arm asks through it.
   What a phone lacks (the tray, the login item, the Trash, a folder chooser,
@@ -313,10 +313,10 @@ a second one. `crates/dm-android` holds only what a phone adds.
   host.
 - **The Java.** Two classes from gpui-mobile, unchanged:
   `GpuiInputActivity`, a NativeActivity that forwards the soft keyboard's
-  typing to the Rust and loads `libdm_android.so`, and `GpuiPathPicker`, the
+  typing to the Rust and loads `libedm_android.so`, and `GpuiPathPicker`, the
   system's file picker. A minimal Gradle project packs them with the library
   into the APK, and builds the Rust with cargo-ndk first.
-- **The layout.** Below 600 points wide, dm-gpui lays the window out for a
+- **The layout.** Below 600 points wide, edm-gpui lays the window out for a
   phone (`window/narrow.rs`): a top bar, the rows as cards, the menus in a
   sheet, the side panel as a drawer. The same views and commands; a desktop
   window narrowed by hand shows it too.
@@ -344,21 +344,21 @@ when it asks (`settings.get`, re-asked at most a minute later):
 | **minSizeKb** | Smaller downloads stay with the browser. An unknown size is not a reason to leave one. |
 | **skipHosts** | Sites whose downloads stay with the browser, subdomains included. |
 
-The file is `settings.json` under dm's home (`~/Library/Application
-Support/dm-engine` on macOS, `~/.local/share/dm-engine` on Linux), and
+The file is `settings.json` under EDM's home (`~/Library/Application
+Support/edm-engine` on macOS, `~/.local/share/edm-engine` on Linux), and
 Options › Browser edits them.
 
 The "Download video" panel's list on a YouTube page comes in two steps:
 the page's own player is asked for the qualities it lists
-(`extension/document.js`, in the page's world, answers a `dm-ask-qualities`
+(`extension/document.js`, in the page's world, answers a `edm-ask-qualities`
 message with the player's levels and the id of the video it is playing),
-which the panel shows in a moment, and dm's reading of the page, with each
+which the panel shows in a moment, and EDM's reading of the page, with each
 quality's size, takes that list's place when it arrives (`content/handoff.rs`).
 A line clicked on the first list is taken at its height.
 
 ## How the hand-off works
 
-**The extension** is Rust (`crates/dm-catcher/`, crate `dm-catcher`) compiled to
+**The extension** is Rust (`crates/edm-catcher/`, crate `edm-catcher`) compiled to
 WebAssembly with wasm-bindgen. Every decision — which downloads are
 candidates, what a menu click hands over, how long an answer about the app is
 believed — is plain Rust tested on the build machine; the browser side reads
@@ -368,7 +368,7 @@ listeners on its first turn, so `scripts/package.sh` writes the WebAssembly
 into the background's script (`pkg/background.js`), which starts it at once
 (`initSync`) and Rust registers them (`web/listen.rs`); the popup's script
 (`pkg/popup.js`) only starts the Rust. Its words are the browser's language:
-each is named in `crates/dm-catcher/src/words.rs` and read with `i18n.getMessage` from
+each is named in `crates/edm-catcher/src/words.rs` and read with `i18n.getMessage` from
 `extension/_locales` (English and the app's other languages), the English
 where the browser gives none; the background's reasons and notifications are
 English still. Permissions:
@@ -387,7 +387,7 @@ to that policy, so the panel cannot load there; the right-click menu still
 works.
 
 **The protocol** is native messaging, and its vocabulary, message types and
-the catch rule are one Rust crate (`crates/dm-protocol`) used by both
+the catch rule are one Rust crate (`crates/edm-protocol`) used by both
 sides, where it used to be two languages kept in step by hand:
 
 | extension sends | host answers |
@@ -404,9 +404,9 @@ days while the app updates itself, so a newer app never stops an older extension
 host reads every request version back to 1 and answers at version 1, a reply is only ever added
 to, and the extension reads a reply of any version for the fields it knows. The extension's
 hello says its version and what it can do (`Greeting`, kept by the app as `extension.json` in
-dm's home), the app's says what it can do (`features`), and a new ability is a name in
-`dm_protocol::feature`, not a new version. What each released extension sends is frozen in
-`crates/dm-protocol/tests/wire/`, and the tests hold every later app to answering it.
+EDM's home), the app's says what it can do (`features`), and a new ability is a name in
+`edm_protocol::feature`, not a new version. What each released extension sends is frozen in
+`crates/edm-protocol/tests/wire/`, and the tests hold every later app to answering it.
 
 **The extension does the bare minimum; the app decides (gaps row A22).** The extension keeps
 only what needs the browser: it catches the browser's downloads and holds them, sees what the
@@ -414,9 +414,9 @@ app cannot (cookies, request headers, the page's links, the responses a player g
 browser's own surfaces (the right-click menu, the toolbar popup, the panel over a player) and
 carries out a handful of fixed mechanisms the app names. The app decides:
 
-* **the right-click menu**: the app's hello serves it (`Hello::menus`, `dm_protocol::served_menus`,
+* **the right-click menu**: the app's hello serves it (`Hello::menus`, `edm_protocol::served_menus`,
   Options' hidden items already left out). Each item names what it does by a mechanism the
-  extension knows (`dm_protocol::menu_does`: a link, a player's media, all links, the selected
+  extension knows (`edm_protocol::menu_does`: a link, a player's media, all links, the selected
   links, or `app`); a click on an `app` item goes to the app as the browser said it
   (`menu.clicked`), and the app chooses what it takes (`host::menu_start`). The extension says
   an item it knows in the browser's language, one the app added in the app's words.
@@ -430,11 +430,11 @@ carries out a handful of fixed mechanisms the app names. The app decides:
   extension's own; its own, in the browser's language, where none come. The app of today
   sends none.
 * **the panel's list of what a player loaded**: the extension keeps the streams it saw and the
-  app makes the list of them (`media.streams`, `dm_protocol::media::panel_list`: picture and
+  app makes the list of them (`media.streams`, `edm_protocol::media::panel_list`: picture and
   sound joined, clips beside a video dropped, the order, the names), the extension making it
   with its own copy of the same code where the app does not answer in three seconds.
 
-Each is a name in `dm_protocol::feature` said in both hellos, so an older side on either end
+Each is a name in `edm_protocol::feature` said in both hellos, so an older side on either end
 goes on as before: an extension of 3.4.0 makes its own menu and judges for itself, and a 3.5.0
 extension talking to an app of 0.10.0 does the same.
 
@@ -443,7 +443,7 @@ an executable and cannot pass it arguments, so the binary works out that a
 browser started it from what each browser passes as its first argument,
 and answers only an extension it knows: the ids built in and any a manifest
 it wrote allows (`shell::launcher_known`; the browser's own manifest check
-is the one that counts, this holds where something else started dm in a
+is the one that counts, this holds where something else started EDM in a
 browser's name). It asks the server once (through the saved proxy, with the page as referrer)
 before taking a download the browser is holding (`caught`), writes the request into a directory the running app
 watches, starts the app if it is not running (or rings a running one's
@@ -454,35 +454,35 @@ window is where the download is.
 
 **Safari** (macOS, gaps row R4) loads a web extension only from inside an app, and sends its
 native messages to that app's extension program rather than to a host. `scripts/safari-extension.sh`
-(`make build-safari`) puts `dm Safari Extension.appex` into dm.app/Contents/PlugIns: its
+(`make build-safari`) puts `EDM Safari Extension.appex` into EDM.app/Contents/PlugIns: its
 Resources are `dist/safari` (`extension/manifest.safari.json`), and its program is Rust
-(`crates/dm-safari`), which starts dm's own program as the host (`dm --native-host`) for
+(`crates/edm-safari`), which starts EDM's own program as the host (`EDM --native-host`) for
 each message, with the person's own `HOME`, and gives Safari its answer. Safari keeps no port
 open for answers, so there the extension sends each request with `runtime.sendNativeMessage`
 (`decide::one_message_at_a_time`). The extension and the host it starts run in macOS's sandbox,
-allowed dm's own folder and outgoing connections (`assets/macos/safari/entitlements.plist`);
-a dm the host must start is opened through `open`, outside it. Safari has no `downloads` API:
+allowed EDM's own folder and outgoing connections (`assets/macos/safari/entitlements.plist`);
+an EDM the host must start is opened through `open`, outside it. Safari has no `downloads` API:
 what Safari itself downloads stays with Safari, and the menu, Alt-click, "Download all links",
 the popup and the panel are the ways in. Signed ad hoc, it runs only with Safari's Develop ›
-Allow Unsigned Extensions. cargo-packager makes dm.app and the .dmg in one run, so the release's
+Allow Unsigned Extensions. cargo-packager makes EDM.app and the .dmg in one run, so the release's
 .dmg is opened again afterwards (`safari-extension.sh --dmg`, the desktop workflow's "The Safari
-extension" step): its dm.app replaced by the one with the extension, compressed and signed again
+extension" step): its EDM.app replaced by the one with the extension, compressed and signed again
 as the packager left it. With a Developer ID (R1) the extension must go in before notarisation.
 
-The toolbar popup lists what dm is fetching (`downloads.list`, gaps row U18). The host is a
+The toolbar popup lists what EDM is fetching (`downloads.list`, gaps row U18). The host is a
 process per message with no line to the window, and the control port is open only where a person
-asked for it, so the window writes what runs into `going.json` in dm's home as it reads the queue
+asked for it, so the window writes what runs into `going.json` in EDM's home as it reads the queue
 (`app::going`): at most once a second while anything runs, once as the last stops, at once when a
-download fails, and only once a browser's extension has talked to this dm. The host reads it when
-the popup asks and says nothing runs where it is over five seconds old or no dm runs. The popup
-asks every two seconds while it is open, which also connects it by itself once dm can be reached.
+download fails, and only once a browser's extension has talked to this EDM. The host reads it when
+the popup asks and says nothing runs where it is over five seconds old or no EDM runs. The popup
+asks every two seconds while it is open, which also connects it by itself once EDM can be reached.
 
 The same file lists the ten downloads stopped or finished last (gaps row C12): the stopped first,
 then the latest to end. An app whose hello says `acts-on-downloads` gives each its row's id, and
 the popup shows Stop beside a running one, a "Recent" section under them with Open and Open folder
 (finished), Resume (stopped) or Retry (failed), and Clear finished. A button sends
 `downloads.act`; the host leaves it in the inbox as `browser.<does>[.<id>]` and rings the bell, the
-inbox's watcher wakes the window, and the window's tick (`Session::tick`, so dm with no window too)
+inbox's watcher wakes the window, and the window's tick (`Session::tick`, so EDM with no window too)
 carries it out as its own command for that row, only where that command applies now
 (`app::going::command_for`, `commands::applies`): Open and Open folder as the platform's
 `Effect::Open`/`Effect::Reveal`, Resume download, Stop download and Delete Completed through
@@ -491,7 +491,7 @@ before; an older extension passes the new fields by.
 
 **Never losing a download.** A caught download is paused while the app is
 asked, and cancelled only once the app says it has it. No app, no answer, a
-refusal, or a server that will not serve dm: the browser's download is
+refusal, or a server that will not serve EDM: the browser's download is
 resumed — or, where it cannot be (Firefox cannot resume what a server will
 not range), started again, marked so the extension does not catch it a
 second time. A download the extension itself started is never caught.
@@ -501,7 +501,7 @@ answers 403 or 410 waits for a fresh one (`Entry::fresh_link`). The browser's
 next hand-off of the same file takes its place (`shell::take_from_browser`,
 `DownloadList::adopt_fresh_link`) unless Download details asks first. The extension
 also remembers what it handed over (`decide::Handed`) and, when the page's
-player asks for one of those streams anew, offers dm that address marked
+player asks for one of those streams anew, offers EDM that address marked
 `renews`, only to an app whose hello says it takes them: a waiting row goes
 on with it, and the app drops it otherwise.
 
@@ -509,7 +509,7 @@ on with it, and the app drops it otherwise.
 
 - **Cookies stay with the browser, unless you say otherwise for a site.**
   The app is a separate program and does not have the browser's session. A
-  download that needs it is refused by dm before anything is taken and
+  download that needs it is refused by EDM before anything is taken and
   finishes in the browser — kept, but not accelerated. The toolbar popup's
   "Hand over this site's sign-in" changes that for one site: the extension
   asks the browser for its `cookies` permission the first time, and from
@@ -524,7 +524,7 @@ on with it, and the app drops it otherwise.
   browser: with no app, downloads are the browser's own.
 - **Windows has run only on CI's machines.** Windows reads host manifests
   through the registry; `--register` writes the keys through the registry's
-  own API (`dm_shell::registry`, its parsing unit-tested on every OS; only
+  own API (`edm_shell::registry`, its parsing unit-tested on every OS; only
   the `.reg` copy of another program's magnet or `.torrent` key is `reg.exe`'s), and CI installs the NSIS installer, runs
   `smoke.py` and the whole of `app-check.py` against it. A person's Windows
   desktop (a GPU driver, the tray, SmartScreen, a login item) is checked by
@@ -541,10 +541,10 @@ Linux, under Wayland and KDE's compositor) is in [testing.md](testing.md).
 The common ones:
 
 ```sh
-cd crates/dm-catcher && cargo test                       # the extension's decisions, on the host
-cd crates/dm-catcher && cargo clippy --target wasm32-unknown-unknown -- -D warnings
+cd crates/edm-catcher && cargo test                       # the extension's decisions, on the host
+cd crates/edm-catcher && cargo clippy --target wasm32-unknown-unknown -- -D warnings
 sh scripts/package.sh                          # build the WebAssembly, dist/chrome, dist/firefox, the zips
-python3 scripts/chrome-check.py                # Chrome for Testing, handing off to a real dm
+python3 scripts/chrome-check.py                # Chrome for Testing, handing off to a real EDM
 
 cargo xtask check                # all of the gate that needs no window, app and extension
 cargo test --workspace           # engine, protocol, shell and window tests
@@ -556,22 +556,22 @@ python3 scripts/firefox-check.py [native]      # a real Firefox, when one is ins
 
 `chrome-check.py` needs nothing but Python: it downloads Chrome for Testing
 (the build that still honours `--load-extension`) into
-`~/.cache/dm-chrome-for-testing`, loads `dist/chrome` into a throwaway
+`~/.cache/edm-chrome-for-testing`, loads `dist/chrome` into a throwaway
 profile, registers a copy of the debug binary as the host with a throwaway
-`DM_HOME`, and drives it over the DevTools protocol against a local server: a
-clicked link handed to dm and fetched with its referrer, the browser's copy
+`EDM_HOME`, and drives it over the DevTools protocol against a local server: a
+clicked link handed to EDM and fetched with its referrer, the browser's copy
 erased, types the app does not list left alone, a cookie-gated file refused
-by dm and finished by the browser, the menu's handler, and a download with no
+by EDM and finished by the browser, the menu's handler, and a download with no
 host finishing in the browser.
 
-The window's tests (`dm-gpui/src/window_tests/`) open it in GPUI's test
+The window's tests (`edm-gpui/src/window_tests/`) open it in GPUI's test
 platform against a real queue fetching from a server on loopback, click its
 controls by the names it gives them, and check what each did to the queue.
 The built window is driven through the control port (`ui.texts`, `ui.click`,
 `ui.type`) by `scripts/human-qa.py` and `scripts/app-check.py`.
 
 ```
-crates/dm-catcher/        the extension, in Rust (crate dm-catcher)
+crates/edm-catcher/        the extension, in Rust (crate edm-catcher)
   src/decide.rs           every decision, tested on the host; its parts are decide/ (download,
                           menu, app, media_panel, sites, streams, timing), re-exported from it
   src/web.rs              the browser side: extension APIs, native messaging; web/ holds plumbing,
@@ -584,7 +584,7 @@ extension/
   pkg/                    built by scripts/package.sh (not in git): the WebAssembly and its glue,
                           background.js and popup.js that start it, panel.js for a page's frame
 crates/                   the app's crates, one folder each (the workspace is the root's Cargo.toml)
-  dm-core/
+  edm-core/
     download/             one download: mod.rs (options, the entry points), ranged.rs (the
                           range workers, resume; ranged/limits.rs keeps to a server that
                           limits connections or requests), http.rs, mirrors.rs, hls.rs (playlists and
@@ -604,28 +604,28 @@ crates/                   the app's crates, one folder each (the workspace is th
     proxy.rs              routing downloads through a proxy
     checksum.rs           verifying a finished file against a published hash
     metalink.rs           reading a list of mirrors for one file
-    torrent.rs            magnets and .torrent files, through dm-torrent's session
-    dash.rs               DASH manifests read by dm: templates, lists, byte ranges, the picture
+    torrent.rs            magnets and .torrent files, through edm-torrent's session
+    dash.rs               DASH manifests read by EDM: templates, lists, byte ranges, the picture
                           and sound chosen (the fetching is download/dash.rs)
     stream.rs             HLS playlists
-    mp4mux.rs, mkvmux.rs, tsmux.rs, mp3.rs, gif.rs   dm-media's modules under their old paths,
+    mp4mux.rs, mkvmux.rs, tsmux.rs, mp3.rs, gif.rs   edm-media's modules under their old paths,
                           with the engine's calls of them off the async runtime, the MP3 and the
                           GIF written to their files, and what needs a page (`gif::possible_for`,
                           `mp3::choice_after`)
     live.rs, rtmp.rs, rtsp.rs, mms.rs   live streams recorded as they come (rtmp/: amf, wire,
                           recorder, connect, session)
-    youtube.rs            a YouTube page read by dm itself (the player API; the player's checks
+    youtube.rs            a YouTube page read by EDM itself (the player API; the player's checks
                           answered by youtube/player.rs, the player cut down to what answers
                           them, as reference A does), and a playlist page's videos
-    javascript.rs         that program (and a proxy script) run in dm's own JavaScript
-                          interpreter, the crate dm-js (lexer, parser, interpreter, built-in
+    javascript.rs         that program (and a proxy script) run in EDM's own JavaScript
+                          interpreter, the crate edm-js (lexer, parser, interpreter, built-in
                           objects, patterns; a time limit, a thread of its own); a test may
                           put a stand-in program in its place
     clip.rs               a part of a video: a stream's index of pieces, the pieces for a span,
                           fetched by ranges; the muxer cuts the joined file to the second
     videopage.rs          a video page's streams fetched and joined (the module keeps its old
                           name)
-    videopage/fetch.rs        a page's reading, its streams fetched by dm's engine
+    videopage/fetch.rs        a page's reading, its streams fetched by EDM's engine
     videopage/choices.rs      the panel's list of qualities, from the page's own data
     videopage/page_data.rs    a YouTube watch page's own player data, read as that list
     videopage/playlist.rs     a playlist page's videos, listed to tick
@@ -634,56 +634,56 @@ crates/                   the app's crates, one folder each (the workspace is th
     extract/sevenz.rs     a 7z under the same rules (sevenz/: header, lzma with LZMA2)
     ftp.rs                FTP (ftp/: transport, target, reply, session, listing, transfer)
     (the HTTP client, proxies and the proxy script, sign-ins, cookies, the stop flag and
-    `Error` are dm-net's, re-exported under their old paths: `dm_core::client`, `dm_core::pac`)
-  dm-media/               dm's own media code (gaps row A6): files in, files out; no sockets, no
-                          async runtime, none of dm's other crates
+    `Error` are edm-net's, re-exported under their old paths: `edm_core::client`, `edm_core::pac`)
+  edm-media/               EDM's own media code (gaps row A6): files in, files out; no sockets, no
+                          async runtime, none of EDM's other crates
     mp4mux.rs, mkvmux.rs  picture and sound joined into one MP4, WebM or MKV (mp4mux/: read, write,
                           text, part; mkvmux/from_mp4.rs: an MP4's samples as Matroska blocks, for a
                           pair no MP4 holds, VP8 or Vorbis beside MP4, or MKV asked)
     tsmux.rs              transport streams put into MP4 (tsmux/: demux, samples, sound, headers,
                           tracks, packed)
     fmp4.rs               a fragmented MP4 written as a live stream comes (RTMP, RTSP)
-    mp3.rs, gif.rs        dm's own MP3 and GIF encoders, returning the file's bytes
+    mp3.rs, gif.rs        EDM's own MP3 and GIF encoders, returning the file's bytes
     aac.rs, frames.rs, mf.rs   the decoders: AAC, and a video's pictures (the system's on macOS
                           and Windows, Media Foundation in mf.rs; AV1 by rav1d on Linux), each
                           system's in a file of its own (frames/, mp3/decode/: macos, win, linux)
     shape.rs, subtitles.rs     a picture cropped to a shape; subtitles read and written
-  dm-net/                 dm's network (gaps row A6): how a server is reached, whatever is fetched
+  edm-net/                 EDM's network (gaps row A6): how a server is reached, whatever is fetched
     http_client.rs        the client builder, its TLS (`tls_config`, shared with RTMP, RTSP and
                           FTPS), `Retry-After`
     trust.rs              certificates trusted beside the public roots, given before the TLS
-                          set-up is made (the benchmark's, `DM_BENCH_CA`, read by dm-core)
-    proxy.rs, pac.rs      the proxy in force, the proxy configuration script (run in dm-js through
+                          set-up is made (the benchmark's, `EDM_BENCH_CA`, read by edm-core)
+    proxy.rs, pac.rs      the proxy in force, the proxy configuration script (run in edm-js through
                           javascript.rs, where a test may put a stand-in)
     dns.rs, redirects.rs  names (kept a minute; under `.test`, the benchmark's DNS server where
-                          `DM_BENCH_DNS` names one, dns/ask.rs), and where a redirect may go
+                          `EDM_BENCH_DNS` names one, dns/ask.rs), and where a redirect may go
     auth.rs, ntlm.rs, cookies.rs   sign-ins (Basic, Digest, NTLM) and the browser's cookies
     agents.rs, limit.rs, decode.rs   the user agent a site gets, the speed ceiling, a body's
                           decoding held to a ratio
     connect_first.rs, second_path.rs   a sign-in to the network first; a second network path
     only_through.rs       the one network every download is held to (a VPN's): each client bound
                           to its address, FTP's sockets too; downloads wait while it is gone
-    control.rs, error.rs  the stop flag a row's work checks; dm's `Error`
-  dm-torrent/             BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate
+    control.rs, error.rs  the stop flag a row's work checks; EDM's `Error`
+  edm-torrent/             BitTorrent's engine behind EDM's words (gaps rows A6, P3): the one crate
                           that names librqbit; a session, a torrent added to it, its stats and
-                          files, a .torrent's trackers. What a download means to dm stays in
-                          dm-core's torrent.rs
-  dm-protocol/            what the extension and the host say, and the catch rule
-  dm-safari/              Safari's extension's program (macOS): each message to `dm --native-host`
-  dm-shell/               settings, the browser host, --register, one-instance lock, startup;
+                          files, a .torrent's trackers. What a download means to EDM stays in
+                          edm-core's torrent.rs
+  edm-protocol/            what the extension and the host say, and the catch rule
+  edm-safari/              Safari's extension's program (macOS): each message to `EDM --native-host`
+  edm-shell/               settings, the browser host, --register, one-instance lock, startup;
                           app/ the application layer every window drives
-  dm-desktop-base/        the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,
+  edm-desktop-base/        the program but its drawing: control.rs, cli.rs, mcp.rs, headless.rs,
                           the system's services (tray, toasts, taskbar…)
-  dm-gpui/                the window shipped, in GPUI: window/ (list.rs the rows and each wake's
+  edm-gpui/                the window shipped, in GPUI: window/ (list.rs the rows and each wake's
                           read, tick.rs, table.rs, menus.rs, the bars, theme.rs), dialogs/ (one
                           file per window beside the main one), options.rs with options/pages.rs
                           and pages/ (a file per page),
                           widgets/ (what GPUI lacks), platform/ (syswindow/, tray.rs, services,
                           drags and drops), port.rs and probe.rs (the control port); harness.rs
                           and window_tests/ the window's tests
-  dm-assets/              the files below compiled in: the window's pictures, the catalogs,
+  edm-assets/              the files below compiled in: the window's pictures, the catalogs,
                           the shipped site rules
-  dm-test-support/        what the crates' tests share (the logins and secrets they use);
+  edm-test-support/        what the crates' tests share (the logins and secrets they use);
                           only ever a dev-dependency
 assets/                   what is not code: icons/ (the window's), app-icons/ and macos/
                           (the installers'), i18n/ (the catalogs, with template/ the file
@@ -694,7 +694,7 @@ tooling/xtask/            cargo xtask scorecard | layers | privacy | secrets | i
 packaging/PKGBUILD        the Arch package
 shared/naming-cases.json  filename cases the engine's naming is held to
 scripts/package.sh        builds the extension and the store zips
-scripts/chrome-check.py   the extension in Chrome for Testing, handing off to dm
+scripts/chrome-check.py   the extension in Chrome for Testing, handing off to EDM
 scripts/firefox-check.py  the extension in a real Firefox
 scripts/app-check.py      the built binary, driven
 ```

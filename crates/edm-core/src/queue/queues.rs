@@ -1,0 +1,183 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+use super::*;
+
+impl DownloadList {
+    /// Starts every row waiting in a named queue, and says how many.
+    pub async fn start_queue(&self, queue: &str) -> usize {
+        let mut started = 0;
+        {
+            let mut slots = self.inner.slots.lock().await;
+            for slot in slots.values_mut() {
+                if slot.entry.queue == queue && slot.entry.state == State::Paused {
+                    slot.requeue();
+                    started += 1;
+                }
+            }
+        }
+        if started > 0 {
+            self.kick();
+            self.save().await;
+        }
+        started
+    }
+
+    /// Stops every row of a named queue that is running or waiting.
+    pub async fn stop_queue(&self, queue: &str) -> usize {
+        let mut stopped = 0;
+        {
+            let mut slots = self.inner.slots.lock().await;
+            for slot in slots.values_mut() {
+                if slot.entry.queue != queue {
+                    continue;
+                }
+                if matches!(slot.entry.state, State::Queued | State::Running) {
+                    slot.hold(false);
+                    stopped += 1;
+                } else if slot.entry.state == State::Paused
+                    && std::mem::take(&mut slot.entry_mut().paused_by_schedule)
+                {
+                    // Held by the schedule, now stopped by a person: not
+                    // started again when the window opens.
+                    stopped += 1;
+                }
+            }
+        }
+        if stopped > 0 {
+            self.save().await;
+        }
+        stopped
+    }
+
+    /// A person said yes to saving the web page that answered for this file as
+    /// an HTML page: the row goes on from the next try as one.
+    pub async fn accept_page(&self, id: Id) -> bool {
+        self.edit(id, |slot| {
+            slot.entry_mut().accept_page = true;
+            true
+        })
+        .await
+    }
+
+    /// Whether a download of the same file as one already here (a finished row's, or a file in
+    /// its folder) stops before its body for a person to be asked (gaps row W18). Off unless a
+    /// window turns it on: where nobody is asked, the file is fetched as before.
+    pub fn ask_about_same_files(&self, on: bool) {
+        self.inner.asks_same.store(on, Ordering::SeqCst);
+    }
+
+    /// A person said Download again to the same file as one already here: the row goes on from
+    /// the next try without being asked again (gaps row W18).
+    pub async fn accept_same(&self, id: Id) -> bool {
+        self.edit(id, |slot| {
+            slot.entry_mut().accept_same = true;
+            true
+        })
+        .await
+    }
+
+    /// "Move/Rename" for a finished file: renamed where it lies, never
+    /// over another file.
+    pub async fn rename(&self, id: Id, name: &str) -> Result<(), String> {
+        let path = match self.get(id).await {
+            Some(entry) if entry.state == State::Completed && !entry.path.is_empty() => {
+                PathBuf::from(entry.path)
+            }
+            Some(_) => return Err("only a finished download can be renamed".into()),
+            None => return Err("there is no such download".into()),
+        };
+        let to = rename_free(&path, name).await.map_err(|e| e.to_string())?;
+        self.edit(id, |slot| {
+            slot.entry_mut().filename = to
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            slot.entry_mut().path = to.to_string_lossy().into_owned();
+            true
+        })
+        .await;
+        Ok(())
+    }
+
+    /// Moves a finished download's file into `dir`, under the same name or
+    /// a numbered one where that is taken, across disks too, and keeps the
+    /// row's path to where it now is.
+    pub async fn move_to(&self, id: Id, dir: &std::path::Path) -> Result<PathBuf, String> {
+        let from = match self.get(id).await {
+            Some(entry) if entry.state == State::Completed && !entry.path.is_empty() => {
+                PathBuf::from(entry.path)
+            }
+            Some(_) => return Err("only a finished download can be moved".into()),
+            None => return Err("there is no such download".into()),
+        };
+        // A relative folder is wherever this process was started: never where a person meant.
+        if !dir.is_absolute() {
+            return Err(format!(
+                "the folder must be a full path, not {:?}",
+                dir.display().to_string()
+            ));
+        }
+        if from.parent() == Some(dir) {
+            return Ok(from);
+        }
+        tokio::fs::create_dir_all(dir)
+            .await
+            .map_err(|e| format!("{} could not be made: {e}", dir.display()))?;
+        let name = from
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        // Claimed first, as a rename claims its name, then moved over.
+        let to = crate::download::claim_path(dir, &name)
+            .await
+            .map_err(|e| e.to_string())?;
+        if tokio::fs::rename(&from, &to).await.is_err() {
+            // Another disk: copied, then the original removed once whole.
+            if let Err(e) = tokio::fs::copy(&from, &to).await {
+                let _ = tokio::fs::remove_file(&to).await;
+                return Err(format!("{} could not be moved: {e}", from.display()));
+            }
+            let _ = tokio::fs::remove_file(&from).await;
+        }
+        self.edit(id, |slot| {
+            slot.entry_mut().filename = to
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            slot.entry_mut().path = to.to_string_lossy().into_owned();
+            true
+        })
+        .await;
+        Ok(to)
+    }
+
+    /// The names of the queues rows are in, in the order first met.
+    pub async fn queues(&self) -> Vec<String> {
+        // Read in place: the window asks several times a frame, and a copy of
+        // every row to read one name from each was most of what it cost.
+        let slots = self.inner.slots.lock().await;
+        let order = self.inner.order.lock().await;
+        queue_names(
+            order
+                .iter()
+                .filter_map(|id| slots.get(id))
+                .map(|s| &*s.entry),
+        )
+    }
+}
+
+/// The queues `rows` name, as [`DownloadList::queues`] lists them: the main queue
+/// and the recheck queue first, then each other one where it first appears.
+/// For a reader holding the list already (the window), with no lock.
+pub fn queue_names<'a>(rows: impl IntoIterator<Item = &'a Entry>) -> Vec<String> {
+    let mut names = vec![MAIN_QUEUE.to_string(), RECHECK_QUEUE.to_string()];
+    for row in rows {
+        if !row.queue.is_empty() && !names.contains(&row.queue) {
+            names.push(row.queue.clone());
+        }
+    }
+    names
+}

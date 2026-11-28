@@ -8,7 +8,7 @@ name: Edge Add-ons, upload and submit
 # that draft for review, through the Edge Add-ons publish API.
 #
 # Each submission needs a version above the listing's: bump the extension's
-# version (both manifests and crates/dm-catcher/Cargo.toml) before running it again.
+# version (both manifests and crates/edm-catcher/Cargo.toml) before running it again.
 # Microsoft refuses a new upload while an earlier submission is still in review.
 #
 # Secrets, from Partner Center › Microsoft Edge › Publish API:
@@ -64,7 +64,7 @@ jobs:
           toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
       - name: Tests
-        working-directory: crates/dm-catcher
+        working-directory: crates/edm-catcher
         run: cargo test --locked
       - name: Build the Edge zip
         run: |
@@ -83,8 +83,8 @@ jobs:
           json.dump(m, open(p, "w"), indent=2, ensure_ascii=False)
           print("version", m["version"])
           PY
-          (cd dist/edge && zip -qr ../dm-edge.zip . -x '.*')
-          ls -la dist/dm-edge.zip
+          (cd dist/edge && zip -qr ../edm-edge.zip . -x '.*')
+          ls -la dist/edm-edge.zip
       - name: Upload it as the listing's draft
         run: |
           set -e
@@ -101,7 +101,7 @@ jobs:
             -H "$(auth)" -H "X-ClientID: $EDGE_CLIENT_ID" \
             -H "Content-Type: application/zip" \
             -X POST "$API/$EDGE_PRODUCT_ID/submissions/draft/package" \
-            --data-binary @dist/dm-edge.zip; then
+            --data-binary @dist/edm-edge.zip; then
             echo "Microsoft answered:"; cat headers.txt answer.txt; exit 1
           fi
           operation=$(grep -i '^location:' headers.txt | awk '{print $2}' | tr -d '\r')

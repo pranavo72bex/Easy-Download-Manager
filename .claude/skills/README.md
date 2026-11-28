@@ -1,21 +1,21 @@
 # Project skills
 
-Skills Claude Code loads in this repository, and that dm's free-model bots read
+Skills Claude Code loads in this repository, and that EDM's free-model bots read
 (`docs/ai-skills/`, `scripts/ai-context.py`). They are instructions for the AI, not part of
-dm: nothing here is built into or shipped with the app.
+EDM: nothing here is built into or shipped with the app.
 
-- `dm-design/`: dm's own. Read first for any work on the window; it maps the skills below
-  onto dm's GPUI window and says which rules win.
+- `edm-design/`: EDM's own. Read first for any work on the window; it maps the skills below
+  onto EDM's GPUI window and says which rules win.
 - `better-interface/`, `better-ui/`, `better-typography/`, `better-colors/`, `better-layout/`,
   `better-accessibility/`, `better-writing/`, `better-motion/`, `interface-review/`: copied
   unchanged (less their `agents/` files) from github.com/jakubkrehel/skills at commit
   672ae44a (2026-11-18), MIT licence in `LICENSE-better-skills`. Written for web pages; read
-  them through `dm-design`.
+  them through `edm-design`.
 - `break/`, `afk/`, `upskill/`: from the same commit, the same way (2026-11-24). How they read
-  for dm:
+  for EDM:
   - `break`: its scenarios (`break/scenarios.md`) are the worst cases a window test covers.
-    Its harness, a temporary web page looked at in a browser, is not dm's: for dm the harness
-    is `crates/dm-gpui/src/window_tests/` and the layout sweep (four widths, two text sizes,
+    Its harness, a temporary web page looked at in a browser, is not EDM's: for EDM the harness
+    is `crates/edm-gpui/src/window_tests/` and the layout sweep (four widths, two text sizes,
     German for long words, Hebrew for right to left).
   - `afk`: work done while the maintainer is away. Here the free-model bots in GitHub Actions
     do that unattended (`docs/testing.md`, "The bots"); they follow its method through
@@ -28,12 +28,12 @@ dm: nothing here is built into or shipped with the app.
   Sokolovsky, CC BY 4.0 (`LICENSE-unslop`; keep the credit). Its markdown only: its
   `scripts/` (Node, for web pages), `agents/` and reference images were left out, so the
   image links in `references/refs.md` lead nowhere here. Written for web pages; read it
-  through `dm-design`. For dm its order of passes (spacing, color, icons, copy, type,
+  through `edm-design`. For EDM its order of passes (spacing, color, icons, copy, type,
   layout, details, motion) and its list of tells (`references/signs.md`) are what apply;
   its hero visuals and landing-page advice do not fit a download manager's window.
 - Not taken from that repository, though each was read and is clean: `explain-interface`
   (it fetches web pages and their stylesheets with `curl`), `build-design` (Figma),
-  `state-machine` and `variant` (they render a component on a throwaway web page; dm's window
+  `state-machine` and `variant` (they render a component on a throwaway web page; EDM's window
   is not one).
 
 ## Checked, every time

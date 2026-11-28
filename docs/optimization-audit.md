@@ -1,31 +1,31 @@
-# Optimization audit: dm against the GPUI and Rust cross-platform spec
+# Optimization audit: EDM against the GPUI and Rust cross-platform spec
 
 The maintainer gave an engineering spec on 2026-11-11, "GPUI + Rust Optimization for
-Cross-Platform Desktop Applications". This page holds dm to each of its requirements, sections 2
+Cross-Platform Desktop Applications". This page holds EDM to each of its requirements, sections 2
 to 13, as the code stood at `5b03929f` (branch `gpui-par`). Each requirement is **MET**, **NOT MET**,
-**PARTLY** (part is met and the rest is a row), or **N/A** (does not apply to dm, with why).
+**PARTLY** (part is met and the rest is a row), or **N/A** (does not apply to EDM, with why).
 Everything not met is a row in [gaps.md](gaps.md), rows 180 to 192, each marked "(optimization
 spec §N)". Linux and Windows were audited from the code and the docs only. A measurement on
 them is owed to the final Linux pass or to the Windows laptop.
 
-Paths are under `crates/` unless they say otherwise. `g/` is `dm-gpui/src`, `s/` is
-`dm-shell/src`, `b/` is `dm-desktop-base/src` and `c/` is `dm-core/src`.
+Paths are under `crates/` unless they say otherwise. `g/` is `edm-gpui/src`, `s/` is
+`edm-shell/src`, `b/` is `edm-desktop-base/src` and `c/` is `edm-core/src`.
 
 ## §2 Architecture
 
-dm keeps its own crates. The spec's layout is only an illustration, and no rule needs it: the
-engine (`dm-core`) and the application layer (`dm-shell`) are already apart from both windows.
+EDM keeps its own crates. The spec's layout is only an illustration, and no rule needs it: the
+engine (`edm-core`) and the application layer (`edm-shell`) are already apart from both windows.
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
-| GPUI only in the presentation; the engine and app core never depend on it (rule 1) | MET | `cargo xtask layers` (`tooling/xtask/src/main.rs:287-345`) refuses any GUI crate in `dm-protocol`, `dm-core`, `dm-shell` and `dm-desktop-base`, GPUI included under all four of its names. It runs in `cargo test --workspace` (`xtask/src/main.rs:729`) and in CI (`.github/workflows/desktop.yml:87`) |
-| No `cfg(target_os)` in shared logic unless genuinely platform-specific (rule 2) | MET | About 102 lines in `dm-core` and 57 in `dm-shell`. They are OS bindings: the keychain and credential store (`c/secretstore.rs`), the system's JavaScript engine (`c/javascript.rs`), free space and FAT32 (`c/download/space.rs`), network interfaces (`c/second_path.rs`), the registry or manifest files of a browser host (`s/register.rs`), Windows' RAS (`s/dialup.rs`) and the system's openers (`s/shell.rs`) |
+| GPUI only in the presentation; the engine and app core never depend on it (rule 1) | MET | `cargo xtask layers` (`tooling/xtask/src/main.rs:287-345`) refuses any GUI crate in `edm-protocol`, `edm-core`, `edm-shell` and `edm-desktop-base`, GPUI included under all four of its names. It runs in `cargo test --workspace` (`xtask/src/main.rs:729`) and in CI (`.github/workflows/desktop.yml:87`) |
+| No `cfg(target_os)` in shared logic unless genuinely platform-specific (rule 2) | MET | About 102 lines in `edm-core` and 57 in `edm-shell`. They are OS bindings: the keychain and credential store (`c/secretstore.rs`), the system's JavaScript engine (`c/javascript.rs`), free space and FAT32 (`c/download/space.rs`), network interfaces (`c/second_path.rs`), the registry or manifest files of a browser host (`s/register.rs`), Windows' RAS (`s/dialup.rs`) and the system's openers (`s/shell.rs`) |
 | Platform code behind small documented adapter interfaces (rule 3) | MET | `s/app/platform.rs:14` `trait Platform`: notifications, clipboard, reveal and open, trash, sounds, power, file choosers. `b/desktop.rs` implements it. `docs/architecture/MODULE_BOUNDARIES.md` says what may call what |
 | UI state is never the source of truth for downloads (rule 4) | MET | The window reads snapshots that it shares with the queue (`s/app/backend.rs:84-96`, `Vec<Arc<Entry>>`). It owns only its view state (MODULE_BOUNDARIES.md, "State has one owner") |
-| The engine is usable from a CLI, a background process, a test harness or another UI (rule 5) | MET | `--headless` (`b/headless.rs`), the command line (`list`, `status`, `pause`, and so on), MCP, more than 50 engine test binaries in `dm-core/tests`, and two windows (egui and GPUI) over the same `dm_shell::app` |
+| The engine is usable from a CLI, a background process, a test harness or another UI (rule 5) | MET | `--headless` (`b/headless.rs`), the command line (`list`, `status`, `pause`, and so on), MCP, more than 50 engine test binaries in `edm-core/tests`, and two windows (egui and GPUI) over the same `edm_shell::app` |
 | Acyclic crate dependencies (rule 6) | MET | Cargo forbids a cycle, and `xtask layers` holds each crate to the crates below it |
 | No tiny crates without an ownership or compile-boundary reason (rule 7) | MET | Six crates and `xtask`. Each has a boundary that is enforced (the table above) |
-| Narrow public APIs with documented invariants (rule 8) | MET | `#![warn(missing_docs)]` is set at every crate root (`c/lib.rs:23`, `s/lib.rs:16`, `b/lib.rs:38`, `g/main.rs:26`), and CI runs clippy with `-D warnings`. `dm-core`'s root exports 56 modules and items, which is wide. Narrowing it is a refactor no rule asks for, so it was left |
+| Narrow public APIs with documented invariants (rule 8) | MET | `#![warn(missing_docs)]` is set at every crate root (`c/lib.rs:23`, `s/lib.rs:16`, `b/lib.rs:38`, `g/main.rs:26`), and CI runs clippy with `-D warnings`. `edm-core`'s root exports 56 modules and items, which is wide. Narrowing it is a refactor no rule asks for, so it was left |
 | Dependency inversion at platform boundaries | MET | The `Platform` trait above. `WindowServices` is the window's part of it (`b/desktop.rs`) |
 
 ## §3 GPUI rendering
@@ -51,7 +51,7 @@ engine (`dm-core`) and the application layer (`dm-shell`) are already apart from
 | Notify only affected UI state and visible rows | NOT MET (row 181) | Each wake reads the whole list again (`Downloads::read`, `g/list.rs:1600-1640`: 3 `block_on` calls, every row named again, placed, filtered and sorted) and redraws the whole window (see 3.1) |
 | Skip updates whose displayed values did not change | NOT MET (row 181) | `changes::take()` says whether anything changed, but its answer is ignored (`g/list.rs:1601`). A wake from the clock alone does the same full read and redraw |
 | Critical transitions separate from telemetry, never dropped | MET | The window reads state from the queue's snapshot, so a coalesced wake cannot lose a Completed or a Failed. Lifecycle events are kept in order and never dropped (`s/app/events.rs:17-24`). The only progress report allowed to drop is `Retrying` (`try_send`, `runner.rs:441`) |
-| Use the project's ID and event types; no duplicate models | MET | `dm_core::Id`, `Entry`, `State` and `dm_shell::app::events::DownloadEvent` |
+| Use the project's ID and event types; no duplicate models | MET | `edm_core::Id`, `Entry`, `State` and `edm_shell::app::events::DownloadEvent` |
 
 ### 3.3 Large lists (10,000+ records)
 
@@ -71,14 +71,14 @@ engine (`dm-core`) and the application layer (`dm-shell`) are already apart from
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
-| Decoded icons cached; no repeated decode; bounded caches; async loading; no growth over a large history; decode at the size drawn | MET | 22 SVGs are embedded (`g/assets.rs`) and drawn with `svg().path`. GPUI rasterizes each once per size into its atlas. The kind icon comes from that fixed set, so a large history adds no images. dm has no thumbnails |
+| Decoded icons cached; no repeated decode; bounded caches; async loading; no growth over a large history; decode at the size drawn | MET | 22 SVGs are embedded (`g/assets.rs`) and drawn with `svg().path`. GPUI rasterizes each once per size into its atlas. The kind icon comes from that fixed set, so a large history adds no images. EDM has no thumbnails |
 
 ### 3.5 Animation
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
 | No continuous animation when nothing changes; event-driven; an idle app is not kept busy | MET | There is no `with_animation`, no animation frame and no spinner. `on_next_frame` is used only for one-shot calls (`g/fit.rs:22`, `g/list.rs:397`). With nothing running, the window wakes every 30 s (`g/list.rs:92`). Idle CPU was measured in §9 |
-| Respect reduced-motion settings | N/A | dm has no animation for such a setting to turn off. A future animation must read it (AGENTS.md) |
+| Respect reduced-motion settings | N/A | EDM has no animation for such a setting to turn off. A future animation must read it (AGENTS.md) |
 
 ## §4 Rust performance and maintainability
 
@@ -98,13 +98,13 @@ engine (`dm-core`) and the application layer (`dm-shell`) are already apart from
 | Requirement | Verdict | Evidence |
 |---|---|---|
 | No temporary `String`, `Vec` or `format!` in hot loops without evidence | PARTLY (rows 180, 181) | The engine's write loop does none (`c/download/ranged.rs:1180-1215`). The window builds a `String` for each row name at each read (`g/list.rs:1621`) and clones `Settings` per frame |
-| Reuse I/O buffers; bound caches and pools; no pooling of small objects without benchmarks | MET | The name cache is emptied past 2,000 entries (`s/app/names.rs:228`). The place counts are kept per read. dm has no object pools |
+| Reuse I/O buffers; bound caches and pools; no pooling of small objects without benchmarks | MET | The name cache is emptied past 2,000 entries (`s/app/names.rs:228`). The place counts are kept per read. EDM has no object pools |
 
 ### 4.2 Locks
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
-| Never hold a mutex or `RwLock` across `.await` | PARTLY (row 184) | **std guards: MET.** `dm_core::lock` is a std mutex (`c/lib.rs:226`). Clippy's `await_holding_lock` is on and allowed nowhere, and CI refuses warnings (`desktop.yml:84`). **tokio guards across I/O: NOT MET.** `store` is held across the queue file's write. The crate is edition 2021, so the guard made in an `if let` stays alive to the end of the block (`c/queue/persist.rs:212`, `:346`). `slots` is held across `remove_file` (`c/queue/runner.rs:478-512`) and across a synchronous `create_dir_all` (`runner.rs:612-624` → `c/queue/mod.rs:791`). A job's `segments` is held across `spawn_blocking` (`c/download/ranged.rs:454-494`). A global lock is held across a network fetch of the JavaScript engine (`c/tools.rs:377`), and another across a proxy-script fetch (`c/pac.rs:341`) |
+| Never hold a mutex or `RwLock` across `.await` | PARTLY (row 184) | **std guards: MET.** `edm_core::lock` is a std mutex (`c/lib.rs:226`). Clippy's `await_holding_lock` is on and allowed nowhere, and CI refuses warnings (`desktop.yml:84`). **tokio guards across I/O: NOT MET.** `store` is held across the queue file's write. The crate is edition 2021, so the guard made in an `if let` stays alive to the end of the block (`c/queue/persist.rs:212`, `:346`). `slots` is held across `remove_file` (`c/queue/runner.rs:478-512`) and across a synchronous `create_dir_all` (`runner.rs:612-624` → `c/queue/mod.rs:791`). A job's `segments` is held across `spawn_blocking` (`c/download/ranged.rs:454-494`). A global lock is held across a network fetch of the JavaScript engine (`c/tools.rs:377`), and another across a proxy-script fetch (`c/pac.rs:341`) |
 | Never hold a lock while notifying the UI or calling a callback | PARTLY (row 184) | The change callback is called after its guard is dropped (`persist.rs:164`, `s/app/changes.rs:57`, `s/app/events.rs:258-266`). `queue.note()`, which calls it, runs with `slots` held (`runner.rs:500`) and inside `saving` (`persist.rs:268`, `:273`). Neither deadlocks today, because the subscribers only set a flag or send a wake |
 | Document lock ordering | NOT MET (row 184) | `Inner` (`c/queue/mod.rs:476-557`) says nothing about order. The order in use (options → slots → order; store → saving → slots → order) can be read only from the code |
 | Single owner plus messages for hot mutable state; atomics only for simple values | MET | The progress readers own their writes into the row. Atomics are flags and counters (`c/control.rs`, `Control(Arc<AtomicU8>)`; `persist.rs` `unwritten`, `trailing`) |
@@ -113,7 +113,7 @@ engine (`dm-core`) and the application layer (`dm-shell`) are already apart from
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
-| Every unsafe block has a SAFETY comment | MET | `#![warn(clippy::undocumented_unsafe_blocks)]` is set at every crate root that has unsafe (`c/lib.rs:24`, `s/lib.rs:27`, `b/lib.rs:39`, `dm-desktop/src/lib.rs:27`, `g/main.rs:27`, `dm-protocol/src/lib.rs:61`), and CI refuses warnings |
+| Every unsafe block has a SAFETY comment | MET | `#![warn(clippy::undocumented_unsafe_blocks)]` is set at every crate root that has unsafe (`c/lib.rs:24`, `s/lib.rs:27`, `b/lib.rs:39`, `edm-desktop/src/lib.rs:27`, `g/main.rs:27`, `edm-protocol/src/lib.rs:61`), and CI refuses warnings |
 | Prefer safe Rust; no speculative unsafe; isolate it behind small APIs | MET | The unsafe is FFI: Objective-C, Win32, JavaScriptCore and Chakra, the keychain. Each sits in its own module (`c/javascript.rs`, `c/secretstore.rs`, `c/frames.rs`, `g/syswindow.rs`) |
 | Review before expanding | MET (now a written rule) | AGENTS.md, "Rules for performance and platform work", rule 7 |
 
@@ -123,7 +123,7 @@ engine (`dm-core`) and the application layer (`dm-shell`) are already apart from
 |---|---|---|
 | The GPUI thread separate from the async runtime | MET | GPUI runs on the main thread. The tokio runtime is its own (`b/boot.rs:101`) |
 | A bounded worker pool for hashing, CPU transforms and archive extraction | NOT MET (row 185) | Hashing runs on the async workers, between reads (`c/checksum.rs:109-127`). Each extraction gets its own OS thread (`s/app/files.rs:154`), and so does each JavaScript evaluation (`c/javascript.rs:434`). Assembly goes to tokio's blocking pool, which is left at its default of 512 threads (`b/boot.rs:101`, `Runtime::new()`) |
-| Blocking I/O workers; a persistence worker | MET | 29 `spawn_blocking` sites in `dm-core`. The queue is written off the runtime one write at a time, coalesced, and no more often than a tenth of the time a write takes (`c/queue/persist.rs:163-205`, `:231-250`) |
+| Blocking I/O workers; a persistence worker | MET | 29 `spawn_blocking` sites in `edm-core`. The queue is written off the runtime one write at a time, coalesced, and no more often than a tenth of the time a write takes (`c/queue/persist.rs:163-205`, `:231-250`) |
 | Never block the GPUI thread | NOT MET (row 183) | `Backend` has 52 `block_on` calls that the window makes on its own thread (`s/app/backend.rs:67-702`). The worst is Move/Rename to another disk, which copies the whole file while the window waits (`g/rowdialogs.rs:426` → `s/app/backend.rs:602` → `c/queue/queues.rs:120-123`). A bulk Pause, Resume or Retry makes one `block_on` and possibly one queue write per row (`s/app/commands.rs:605-609`). Folder and file choosers are synchronous `rfd` (`g/services.rs:33-50`, with 9 callers); only 2 use GPUI's async `prompt_for_paths` (`g/links.rs:160`, `g/details.rs:391`). Settings are written synchronously on a column drag (`s/app/backend.rs:354`, `:371`). Export, import and the trash run synchronously (`g/actions.rs:196`, `g/list.rs:1787`). The clipboard is read every second while it is watched (`g/services.rs:22`) |
 | No OS thread per download | MET | Downloads and connections are tokio tasks (`c/queue/runner.rs:251`, `c/download/ranged.rs:210`, a `JoinSet`) |
 | Bounded concurrency for network and CPU tasks | PARTLY (row 185) | Network: connections per download, downloads at once and per-host limits are settings. CPU work has no limit of its own (above) |
@@ -142,7 +142,7 @@ engine (`dm-core`) and the application layer (`dm-shell`) are already apart from
 | A stalled UI never stalls downloads | MET | The engine wakes the window with `try_send` (`g/main.rs:207`), and the subscribers only signal (`s/app/changes.rs:17-19`). The engine never waits on the window |
 | A stalled download never stalls unrelated ones | PARTLY (row 184) | No queue-wide lock is held across a network await. Still, `FETCHING` (`c/tools.rs:377`) and `ASKING` (`c/pac.rs:341`) hold back the downloads behind one fetch, and `store` and `saving` delay every save behind a slow write of the queue |
 | Progress lossy and coalescible; critical transitions never dropped | MET | 3.2 |
-| Queue persistence and crash recovery stay correct | MET | A journal over the queue file (`c/queue/journal.rs`). A file that cannot be read is set aside, never overwritten (`persist.rs:41-80`). `stress-check.py crash` (`kill -9` during 24 downloads, then every one finishes byte-exact on restart). `dm-core/tests/queue.rs:641` |
+| Queue persistence and crash recovery stay correct | MET | A journal over the queue file (`c/queue/journal.rs`). A file that cannot be read is set aside, never overwritten (`persist.rs:41-80`). `stress-check.py crash` (`kill -9` during 24 downloads, then every one finishes byte-exact on restart). `edm-core/tests/queue.rs:641` |
 | Cancellation reaches the network, the disk and the workers | PARTLY (row 185) | Network and disk, yes (above). Assembly and digests, no |
 
 ## §6 Cross-platform
@@ -151,7 +151,7 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
-| macOS: Metal and a GPU fallback | MET / N/A | GPUI draws with Metal (`gpui_platform`, `runtime_shaders`, `g/Cargo.toml`). Every Mac dm supports (macOS 11 or later, `minimumSystemVersion`) has Metal, so a fallback has nothing to fall back from |
+| macOS: Metal and a GPU fallback | MET / N/A | GPUI draws with Metal (`gpui_platform`, `runtime_shaders`, `g/Cargo.toml`). Every Mac EDM supports (macOS 11 or later, `minimumSystemVersion`) has Metal, so a fallback has nothing to fall back from |
 | macOS: Apple Silicon (Intel only if supported) | MET / N/A | Built and tested on Apple chips. Intel Macs are not built (README.md:81), so they are out of scope |
 | macOS: lifecycle and termination | PARTLY (row 186) | Quit, the Dock and SIGTERM are handled (`b/signals.rs`; `human-qa.py`). A quit during a transfer is row 186 |
 | macOS: native dialogs and permissions | MET | `rfd` opens `NSOpenPanel` and `NSSavePanel`, and Options uses GPUI's prompt. The panels being synchronous is row 183 |
@@ -163,7 +163,7 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 | Windows: native dialogs and drag and drop | PARTLY | `rfd` opens `IFileDialog`. Drop-in is coded (G6, check 5). Drag-out is G10 |
 | Windows: notifications and tray | PARTLY | Both are coded and checked by hand (G6, G8). Open in G6 |
 | Windows: high DPI and **mixed-DPI** multi-monitor | NOT MET (row 191) | GPUI links its own manifest, PerMonitorV2 (`gpui-pre-0.3.12/resources/windows/gpui.manifest.xml`), and handles `WM_DPICHANGED` (`gpui-pre-windows events.rs:105`). Nobody has moved the window between two monitors of different scale |
-| Windows: long paths, Unicode paths, file locking | PARTLY (row 191) | Unicode names are tested (`shared/naming-cases.json`; the property in `dm-core/tests/fuzz.rs:135`). Files that are still open are handled (`c/queue/runner.rs:481`). The manifest has no `longPathAware`. Rust's `std::fs` reaches long paths on its own, but nothing tests a folder longer than 260 characters through Open, Show in folder, the trash or the installer |
+| Windows: long paths, Unicode paths, file locking | PARTLY (row 191) | Unicode names are tested (`shared/naming-cases.json`; the property in `edm-core/tests/fuzz.rs:135`). Files that are still open are handled (`c/queue/runner.rs:481`). The manifest has no `longPathAware`. Rust's `std::fs` reaches long paths on its own, but nothing tests a folder longer than 260 characters through Open, Show in folder, the trash or the installer |
 | Windows: installer, update, uninstaller | MET | The NSIS installer and its uninstall section (`g/Cargo.toml`, `nsis`), the update check (`s/app/update.rs`), and a smoke test of the installed program in CI (`desktop.yml:406`) |
 | Windows: network interruption and removable drives | PARTLY (row 187) | Outages are covered (`bench outage`, `stress-check.py outage`, `sleep`). Pulling a removable drive is checked by hand only (`scripts/video-sites-check.py` ENG-07b) |
 | Linux: X11 and Wayland | PARTLY (G6, row 192) | X11: checks 1 to 4 pass, 64 of 64 contract rows and 122 of 122 real-input checks (G6, G7). Wayland: checks 2 and 4 only |
@@ -179,13 +179,13 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 
 | Requirement | Verdict | Evidence |
 |---|---|---|
-| Evaluate `opt-level`, thin vs fat LTO, `codegen-units`, strip and `panic = "abort"`; keep separate debug symbols; measure startup, throughput, memory and binary size | PARTLY (row 189) | `Cargo.toml:16-45` sets `"z"` with `dm-core` and the CPU-bound crates at 3, fat LTO, `codegen-units = 1` and `strip = true`. That was measured on 2026-11-06 for the egui window (`docs/decisions.md`, "Release profile"). It has not been measured again for `dm-gpui`, and its overrides still name `egui` and `epaint`. Thin LTO has never been measured on macOS (on Linux in Docker, fat LTO's link ran out of 7.6 GB, G8). No debug symbols are kept for a release build. `panic = "abort"` was turned down for the egui tray's `catch_unwind` (`dm-desktop/src/tray.rs:152`), which `dm-gpui` does not have. dm has no crash reporting by rule (AGENTS.md rule 6), so the trade-off is tokio's per-task panic isolation against size |
+| Evaluate `opt-level`, thin vs fat LTO, `codegen-units`, strip and `panic = "abort"`; keep separate debug symbols; measure startup, throughput, memory and binary size | PARTLY (row 189) | `Cargo.toml:16-45` sets `"z"` with `edm-core` and the CPU-bound crates at 3, fat LTO, `codegen-units = 1` and `strip = true`. That was measured on 2026-11-06 for the egui window (`docs/decisions.md`, "Release profile"). It has not been measured again for `edm-gpui`, and its overrides still name `egui` and `epaint`. Thin LTO has never been measured on macOS (on Linux in Docker, fat LTO's link ran out of 7.6 GB, G8). No debug symbols are kept for a release build. `panic = "abort"` was turned down for the egui tray's `catch_unwind` (`edm-desktop/src/tray.rs:152`), which `edm-gpui` does not have. EDM has no crash reporting by rule (AGENTS.md rule 6), so the trade-off is tokio's per-task panic isolation against size |
 | Fast incremental dev builds | MET | The default dev profile. CI uses `line-tables-only` (`desktop.yml`, env) |
 | Reproducible profiling builds | NOT MET (row 189) | No `[profile.profiling]` (release with debug info) exists |
 | Record compiler version, target triple, features and dependency revisions with benchmark results | NOT MET (row 188) | `bench.mjs` records the OS, CPU, memory, Node and the binary's size and date (`bench/bench.mjs:386-395`). It does not record the commit, rustc, the target, the profile, the GPU or the display scale |
 | Pin GPUI to a known revision | MET | `gpui = { package = "gpui-pre", version = "=0.3.12" }`, `gpui-component = "=0.9.1"` (`g/Cargo.toml`). One patched copy is vendored (`vendor/gpui-pre-linux`) |
-| Commit Cargo.lock; no floating git branches | MET | `Cargo.lock` and `crates/dm-catcher/Cargo.lock` are tracked, and every source is the registry (no `source = "git`). CI builds with `--locked` |
-| Review unnecessary default features | MET | `reqwest`, `tokio-rustls`, `librqbit`, `zip`, `tray-icon`, `image`, `eframe` and `objc2-*` are built with `default-features = false`. GPUI keeps its four defaults (font-kit, wayland, x11, windows-manifest), which dm uses |
+| Commit Cargo.lock; no floating git branches | MET | `Cargo.lock` and `crates/edm-catcher/Cargo.lock` are tracked, and every source is the registry (no `source = "git`). CI builds with `--locked` |
+| Review unnecessary default features | MET | `reqwest`, `tokio-rustls`, `librqbit`, `zip`, `tray-icon`, `image`, `eframe` and `objc2-*` are built with `default-features = false`. GPUI keeps its four defaults (font-kit, wayland, x11, windows-manifest), which EDM uses |
 | Track each dependency's compile time and binary-size contribution | NOT MET (row 190) | No `cargo bloat` or `--timings` record is kept |
 | Update dependencies in controlled batches | MET | Dependabot, weekly, at most 5 pull requests per ecosystem (`.github/dependabot.yml`) |
 
@@ -199,13 +199,13 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 | cargo nextest | MET | `desktop.yml:106` |
 | cargo llvm-cov | MET | `desktop.yml:135-141`, against `docs/coverage-floor.txt` |
 | cargo flamegraph, OS profilers (Instruments, WPR/WPA, perf) | NOT MET (row 190) | `docs/testing.md` says nothing about profiling |
-| criterion | MET (row 190) | `[[bench]]`s `plan` and `naming` (dm-core) and `large_list` (dm-shell, a read of 10,000 rows), run by hand and never in CI (`docs/testing.md`, Benchmarks) |
+| criterion | MET (row 190) | `[[bench]]`s `plan` and `naming` (edm-core) and `large_list` (edm-shell, a read of 10,000 rows), run by hand and never in CI (`docs/testing.md`, Benchmarks) |
 | cargo bloat | NOT MET (row 190) | Not used |
 | cargo tree | MET | Used for duplicates (`docs/decisions.md:4094`) |
 
 | Benchmark scenario | Verdict | Where |
 |---|---|---|
-| 1 Cold startup | NOT MET (row 187) | `ui-bench.py` times launch to first frame, but it never empties the system's file cache first, so every run after the first is warm. `launch-latency.py` "cold" times the browser's hand-off to a dm with no window |
+| 1 Cold startup | NOT MET (row 187) | `ui-bench.py` times launch to first frame, but it never empties the system's file cache first, so every run after the first is warm. `launch-latency.py` "cold" times the browser's hand-off to an EDM with no window |
 | 2 Warm startup | MET | `ui-bench.py` "start" (§9) |
 | 3 Idle CPU and memory | MET | `bench idle`, `memory-check.py`, `ui-bench.py` "idle" (§9) |
 | 4 Opening a history with many records | MET | `ui-bench.py --rows 10000` "start" (§9) |
@@ -226,14 +226,14 @@ Shared behaviour lives in the shared crates, and the native parts sit behind `Pl
 ## §9 Initial targets, measured on this Mac
 
 These numbers come from an Apple M1 (8 cores, 16 GB) on macOS 27.0.1, with the built-in Retina
-display (2560 × 1600, scale 2), and the release `dm-gpui` built from `5b03929f` with the profile in
+display (2560 × 1600, scale 2), and the release `edm-gpui` built from `5b03929f` with the profile in
 `Cargo.toml` (19,868,544 bytes, rustc 1.98.1, `aarch64-apple-darwin`). They were taken on
 2026-11-11 **while another track was building and benchmarking the engine on the same computer**, so
 treat them as upper bounds. Commands:
 
-- `python3 scripts/ui-bench.py --rows 100,10000 --runs 3 --idle 30 target/release/dm-gpui`
+- `python3 scripts/ui-bench.py --rows 100,10000 --runs 3 --idle 30 target/release/edm-gpui`
   (medians of 3; the rows are queued for later, against a local server)
-- `DM_BINARY=target/release/dm-gpui python3 scripts/stress-check.py window`
+- `EDM_BINARY=target/release/edm-gpui python3 scripts/stress-check.py window`
 
 | Rows | Start to first frame | Idle CPU | Resident | Footprint | Scroll (one, through the control port) | CPU, 20 downloads at 1 MB/s |
 |---|---|---|---|---|---|---|
@@ -258,7 +258,7 @@ computer). The medians are the stored macOS baseline, `scripts/ui-bench-baseline
 | 10,000 | 0.77 / 0.73 s | 0.172 (0.190) s | 0.263 (0.400) s | 0.330 / 0.166 / 0.254 s | 107 (120) ms | 86 (142) ms | 1.33 / 1.26 s |
 
 A drive pulled mid-download (`stress-protocols.py detach`, a disk image detached by force): the row
-ended paused with its reason, dm answered in 1 ms, and resumed it whole once the drive was back.
+ended paused with its reason, EDM answered in 1 ms, and resumed it whole once the drive was back.
 Still not measured: a start after `purge` (needs root), the frame time (no Instruments on this Mac,
 no timing in GPUI), and `bench fast` with the window against `--headless` (the benchmark's track).
 The release profile's alternatives are in `docs/decisions.md` (row 189).
@@ -312,7 +312,7 @@ and change report, were added on 2026-11-11 as "Rules for performance and platfo
 
 ## §12 Roadmap
 
-dm's phases map onto the rows. Phase 1 (this audit, the dependency map in
+EDM's phases map onto the rows. Phase 1 (this audit, the dependency map in
 MODULE_BOUNDARIES.md, the baselines in §9). Phase 2: rows 180 to 182. Phase 3: rows 184 to 186.
 Phase 4: rows 191 and 192, with G6, G8 and G10. Phase 5: rows 187 to 190.
 

@@ -1,11 +1,11 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """A tray host, as a panel is one: it owns a StatusNotifierHost name and
 registers it with the StatusNotifierWatcher, again whenever the watcher
-comes back. dm hides into the tray only where a host is registered (a
+comes back. EDM hides into the tray only where a host is registered (a
 watcher with no panel drawing its items shows nothing), so the checks that
 stand in for a panel stand in for this part of one too."""
 import os

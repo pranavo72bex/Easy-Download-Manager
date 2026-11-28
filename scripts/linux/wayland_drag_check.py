@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""A link dragged onto dm's window under Wayland, with the compositor's own
+"""A link dragged onto EDM's window under Wayland, with the compositor's own
 pointer: run by scripts/linux-wayland-drag-check.sh inside the Linux
 container, under sway (headless). A virtual pointer (`vpointer`, wlroots'
 virtual-pointer protocol: an input device to the compositor) moves,
 presses and releases as a hand does, so the drag is a real Wayland drag
-between two clients, not something dm is told about.
+between two clients, not something EDM is told about.
 """
 import http.server
 import json
@@ -29,7 +29,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
+BINARY = os.environ.get("EDM_BINARY", "/target/debug/edm-gpui")
 LINK = "https://downloads.example.com/files/dragged-under-wayland.zip"
 HERE = pathlib.Path(__file__).parent
 
@@ -43,10 +43,10 @@ def tree():
 
 
 def window(app):
-    """The rectangle of the window whose title is `app`; "dm" is dm's main window, whatever its
-    title says now ("37% · 4.1 MB/s — dm" while downloads run, gaps row U16)."""
+    """The rectangle of the window whose title is `app`; "EDM" is EDM's main window, whatever its
+    title says now ("37% · 4.1 MB/s — EDM" while downloads run, gaps row U16)."""
     def named(name):
-        return name == app or (app == "dm" and (name or "").endswith(" — dm"))
+        return name == app or (app == "EDM" and (name or "").endswith(" — EDM"))
 
     def walk(node):
         if named(node.get("name")) and node.get("pid"):
@@ -84,7 +84,7 @@ class Pointer:
 
 
 def control(home):
-    """A call on dm's control protocol."""
+    """A call on EDM's control protocol."""
     port = home / "control.port"
     wait(lambda: port.exists() and port.read_text(encoding="utf-8").strip(), 30)
     conn = socket.create_connection(("127.0.0.1", int(port.read_text(encoding="utf-8"))), timeout=30)
@@ -119,10 +119,10 @@ def rows(home):
         return []
 
 
-def drag_out(home, pointer, dm_rect, src_rect):
-    """A finished file dragged from dm's list onto the other window."""
-    served = tempfile.mkdtemp(prefix="dm-wl-files-")
-    pathlib.Path(served, "notes.txt").write_text("dragged out of dm under Wayland\n", encoding="utf-8")
+def drag_out(home, pointer, edm_rect, src_rect):
+    """A finished file dragged from EDM's list onto the other window."""
+    served = tempfile.mkdtemp(prefix="edm-wl-files-")
+    pathlib.Path(served, "notes.txt").write_text("dragged out of EDM under Wayland\n", encoding="utf-8")
     handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=served, **k)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -138,7 +138,7 @@ def drag_out(home, pointer, dm_rect, src_rect):
         print("FAIL  the finished row was not found")
         return False
     x0, y0, x1, y1 = row["rect"]
-    start = (dm_rect["x"] + int(x0) + 40, dm_rect["y"] + int((y0 + y1) / 2))
+    start = (edm_rect["x"] + int(x0) + 40, edm_rect["y"] + int((y0 + y1) / 2))
     end = (src_rect["x"] + src_rect["width"] // 2, src_rect["y"] + src_rect["height"] // 3)
     received = pathlib.Path("/shots/received.txt")
     ok = False
@@ -152,8 +152,8 @@ def drag_out(home, pointer, dm_rect, src_rect):
             ok = True
             break
         print(f"  attempt {attempt + 1}: nothing received", flush=True)
-    print(("ok    " if ok else "FAIL  ") + "a finished file dragged out of dm under Wayland reaches the other window")
-    # The list still takes a click: dm was told the button is up.
+    print(("ok    " if ok else "FAIL  ") + "a finished file dragged out of EDM under Wayland reaches the other window")
+    # The list still takes a click: EDM was told the button is up.
     call("ui.select", ids=[])
     pointer(f"move {start[0]} {start[1]}")
     pointer("press")
@@ -161,32 +161,32 @@ def drag_out(home, pointer, dm_rect, src_rect):
     time.sleep(1)
     selected = call("ui.inspect").get("result", {}).get("selected", [])
     clicks = row["id"] in selected
-    print(("ok    " if clicks else "FAIL  ") + "and dm's list still takes a click after it", selected)
+    print(("ok    " if clicks else "FAIL  ") + "and EDM's list still takes a click after it", selected)
     return ok and clicks
 
 
 def main():
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-wl-"))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-wl-"))
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "out"), "show_progress": False, "show_complete": False}), encoding="utf-8")
-    env = {**os.environ, "DM_HOME": str(home)}
+    env = {**os.environ, "EDM_HOME": str(home)}
     env.pop("DISPLAY", None)  # Wayland, not XWayland
-    debug = {"WAYLAND_DEBUG": "1"} if os.environ.get("DM_WAYLAND_DEBUG") else {}
-    dm = subprocess.Popen([BINARY, "--control", "0"], env={**env, **debug}, stdout=subprocess.DEVNULL,
-                          stderr=open("/shots/dm.log", "w", encoding="utf-8"))
+    debug = {"WAYLAND_DEBUG": "1"} if os.environ.get("EDM_WAYLAND_DEBUG") else {}
+    edm = subprocess.Popen([BINARY, "--control", "0"], env={**env, **debug}, stdout=subprocess.DEVNULL,
+                          stderr=open("/shots/EDM.log", "w", encoding="utf-8"))
     source = subprocess.Popen([sys.executable, str(HERE / "wayland_drag_source.py"), LINK],
                               env={**env, **debug, "GDK_BACKEND": "wayland"},
                               stdout=subprocess.DEVNULL, stderr=open("/shots/source.log", "w", encoding="utf-8"))
     ok = False
     try:
-        dm_rect = wait(lambda: window("dm"), 30)
+        edm_rect = wait(lambda: window("EDM"), 30)
         src_rect = wait(lambda: window("drag source"), 30)
-        print(f"  dm at {dm_rect}, the source at {src_rect}", flush=True)
-        if not dm_rect or not src_rect:
+        print(f"  EDM at {edm_rect}, the source at {src_rect}", flush=True)
+        if not edm_rect or not src_rect:
             print("FAIL  the windows never appeared")
             return 1
         start = (src_rect["x"] + src_rect["width"] // 2, src_rect["y"] + src_rect["height"] // 2)
-        end = (dm_rect["x"] + dm_rect["width"] // 2, dm_rect["y"] + dm_rect["height"] // 2)
+        end = (edm_rect["x"] + edm_rect["width"] // 2, edm_rect["y"] + edm_rect["height"] // 2)
         pointer = Pointer()
         for attempt in range(3):
             drag(pointer, start, end)
@@ -198,12 +198,12 @@ def main():
                 ok = True
                 break
             print(f"  attempt {attempt + 1}: nothing queued", flush=True)
-        print(("ok    " if ok else "FAIL  ") + "a link dragged onto dm's window under Wayland is queued")
-        out_ok = drag_out(home, pointer, dm_rect, src_rect)
+        print(("ok    " if ok else "FAIL  ") + "a link dragged onto EDM's window under Wayland is queued")
+        out_ok = drag_out(home, pointer, edm_rect, src_rect)
         return 0 if ok and out_ok else 1
     finally:
         source.terminate()
-        dm.terminate()
+        edm.terminate()
 
 
 if __name__ == "__main__":

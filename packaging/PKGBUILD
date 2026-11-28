@@ -2,7 +2,7 @@
 #
 # Built from source rather than repackaging a .deb, so it links against
 # Arch's own libraries rather than an older runner's.
-pkgname=dm
+pkgname=EDM
 pkgver=0.10.3
 pkgrel=1
 pkgdesc="A download manager: many connections, resume, and a queue"
@@ -20,7 +20,7 @@ makedepends=('rust' 'cargo' 'pkgconf' 'git' 'fontconfig')
 optdepends=('noto-fonts-cjk: names in Chinese, Japanese and Korean')
 
 # No debug package: the release profile strips the binary, so makepkg's
-# debuginfo flags only made the fat-LTO link of dm's window hold the whole
+# debuginfo flags only made the fat-LTO link of EDM's window hold the whole
 # program's debug information at once, which ran x86_64 builders out of
 # memory (killed by signal 9 in build()).
 # No makepkg LTO: its -flto=auto turns the C inside ring into
@@ -50,7 +50,7 @@ build() {
   # Arch builds with its own optimisation flags; the release profile in
   # Cargo.toml already asks for LTO and a stripped binary.
   export CARGO_TARGET_DIR=target
-  cargo build --release --frozen -p dm-gpui
+  cargo build --release --frozen -p edm-gpui
 }
 
 check() {
@@ -60,18 +60,18 @@ check() {
   # that cannot be checked in a headless chroot is one nobody checks.
   # Without debug info or incremental files: a check() that needs several
   # gigabytes more than the build ran a small build machine out of disk.
-  CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test --frozen -p dm-core
+  CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test --frozen -p edm-core
 }
 
 package() {
   cd "$srcdir/$_srcdir"
 
-  install -Dm755 "target/release/dm-gpui" "$pkgdir/usr/bin/dm"
-  install -Dm644 "packaging/dm.desktop" "$pkgdir/usr/share/applications/dm.desktop"
+  install -Dm755 "target/release/edm-gpui" "$pkgdir/usr/bin/EDM"
+  install -Dm644 "packaging/EDM.desktop" "$pkgdir/usr/share/applications/EDM.desktop"
   install -Dm644 "assets/app-icons/icon.png" \
-    "$pkgdir/usr/share/icons/hicolor/512x512/apps/dm.png"
+    "$pkgdir/usr/share/icons/hicolor/512x512/apps/EDM.png"
   install -Dm644 "assets/app-icons/128x128.png" \
-    "$pkgdir/usr/share/icons/hicolor/128x128/apps/dm.png"
+    "$pkgdir/usr/share/icons/hicolor/128x128/apps/EDM.png"
   install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 "NOTICE" "$pkgdir/usr/share/licenses/$pkgname/NOTICE"
 }

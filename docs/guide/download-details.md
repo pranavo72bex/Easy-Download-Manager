@@ -19,7 +19,7 @@ says **From** and the browser's name. With several addresses it says **and
 
 ## Fields
 
-- **Category:** **As its type says** saves the file in the folder dm picks
+- **Category:** **As its type says** saves the file in the folder EDM picks
   for its kind. Picking a kind (or a category you made in Options) puts
   that kind's folder in **Save to folder**, so a file can go to another
   kind's folder without typing its path.
@@ -62,7 +62,7 @@ says **From** and the browser's name. With several addresses it says **and
   - **Shape** (with a part): **As it is**, **Vertical 9:16** or **Square
     1:1**.
   - **Part as** (where the part can be made a GIF): **Video** or **GIF**.
-- **Size:** "Checking…" while dm asks the server, then the size and the
+- **Size:** "Checking…" while EDM asks the server, then the size and the
   free space where it is going ("12.4 MB · 80.1 GB free"). It turns to the
   warning colour when the file will not fit. A video page says "Known once
   the video starts"; a server that does not say gives "unknown".
@@ -70,12 +70,12 @@ says **From** and the browser's name. With several addresses it says **and
 - **Delete file after:** **Never**, **10 minutes**, **1 hour** or **1
   day**: that long after the download finishes, its file goes to the
   Recycle Bin (the Trash on macOS) and the row leaves the list.
-- **Keep no record:** ticked, dm forgets the download once its file is
+- **Keep no record:** ticked, EDM forgets the download once its file is
   whole: its row leaves the list, and its address, the page it came from
-  and any sign-in sent with it go too, so nothing of it is left in dm's
+  and any sign-in sent with it go too, so nothing of it is left in EDM's
   own files. The file itself stays where it was saved. Until
   the file is whole the download is kept like any other, so it can go on
-  after dm is closed.
+  after EDM is closed.
 - **Unpack when done:** shown for a ZIP, 7z or tar archive (by the name in
   **Save as** or in the address). Ticked, once the download finishes its
   files are unpacked into a new folder of its name beside it, even where
@@ -101,17 +101,17 @@ says **From** and the browser's name. With several addresses it says **and
   first).
 - **Add for later:** adds the download to that queue, without starting it.
 - **Cancel:** adds nothing. A download the browser handed over is left
-  with nothing; cancel two from the same site and dm asks **Leave this site
-  to the browser?** (see [Questions dm asks](questions.md)).
+  with nothing; cancel two from the same site and EDM asks **Leave this site
+  to the browser?** (see [Questions EDM asks](questions.md)).
 - **Start now:** adds the download and starts it. If the Scheduler or the
-  download limit is holding downloads, dm asks **Start outside the
+  download limit is holding downloads, EDM asks **Start outside the
   schedule?**.
 
 ## Good to know
 
 - **Return** is **Start now**; **Escape**, Ctrl+W (⌘W on macOS) and the
   close button are **Cancel**.
-- dm remembers the folder you last chose for each kind of file (a video, a
+- EDM remembers the folder you last chose for each kind of file (a video, a
   document, and so on) and offers it the next time a file of that kind
   comes in with an empty **Save to folder**.
 - With **Options › General › Start downloading while Download details is

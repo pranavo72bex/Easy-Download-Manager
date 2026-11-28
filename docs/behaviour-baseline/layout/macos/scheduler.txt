@@ -1,7 +1,7 @@
-# dm's window, scene scheduler (macos, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene scheduler (macos, 1280x720, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "Tasks" 118 8 157 29
 "File" 173 8 205 29
 "Downloads" 221 8 292 29
@@ -22,10 +22,10 @@
 "Queues" 16 242 56 260
 "Main queue" 40 267.5 118 288.5
 "Recheck queue" 40 295.5 142 316.5
-"Add dm to your browser:" 236 95.5 416 116.5
-"Microsoft Edge" 439 95.5 549 116.5
-"Firefox" 587 95.5 642 116.5
-"Chrome and others" 680 95.5 813 116.5
+"Add EDM to your browser:" 236 95.5 424 116.5
+"Microsoft Edge" 447 95.5 557 116.5
+"Firefox" 595 95.5 650 116.5
+"Chrome and others" 688 95.5 821 116.5
 "Not now" 1198 95.5 1253 116.5
 "File name" 212 129.5 272 147.5
 "Size" 703 129.5 730 147.5
@@ -72,11 +72,11 @@
 "2030" 443 285.5 475 306.5
 "When the scheduled downloads are done" 225 336 700 357
 "Do nothing" 247 363 325 384
-"Exit dm" 361 363 416 384
-"Sleep" 452 363 491 384
-"Hibernate" 527 363 598 384
+"Exit EDM" 361 363 424 384
+"Sleep" 460 363 499 384
+"Hibernate" 535 363 606 384
 "Turn off computer" 247 396 380 417
-"A greyed choice is one this computer doesn’t allow dm." 225 421 700 439
+"A greyed choice is one this computer doesn’t allow EDM." 225 421 700 439
 "Try a failed download again this many times (0 for none)" 225 451 642 493
 "0" 650 460 700 484
 "Run this program when they are done (optional)" 225 501 700 522

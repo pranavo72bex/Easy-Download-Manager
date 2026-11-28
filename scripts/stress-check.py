@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Stress and reliability check of dm's download engine and control protocol.
+"""Stress and reliability check of EDM's download engine and control protocol.
 
     python3 scripts/stress-check.py [phase ...]       # all phases, or those named
     python3 scripts/stress-check.py --list
@@ -12,16 +12,16 @@
     python3 scripts/stress-check.py soak --minutes 20 --count 500           # a quick try of it
 
 Everything stays on this computer: a local HTTP server (127.0.0.1 only) that
-makes its files up as they are asked for, a dm of its own (a throwaway
-DM_HOME, no window), and a disk budget it checks before each phase. Nothing
+makes its files up as they are asked for, an EDM of its own (a throwaway
+EDM_HOME, no window), and a disk budget it checks before each phase. Nothing
 reaches an outside server, and nothing outside the temporary folder is
 written. Safety rules, in order:
 
   * the disk: a phase does not start with less than MIN_FREE_GB free, and
     large files are never more than one at a time;
-  * the processes: dm is ended, and the server shut down, however a phase
+  * the processes: EDM is ended, and the server shut down, however a phase
     ends; each phase has a time limit;
-  * the data: the temporary folder is removed at the end (DM_STRESS_KEEP=1
+  * the data: the temporary folder is removed at the end (EDM_STRESS_KEEP=1
     keeps it for reading).
 
 What a phase finds is printed as `FINDING <severity> <phase>: <what>`; the
@@ -55,9 +55,9 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
-MIN_FREE_GB = float(os.environ.get("DM_STRESS_MIN_FREE_GB", "8"))
-MAX_SERVE_GB = float(os.environ.get("DM_STRESS_MAX_SERVE_GB", "3"))     # per phase
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug/edm-gpui")
+MIN_FREE_GB = float(os.environ.get("EDM_STRESS_MIN_FREE_GB", "8"))
+MAX_SERVE_GB = float(os.environ.get("EDM_STRESS_MAX_SERVE_GB", "3"))     # per phase
 MB = 1024 * 1024
 BLOCK = 65536
 # The computer's own hosts file, which a file:// redirect must never bring into the folder.
@@ -165,7 +165,7 @@ class Stats:
     ranges = 0
     status = {}
     served = {}
-    total = 0                       # bytes served in all: a ceiling on what dm can be made to write
+    total = 0                       # bytes served in all: a ceiling on what EDM can be made to write
 
     @classmethod
     def enter(cls, path):
@@ -191,7 +191,7 @@ class Stats:
 
 
 NAMES = {
-    # What a hostile server may call a file. dm must keep every one inside
+    # What a hostile server may call a file. EDM must keep every one inside
     # the folder it was told to save in.
     "dotdot": "../../escaped-dotdot.bin",
     "backslash": "..\\..\\escaped-backslash.bin",
@@ -464,10 +464,10 @@ def start_server_with(handler):
     return server, f"http://127.0.0.1:{server.server_address[1]}"
 
 
-# ------------------------------------------------------------------ dm
+# ------------------------------------------------------------------ EDM
 
-class DM:
-    def __init__(self, root, settings=None, name="dm", window=False, env=None):
+class EDM:
+    def __init__(self, root, settings=None, name="EDM", window=False, env=None):
         self.window = window
         self.env = env or {}
         self.home = root / f"{name}-home"
@@ -477,7 +477,7 @@ class DM:
         self.settings = {"download_dir": str(self.out), "categorize": False,
                          "show_progress": False, "show_complete": False,
                          "check_updates": False, "watch_clipboard": False,
-                         # This edition's mark: without it dm takes the file for an older
+                         # This edition's mark: without it EDM takes the file for an older
                          # edition's and turns every pop-up on again.
                          "popups_version": 2, **(settings or {})}
         self.proc = None
@@ -489,11 +489,11 @@ class DM:
 
     def start(self):
         (self.home / "settings.json").write_text(json.dumps(self.settings), encoding="utf-8")
-        # What a dm that was killed left behind is not this one's: waited for
+        # What an EDM that was killed left behind is not this one's: waited for
         # again, or the check would connect to a port nobody listens on.
         for stale in ("control.port", "control.token"):
             (self.home / stale).unlink(missing_ok=True)
-        env = {**os.environ, "DM_HOME": str(self.home), **self.env}
+        env = {**os.environ, "EDM_HOME": str(self.home), **self.env}
         args = ["--control", "0"] if self.window else ["--headless", "--control", "0"]
         self.proc = subprocess.Popen([str(BINARY), *args], env=env,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -501,7 +501,7 @@ class DM:
         deadline = time.time() + 30
         while time.time() < deadline and not (port_file.exists() and (self.home / "control.token").exists()):
             if self.proc.poll() is not None:
-                raise RuntimeError("dm exited: " + self.proc.stderr.read().decode(errors="replace"))
+                raise RuntimeError("EDM exited: " + self.proc.stderr.read().decode(errors="replace"))
             time.sleep(0.1)
         self.connect()
         self._stop.clear()
@@ -686,34 +686,34 @@ def p_throughput(ctx):
     base, root = ctx["base"], ctx["root"]
     size = 256 * MB
     for conns in (1, 8, 16):
-        dm = DM(root, {"connections": conns}, name=f"tp{conns}").start()
+        edm = EDM(root, {"connections": conns}, name=f"tp{conns}").start()
         try:
             url = f"{base}/f/tp{conns}/{size}/big{conns}.bin"
             t0 = time.time()
-            dm.add([url])
-            done = wait_for(lambda: [r for r in dm.rows() if r["state"]["kind"] in ("completed", "failed")], 300)
+            edm.add([url])
+            done = wait_for(lambda: [r for r in edm.rows() if r["state"]["kind"] in ("completed", "failed")], 300)
             took = time.time() - t0
             if not done or done[0]["state"]["kind"] != "completed":
                 finding("high", "throughput", f"{conns} connections: did not complete ({done and done[0]['state']})")
                 continue
-            ok, bad = verify(dm.rows(), {f"big{conns}.bin": (f"tp{conns}", size)})
+            ok, bad = verify(edm.rows(), {f"big{conns}.bin": (f"tp{conns}", size)})
             check("throughput", f"{conns} connections byte-exact", ok == 1 and not bad, str(bad))
             if bad:
                 finding("critical", "throughput", f"{conns} connections: completed file is wrong: {bad}")
-            rss, cpu, fds, th = dm.peak()
+            rss, cpu, fds, th = edm.peak()
             measure("throughput", f"{conns} conn: {size / MB / took:.0f} MB/s in {took:.1f}s; peak rss {rss:.0f} MB cpu {cpu:.0f}% fds {fds} threads {th}")
         finally:
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_many_small(ctx):
     """Thousands of small files: all arrive, byte-exact, memory stays flat."""
     base, root = ctx["base"], ctx["root"]
-    n = int(os.environ.get("DM_STRESS_SMALL", "2000"))
-    conc = int(os.environ.get("DM_STRESS_SMALL_CONC", "8"))
-    dm = DM(root, {"connections": 4, "concurrency": conc}, name="small").start()
+    n = int(os.environ.get("EDM_STRESS_SMALL", "2000"))
+    conc = int(os.environ.get("EDM_STRESS_SMALL_CONC", "8"))
+    edm = EDM(root, {"connections": 4, "concurrency": conc}, name="small").start()
     measure("many_small", f"concurrency setting {conc}")
     try:
         sizes = [0, 1, 4097, 16 * 1024, 100 * 1024]
@@ -726,7 +726,7 @@ def p_many_small(ctx):
             expect[name] = (f"small{i}", size)
         t0 = time.time()
         for k in range(0, n, 200):
-            r = dm.add(urls[k:k + 200])
+            r = edm.add(urls[k:k + 200])
             if not r.get("ok"):
                 finding("high", "many_small", f"downloads.add refused a batch of 200: {r}")
                 break
@@ -735,7 +735,7 @@ def p_many_small(ctx):
         rows = []
         def settled():
             nonlocal rows
-            rows = dm.rows()
+            rows = edm.rows()
             return len(rows) >= n and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in rows)
         wait_for(settled, 600, every=2)
         took = time.time() - t0
@@ -749,24 +749,24 @@ def p_many_small(ctx):
         if len(rows) != n:
             finding("high", "many_small", f"{n} links added but the list holds {len(rows)}")
         check("many_small", f"{ok} of {n} verified byte-exact", ok == n - st.get("failed", 0) - st.get("cancelled", 0) and not bad)
-        rss, cpu, fds, th = dm.peak()
+        rss, cpu, fds, th = edm.peak()
         measure("many_small", f"peak rss {rss:.0f} MB, cpu {cpu:.0f}%, fds {fds}, threads {th}")
         if fds > 800:
             finding("medium", "many_small", f"{fds} open files at peak for {n} small downloads")
         t = time.time()
-        dm.call("queue.list")
+        edm.call("queue.list")
         measure("many_small", f"queue.list of {len(rows)} rows answers in {time.time() - t:.2f}s")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_concurrency(ctx):
     """Many slow downloads at once, and a server that limits connections."""
     base, root = ctx["base"], ctx["root"]
-    n = int(os.environ.get("DM_STRESS_CONC", "150"))
-    dm = DM(root, {"connections": 8, "concurrency": 32}, name="conc").start()
+    n = int(os.environ.get("EDM_STRESS_CONC", "150"))
+    edm = EDM(root, {"connections": 8, "concurrency": 32}, name="conc").start()
     Stats.reset()
     try:
         size = 4 * MB
@@ -776,11 +776,11 @@ def p_concurrency(ctx):
             name = f"c{i}.bin"
             urls.append(f"{base}/f/conc{i}/{size}/{name}?rate={2 * MB}")
             expect[name] = (f"conc{i}", size)
-        dm.add(urls)
+        edm.add(urls)
         t0 = time.time()
-        wait_for(lambda: len(dm.rows()) >= n and all(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 600, every=2)
+        wait_for(lambda: len(edm.rows()) >= n and all(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 600, every=2)
         took = time.time() - t0
-        rows = dm.rows()
+        rows = edm.rows()
         st = states(rows)
         ok, bad = verify(rows, expect)
         measure("concurrency", f"{n} x {size // MB} MB: {st} in {took:.0f}s, server peak {Stats.peak} simultaneous connections, {Stats.requests} requests")
@@ -788,20 +788,20 @@ def p_concurrency(ctx):
             finding("critical", "concurrency", f"wrong content in {len(bad)} files: {bad[:3]}")
         if st.get("failed"):
             finding("high", "concurrency", f"{st['failed']} of {n} failed under {n}-way concurrency")
-        rss, cpu, fds, th = dm.peak()
+        rss, cpu, fds, th = edm.peak()
         measure("concurrency", f"peak rss {rss:.0f} MB cpu {cpu:.0f}% fds {fds} threads {th}")
         if Stats.peak > 32 * 8 + 40:
-            finding("medium", "concurrency", f"dm held {Stats.peak} connections at once against one host with concurrency 32 x 8 connections")
+            finding("medium", "concurrency", f"EDM held {Stats.peak} connections at once against one host with concurrency 32 x 8 connections")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_flaky(ctx):
     """Servers that cut connections, rate-limit, lie about length, stall."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8, "concurrency": 8, "attempts": 10}, name="flaky").start()
+    edm = EDM(root, {"connections": 8, "concurrency": 8, "attempts": 10}, name="flaky").start()
     try:
         size = 8 * MB
         cases = {
@@ -817,11 +817,11 @@ def p_flaky(ctx):
             "page": (f"{base}/page/x.zip", False),
         }
         for k, (u, _) in cases.items():
-            dm.add([u])
+            edm.add([u])
         # 429 and 503 with Retry-After: the wait grows to 60 s (retry.rs `backoff`,
         # decisions.md 2026-11-04), so ten retries take about 250 s before the row fails.
-        wait_for(lambda: len(dm.rows()) >= len(cases) and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 420, every=2)
-        rows = dm.rows()
+        wait_for(lambda: len(edm.rows()) >= len(cases) and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 420, every=2)
+        rows = edm.rows()
         by = {}
         for r in rows:
             for k, (u, _) in cases.items():
@@ -854,11 +854,11 @@ def p_flaky(ctx):
                 finding("high", "flaky", f"{k}: expected to complete through retries, ended {kind}: {r and r['state']}")
             if kind == "running" or kind == "queued":
                 finding("medium", "flaky", f"{k}: still {kind} after 420 s, past its retries")
-        rss, cpu, fds, th = dm.peak()
+        rss, cpu, fds, th = edm.peak()
         measure("flaky", f"peak rss {rss:.0f} MB, fds {fds}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -867,22 +867,22 @@ def p_crash(ctx):
     base, root = ctx["base"], ctx["root"]
     n = 24
     size = 48 * MB
-    dm = DM(root, {"connections": 8, "concurrency": 8}, name="crash").start()
+    edm = EDM(root, {"connections": 8, "concurrency": 8}, name="crash").start()
     expect = {}
     urls = []
     for i in range(n):
         name = f"k{i}.bin"
         urls.append(f"{base}/f/crash{i}/{size}/{name}?rate={3 * MB}")
         expect[name] = (f"crash{i}", size)
-    dm.add(urls)
-    wait_for(lambda: sum(r["progress"]["downloaded"] for r in dm.rows()) > n * size * 0.15, 120, every=1)
-    before = dm.rows()
-    dm.stop(kill=True)
+    edm.add(urls)
+    wait_for(lambda: sum(r["progress"]["downloaded"] for r in edm.rows()) > n * size * 0.15, 120, every=1)
+    before = edm.rows()
+    edm.stop(kill=True)
     time.sleep(1)
     left = sum(1 for r in before if r["state"]["kind"] != "completed")
     measure("crash", f"killed with {left} of {n} unfinished, {sum(r['progress']['downloaded'] for r in before) // MB} MB fetched")
-    dm2 = DM(root, {"connections": 8, "concurrency": 8}, name="crash")
-    dm2.home, dm2.out = dm.home, dm.out
+    dm2 = EDM(root, {"connections": 8, "concurrency": 8}, name="crash")
+    dm2.home, dm2.out = edm.home, edm.out
     try:
         dm2.start()
         rows = dm2.rows()
@@ -912,32 +912,32 @@ def p_crash(ctx):
             finding("low", "crash", f"{len(parts)} staged files left behind after every download finished: {[str(p.relative_to(dm2.home)) for p in parts[:3]]}")
     finally:
         dm2.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
-def ended_running(dm, phase_name, n, mode):
-    """Ends `dm` with 10 or more of its `n` downloads running, as the system asks it to end:
+def ended_running(edm, phase_name, n, mode):
+    """Ends `EDM` with 10 or more of its `n` downloads running, as the system asks it to end:
     SIGTERM, or on Windows (which has none: `terminate()` there is TerminateProcess, which
-    nothing outlives) the session's end, which reaches the window's dm through GPUI's hidden
-    window and `--headless` through dm's own. Checks it exits 0 within 2 s."""
-    wait_for(lambda: sum(1 for r in dm.rows() if r["state"]["kind"] == "running" and r["progress"]["downloaded"] > 0) >= 10, 60, every=0.5)
+    nothing outlives) the session's end, which reaches the window's EDM through GPUI's hidden
+    window and `--headless` through EDM's own. Checks it exits 0 within 2 s."""
+    wait_for(lambda: sum(1 for r in edm.rows() if r["state"]["kind"] == "running" and r["progress"]["downloaded"] > 0) >= 10, 60, every=0.5)
     time.sleep(2)
-    before = dm.rows()
+    before = edm.rows()
     running = sum(1 for r in before if r["state"]["kind"] == "running")
     fetched = sum(r["progress"]["downloaded"] for r in before)
     t = time.time()
     if sys.platform == "win32":
-        told = end_session(dm.proc.pid)
+        told = end_session(edm.proc.pid)
         how = f"the session's end ({told} windows told)"
     else:
-        dm.proc.terminate()
+        edm.proc.terminate()
         how = "SIGTERM"
     try:
-        code = dm.proc.wait(15)
+        code = edm.proc.wait(15)
     except subprocess.TimeoutExpired:
         code = None
     took = time.time() - t
-    dm.stop()
+    edm.stop()
     word = "the session's end" if sys.platform == "win32" else "SIGTERM"
     measure(phase_name, f"{how} to {mode} with {running} of {n} downloads running ({fetched // MB} MB fetched): exit {code} after {took:.2f} s")
     check(phase_name, f"{mode} exits 0 within 2 s of {word} with 10 downloads running",
@@ -946,15 +946,15 @@ def ended_running(dm, phase_name, n, mode):
 
 @phase
 def p_quit(ctx):
-    """SIGTERM (on Windows, the session's end) in the middle of 20 downloads, 10 running (dm's
-    most at once), the rest waiting (gaps row 186): dm stops them as a pause does and exits 0
+    """SIGTERM (on Windows, the session's end) in the middle of 20 downloads, 10 running (EDM's
+    most at once), the rest waiting (gaps row 186): EDM stops them as a pause does and exits 0
     within 2 s; a restart puts them back in line and finishes them byte-exact. On Windows the
-    restarted `--headless` dm is ended the same way, and a third start finishes them."""
+    restarted `--headless` EDM is ended the same way, and a third start finishes them."""
     base, root = ctx["base"], ctx["root"]
     n = 20
     size = 24 * MB
     settings = {"connections": 4, "concurrency": n}
-    dm = DM(root, settings, name="quit", window=True).start()
+    edm = EDM(root, settings, name="quit", window=True).start()
     expect = {}
     urls = []
     for i in range(n):
@@ -963,10 +963,10 @@ def p_quit(ctx):
         # the signal comes.
         urls.append(f"{base}/f/quit{i}/{size}/{name}?rate={MB // 4}")
         expect[name] = (f"quit{i}", size)
-    dm.add(urls)
-    ended_running(dm, "quit", n, "the window")
-    dm2 = DM(root, settings, name="quit")
-    dm2.home, dm2.out = dm.home, dm.out
+    edm.add(urls)
+    ended_running(edm, "quit", n, "the window")
+    dm2 = EDM(root, settings, name="quit")
+    dm2.home, dm2.out = edm.home, edm.out
     try:
         dm2.start()
         rows = dm2.rows()
@@ -975,8 +975,8 @@ def p_quit(ctx):
         check("quit", "every row comes back to run again", len(rows) == n and all(r["state"]["kind"] in ("queued", "running", "completed") for r in rows), str(st))
         if sys.platform == "win32":
             ended_running(dm2, "quit", n, "--headless")
-            dm2 = DM(root, settings, name="quit")
-            dm2.home, dm2.out = dm.home, dm.out
+            dm2 = EDM(root, settings, name="quit")
+            dm2.home, dm2.out = edm.home, edm.out
             dm2.start()
             rows = dm2.rows()
             st = states(rows)
@@ -990,7 +990,7 @@ def p_quit(ctx):
         check("quit", "all resumed byte-exact", ok == n)
     finally:
         dm2.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -999,7 +999,7 @@ def p_pause_storm(ctx):
     base, root = ctx["base"], ctx["root"]
     n = 80
     size = 6 * MB
-    dm = DM(root, {"connections": 4, "concurrency": 16}, name="storm").start()
+    edm = EDM(root, {"connections": 4, "concurrency": 16}, name="storm").start()
     try:
         expect = {}
         urls = []
@@ -1007,30 +1007,30 @@ def p_pause_storm(ctx):
             name = f"p{i}.bin"
             urls.append(f"{base}/f/storm{i}/{size}/{name}?rate={MB}")
             expect[name] = (f"storm{i}", size)
-        dm.add(urls)
+        edm.add(urls)
         time.sleep(2)
         rnd = random.Random(7)
         cancelled = set()
         t_end = time.time() + 30
         errors = 0
         while time.time() < t_end:
-            rows = dm.rows()
+            rows = edm.rows()
             if not rows:
                 continue
             for _ in range(10):
                 r = rnd.choice(rows)
                 action = rnd.choice(["downloads.pause", "downloads.resume", "downloads.resume", "downloads.pause", "downloads.cancel" if rnd.random() < 0.05 else "downloads.resume"])
-                res = dm.call(action, ids=[r["id"]])
+                res = edm.call(action, ids=[r["id"]])
                 if not res.get("ok"):
                     errors += 1
                 elif action == "downloads.cancel" and res["result"]["done"]:
                     cancelled.add(r["url"])
         # Let everything run.
-        for r in dm.rows():
+        for r in edm.rows():
             if r["state"]["kind"] in ("paused", "failed"):
-                dm.call("downloads.resume", ids=[r["id"]])
-        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 400, every=2)
-        rows = dm.rows()
+                edm.call("downloads.resume", ids=[r["id"]])
+        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 400, every=2)
+        rows = edm.rows()
         st = states(rows)
         measure("pause_storm", f"{st}; {len(cancelled)} cancelled by the storm; {errors} control errors")
         gone = {urllib.parse.urlparse(u).path.rsplit("/", 1)[-1] for u in cancelled}
@@ -1041,31 +1041,31 @@ def p_pause_storm(ctx):
         stuck = [r for r in rows if r["state"]["kind"] in ("running", "queued", "paused")]
         if stuck:
             finding("high", "pause_storm", f"{len(stuck)} downloads stuck {states(stuck)} after resuming everything")
-        left = [p.name for p in dm.out.iterdir() if p.is_file() and p.name in gone]
+        left = [p.name for p in edm.out.iterdir() if p.is_file() and p.name in gone]
         if left:
             finding("low", "pause_storm", f"{len(left)} cancelled downloads left a file in the folder")
         if errors:
             finding("medium", "pause_storm", f"{errors} control calls errored during the storm")
         check("pause_storm", "survivors verified", ok >= len(survivors) - st.get("failed", 0) - len(stuck))
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_names(ctx):
     """A hostile server names its files: nothing may land outside the folder."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, name="names").start()
+    edm = EDM(root, name="names").start()
     sentinel_dirs = [root, root.parent, pathlib.Path("/tmp")]
     before = {d: set(p.name for p in d.iterdir()) if d.exists() else set() for d in sentinel_dirs}
     try:
         urls = [f"{base}/cd/{k}" for k in NAMES] + [f"{base}/cd2/{k}" for k in NAMES]
         for u in urls:
-            dm.add([u])
-        wait_for(lambda: len(dm.rows()) >= len(urls) and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 120, every=1)
-        rows = dm.rows()
-        out = dm.out.resolve()
+            edm.add([u])
+        wait_for(lambda: len(edm.rows()) >= len(urls) and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 120, every=1)
+        rows = edm.rows()
+        out = edm.out.resolve()
         outside = []
         for r in rows:
             if r["state"]["kind"] == "completed":
@@ -1096,15 +1096,15 @@ def p_names(ctx):
                 if len(name.encode()) > 255:
                     finding("medium", "names", "a saved name is longer than the file system allows")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_hostile(ctx):
     """Redirect to other schemes, oversized headers, stalls, gzip bomb, huge advertised size."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 4, "concurrency": 8}, name="hostile").start()
+    edm = EDM(root, {"connections": 4, "concurrency": 8}, name="hostile").start()
     try:
         cases = {
             "to_file": f"{base}/to?u={HOSTS.as_uri()}",
@@ -1112,25 +1112,25 @@ def p_hostile(ctx):
             "bighead": f"{base}/bighead?kb=1024",
             "stall": f"{base}/stall?s=40",
             "gz": f"{base}/gz/300",
-            # Four gigabytes advertised, one megabyte sent: dm may reserve the
+            # Four gigabytes advertised, one megabyte sent: EDM may reserve the
             # room, but the server never fills it.
             "huge": f"{base}/f/huge/{4096 * MB}/huge.bin?cap={MB}",
-            # More than the disk has: dm should say so before it starts.
+            # More than the disk has: EDM should say so before it starts.
             "toobig": f"{base}/f/toobig/{int((free_gb(tempfile.gettempdir()) + 12) * 1e9)}/toobig.bin?cap={MB}",
             "cred": with_login(f"{base}/f/cred/1024/cred.bin", "user", "pass"),
         }
         for k, u in cases.items():
-            r = dm.add([u])
+            r = edm.add([u])
             measure("hostile", f"{k}: add -> ok={r.get('ok')} {str(r.get('error') or r.get('result'))[:100]}")
         time.sleep(1)
         # An answer whose headers cannot be read fails at once; timed apart
         # from the others, which are retried for minutes by design.
         t_start = time.time()
-        bighead = lambda: next((r for r in dm.rows() if "/bighead" in r["url"]), None)
+        bighead = lambda: next((r for r in edm.rows() if "/bighead" in r["url"]), None)
         wait_for(lambda: (bighead() or {"state": {"kind": ""}})["state"]["kind"] in ("completed", "failed", "cancelled"), 60, every=1)
         waited = time.time() - t_start
-        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled", "paused") for r in dm.rows() if "/stall" not in r["url"]) and len(dm.rows()) >= 3, 200, every=2)
-        rows = dm.rows()
+        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled", "paused") for r in edm.rows() if "/stall" not in r["url"]) and len(edm.rows()) >= 3, 200, every=2)
+        rows = edm.rows()
         for r in rows:
             if "/bighead" in r["url"] and (r["state"]["kind"] != "failed" or waited > 20):
                 finding("low", "hostile", f"a response whose headers can never be parsed (1 MB of header) took {waited:.0f}s to fail ({r['state']['kind']}): a permanent error is treated like a passing one")
@@ -1171,23 +1171,23 @@ def p_hostile(ctx):
             if "pass" in json.dumps(r.get("url", "")) and "user:pass@" in r["url"]:
                 finding("medium", "hostile", "a password written in a link is shown in clear in the download list (queue.list)")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_control(ctx):
     """The local control port: token, malformed input, floods, scope of what it may do."""
     root = ctx["root"]
-    dm = DM(root, name="control").start()
+    edm = EDM(root, name="control").start()
     try:
-        port = int((dm.home / "control.port").read_text(encoding="utf-8"))
+        port = int((edm.home / "control.port").read_text(encoding="utf-8"))
         # Bound to loopback only?
-        lsof = listening(dm.proc.pid)
+        lsof = listening(edm.proc.pid)
         measure("control", f"listening: {lsof.strip().splitlines()[-1] if lsof.strip() else 'none'}")
         if "*:" in lsof or "0.0.0.0" in lsof or "[::]:" in lsof:
             finding("critical", "control", "the control port listens on every interface")
-        readers = token_readers(dm.home / "control.token")
+        readers = token_readers(edm.home / "control.token")
         check("control", f"control.token readable only by this account ({readers or 'nobody else'})", not readers)
         if readers:
             finding("high", "control", f"control.token is readable by {readers}")
@@ -1223,7 +1223,7 @@ def p_control(ctx):
                 guesses += 1
         except OSError:
             pass
-        measure("control", f"dm cut the connection after {guesses} wrong tokens in {time.time() - t0:.1f}s")
+        measure("control", f"EDM cut the connection after {guesses} wrong tokens in {time.time() - t0:.1f}s")
         s.close()
         if guesses >= 300:
             finding("low", "control", "300 wrong tokens in a row on one connection were all answered: no lockout (the token is random and long, so guessing is not practical)")
@@ -1231,15 +1231,15 @@ def p_control(ctx):
         for label, payload in (("not json", "hello\n"), ("array", "[1,2,3]\n"), ("null params", json.dumps({"id": 1, "method": "auth", "params": None}) + "\n"),
                                ("huge id", json.dumps({"id": "x" * 100000, "method": "commands.list"}) + "\n"),
                                ("deep json", "[" * 20000 + "]" * 20000 + "\n")):
-            alive_before = dm.proc.poll() is None
+            alive_before = edm.proc.poll() is None
             raw(payload)
             time.sleep(0.3)
-            if dm.proc.poll() is not None:
-                finding("high", "control", f"dm crashed on malformed input: {label}")
-                dm.start()
-                port = int((dm.home / "control.port").read_text(encoding="utf-8"))
+            if edm.proc.poll() is not None:
+                finding("high", "control", f"EDM crashed on malformed input: {label}")
+                edm.start()
+                port = int((edm.home / "control.port").read_text(encoding="utf-8"))
         # A very long line with no newline (memory).
-        rss0 = proc_stats(dm.proc.pid)[0]
+        rss0 = proc_stats(edm.proc.pid)[0]
         s = socket.create_connection(("127.0.0.1", port), timeout=10)
         sent = 0
         try:
@@ -1249,10 +1249,10 @@ def p_control(ctx):
         except OSError:
             pass
         time.sleep(1)
-        rss1 = proc_stats(dm.proc.pid)[0]
+        rss1 = proc_stats(edm.proc.pid)[0]
         measure("control", f"{sent // MB} MB without a newline accepted before the connection was cut: rss {rss0:.0f} -> {rss1:.0f} MB")
         if sent >= 150 * MB:
-            finding("medium", "control", f"the control port buffers a line of at least {sent // MB} MB with no newline (rss {rss0:.0f} -> {rss1:.0f} MB): a local process can make dm use unbounded memory before it authenticates")
+            finding("medium", "control", f"the control port buffers a line of at least {sent // MB} MB with no newline (rss {rss0:.0f} -> {rss1:.0f} MB): a local process can make EDM use unbounded memory before it authenticates")
         s.close()
         # A flood of connections.
         socks = []
@@ -1273,91 +1273,91 @@ def p_control(ctx):
                 pass
             except OSError:
                 closed += 1
-        measure("control", f"after 25 s idle, {closed} of {len(socks)} unauthenticated connections were closed by dm")
+        measure("control", f"after 25 s idle, {closed} of {len(socks)} unauthenticated connections were closed by EDM")
         if len(socks) >= 1000 and closed < len(socks) // 2:
-            finding("low", "control", f"{len(socks)} idle unauthenticated connections to the control port are kept open (no cap, no idle timeout within 25 s): a local process can use up dm's file descriptors")
+            finding("low", "control", f"{len(socks)} idle unauthenticated connections to the control port are kept open (no cap, no idle timeout within 25 s): a local process can use up EDM's file descriptors")
         time.sleep(1)
-        alive = dm.proc.poll() is None
+        alive = edm.proc.poll() is None
         try:
-            dm.connect()
-            answers = dm.call("commands.list")["ok"]
+            edm.connect()
+            answers = edm.call("commands.list")["ok"]
         except Exception as e:
             answers = False
         for s in socks:
             s.close()
         if not alive:
-            finding("high", "control", "dm died under 1500 idle control connections")
+            finding("high", "control", "EDM died under 1500 idle control connections")
         elif not answers:
             finding("medium", "control", f"with {len(socks)} idle connections open, the control port stops answering an authenticated client")
         # What an authenticated client may add.
         base = ctx["base"]
         for label, params in (("file url", {"urls": ["file:///etc/passwd"]}),
-                              ("name traversal, real file", {"urls": [f"{base}/f/ntrav/2048/ntrav.bin"], "name": "../../../dm-stress-name-escape.bin"}),
-                              ("folder traversal", {"urls": ["http://127.0.0.1:1/a"], "folder": f"{dm.out}/../../../tmp/dm-stress-escape"}),
+                              ("name traversal, real file", {"urls": [f"{base}/f/ntrav/2048/ntrav.bin"], "name": "../../../edm-stress-name-escape.bin"}),
+                              ("folder traversal", {"urls": ["http://127.0.0.1:1/a"], "folder": f"{edm.out}/../../../tmp/edm-stress-escape"}),
                               ("relative folder", {"urls": ["http://127.0.0.1:1/a"], "folder": "../x"}),
                               ("name traversal", {"urls": ["http://127.0.0.1:1/a"], "name": "../../escape.txt"}),
                               ("javascript url", {"urls": ["javascript:alert(1)"]}),
-                              ("shell metachars", {"urls": ["http://127.0.0.1:1/a;touch /tmp/dm-stress-injected"]})):
-            dm.connect()
-            res = dm.call("downloads.add", **params)
+                              ("shell metachars", {"urls": ["http://127.0.0.1:1/a;touch /tmp/edm-stress-injected"]})):
+            edm.connect()
+            res = edm.call("downloads.add", **params)
             measure("control", f"{label}: ok={res.get('ok')} {str(res.get('error') or res.get('result'))[:90]}")
         time.sleep(3)
-        for stray in (root / "dm-stress-name-escape.bin", root.parent / "dm-stress-name-escape.bin", dm.out.parent / "dm-stress-name-escape.bin"):
+        for stray in (root / "edm-stress-name-escape.bin", root.parent / "edm-stress-name-escape.bin", edm.out.parent / "edm-stress-name-escape.bin"):
             if stray.exists():
                 finding("critical", "control", f"a name of ../../../ written through downloads.add put a file at {stray}")
                 stray.unlink()
-        if pathlib.Path("/tmp/dm-stress-injected").exists() or pathlib.Path("/tmp/dm-stress-escape").exists():
+        if pathlib.Path("/tmp/edm-stress-injected").exists() or pathlib.Path("/tmp/edm-stress-escape").exists():
             finding("critical", "control", "a crafted add wrote or ran something outside the download folder")
-        rows = dm.rows()
+        rows = edm.rows()
         for r in rows:
             if "file://" in r["url"] or r["url"].startswith("javascript"):
                 finding("medium", "control", f"a {r['url'].split(':')[0]}: link was accepted into the list ({r['state']['kind']})")
-        for p in ("/tmp/dm-stress-injected", "/tmp/dm-stress-escape"):
+        for p in ("/tmp/edm-stress-injected", "/tmp/edm-stress-escape"):
             shutil.rmtree(p, ignore_errors=True) if pathlib.Path(p).is_dir() else pathlib.Path(p).unlink(missing_ok=True)
     finally:
-        dm.stop()
+        edm.stop()
 
 
 @phase
 def p_bigqueue(ctx):
     """Twenty thousand queued links: adding, listing, restarting with them, clearing."""
     base, root = ctx["base"], ctx["root"]
-    n = int(os.environ.get("DM_STRESS_QUEUE", "20000"))
-    dm = DM(root, name="bigq").start()
+    n = int(os.environ.get("EDM_STRESS_QUEUE", "20000"))
+    edm = EDM(root, name="bigq").start()
     try:
         t0 = time.time()
         step = 500
         for k in range(0, n, step):
             urls = [f"{base}/f/bq{i}/1024/q{i}.bin" for i in range(k, min(n, k + step))]
             t = time.time()
-            r = dm.call("downloads.add", urls=urls, later=True)
+            r = edm.call("downloads.add", urls=urls, later=True)
             if not r.get("ok"):
                 finding("high", "bigqueue", f"adding links {k}..{k + step} was refused: {r.get('error')}")
                 break
             if k in (0, n // 2, n - step):
                 measure("bigqueue", f"batch of {step} at {k} links listed took {time.time() - t:.2f}s")
         measure("bigqueue", f"{n} links queued in {time.time() - t0:.0f}s")
-        rss_idle, *_ = proc_stats(dm.proc.pid)
+        rss_idle, *_ = proc_stats(edm.proc.pid)
         measure("bigqueue", f"rss {rss_idle:.0f} MB with {n} rows before anyone lists them ({rss_idle * 1024 / n:.1f} KB per row)")
         t = time.time()
-        rows = dm.rows()
+        rows = edm.rows()
         measure("bigqueue", f"queue.list of {len(rows)} rows took {time.time() - t:.2f}s")
-        rss, cpu, fds, th = proc_stats(dm.proc.pid)
+        rss, cpu, fds, th = proc_stats(edm.proc.pid)
         measure("bigqueue", f"rss {rss:.0f} MB with {len(rows)} rows ({rss * 1024 / max(1, len(rows)):.1f} KB per row)")
         if len(rows) != n:
             finding("high", "bigqueue", f"{n} links added, {len(rows)} rows listed")
         if rss > 1500:
             finding("medium", "bigqueue", f"{rss:.0f} MB resident for {n} queued links")
         # Restart with them: how long to come back, and are all there?
-        dm.stop()
+        edm.stop()
         time.sleep(1)
-        size = (dm.home / "queue.json").stat().st_size if (dm.home / "queue.json").exists() else 0
+        size = (edm.home / "queue.json").stat().st_size if (edm.home / "queue.json").exists() else 0
         measure("bigqueue", f"queue.json is {size // 1024} KB for {n} rows")
         t = time.time()
-        dm.start()
-        rss_back, *_ = proc_stats(dm.proc.pid)
+        edm.start()
+        rss_back, *_ = proc_stats(edm.proc.pid)
         measure("bigqueue", f"rss {rss_back:.0f} MB just after a restart with {n} rows ({rss_back * 1024 / n:.1f} KB per row)")
-        back = dm.rows()
+        back = edm.rows()
         measure("bigqueue", f"a restart with {n} rows listed {len(back)} after {time.time() - t:.1f}s")
         if len(back) != n:
             finding("high", "bigqueue", f"{n} queued links before a restart, {len(back)} after")
@@ -1365,35 +1365,35 @@ def p_bigqueue(ctx):
         # files with the queued links still in the list.
         urls = [f"{base}/f/bqs{i}/4097/bqs{i}.bin" for i in range(200)]
         t = time.time()
-        dm.add(urls)
-        wait_for(lambda: sum(1 for x in dm.rows() if "bqs" in x["url"] and x["state"]["kind"] == "completed") >= 200, 600, every=1)
+        edm.add(urls)
+        wait_for(lambda: sum(1 for x in edm.rows() if "bqs" in x["url"] and x["state"]["kind"] == "completed") >= 200, 600, every=1)
         took = time.time() - t
-        done = sum(1 for x in dm.rows() if "bqs" in x["url"] and x["state"]["kind"] == "completed")
+        done = sum(1 for x in edm.rows() if "bqs" in x["url"] and x["state"]["kind"] == "completed")
         measure("bigqueue", f"{done} of 200 small files finished in {took:.1f}s ({done / took:.1f} files/s) with {n} queued links in the list")
         if done / max(took, 0.1) < 15:
             finding("medium", "bigqueue", f"with {n} links in the list, small downloads finish at {done / took:.1f} files/s (about 57/s with a short list): every state change rewrites and syncs the whole list")
         t = time.time()
-        r = dm.call("downloads.cancel", ids=[x["id"] for x in back[:2000]])
+        r = edm.call("downloads.cancel", ids=[x["id"] for x in back[:2000]])
         measure("bigqueue", f"cancelling 2000 took {time.time() - t:.1f}s: ok={r.get('ok')} {len(r.get('result', {}).get('done', []))} done {str(r.get('error', ''))[:100]}")
         if time.time() - t > 20:
             finding("medium", "bigqueue", f"cancelling 2000 of {n} queued links in one call took {time.time() - t:.0f}s (the window or script that asks waits that long)")
-        left = states(dm.rows())
+        left = states(edm.rows())
         measure("bigqueue", f"after the cancel: {left}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_edge(ctx):
-    """Microsoft Edge: forty downloads started at once; dm must take every one and Edge keep none."""
+    """Microsoft Edge: forty downloads started at once; EDM must take every one and Edge keep none."""
     base = ctx["base"]
     import importlib.util
     spec = importlib.util.spec_from_file_location("chrome_check", ROOT / "scripts/chrome-check.py")
     cc = importlib.util.module_from_spec(spec)
     sys.modules["chrome_check"] = cc
     spec.loader.exec_module(cc)
-    n = int(os.environ.get("DM_STRESS_EDGE", "40"))
+    n = int(os.environ.get("EDM_STRESS_EDGE", "40"))
     cc.CHROME_PATH_DEFAULT = None
     # Microsoft Edge itself, as the phase says: the installed one unless a
     # browser was named (CHROME_PATH). Chrome for Testing, which the browser
@@ -1423,7 +1423,7 @@ def p_edge(ctx):
         # A pointer pressed on each link, as a person does it: Edge lets one
         # download through for a script's click and asks about the rest, so
         # only real input is a fair test of many downloads at once.
-        gap = float(os.environ.get("DM_STRESS_EDGE_GAP", "0.08"))
+        gap = float(os.environ.get("EDM_STRESS_EDGE_GAP", "0.08"))
         for i in range(n):
             x, y = tab.evaluate(f"""(() => {{ const el = document.getElementById('l{i}'); el.scrollIntoView({{block: 'center'}});
               const r = el.getBoundingClientRect(); return [r.left + 5, r.top + r.height / 2]; }})()""")
@@ -1437,8 +1437,8 @@ def p_edge(ctx):
         took = time.time() - t0
         mine = rows()
         st = states(mine)
-        measure("edge", f"dm's list after {took:.0f}s: {len(mine)} rows {st}")
-        # What Edge itself holds: anything it kept is a download that did not go to dm.
+        measure("edge", f"EDM's list after {took:.0f}s: {len(mine)} rows {st}")
+        # What Edge itself holds: anything it kept is a download that did not go to EDM.
         listed = worker.evaluate("chrome.downloads.search({}).then(l => JSON.stringify(l.filter(d => /edge[0-9]+[.]bin/.test(d.filename || d.url)).map(d => [d.url.split('/').slice(-1)[0], d.state, d.exists])))")
         kept = json.loads(listed)
         measure("edge", f"Edge's own download list holds {len(kept)} of them: {kept[:4]}")
@@ -1447,14 +1447,14 @@ def p_edge(ctx):
         if dup:
             finding("high", "edge", f"{dup} of {n} simultaneous downloads were taken twice")
         if len(mine) < n:
-            finding("high", "edge", f"only {len(mine)} of {n} downloads started together reached dm")
+            finding("high", "edge", f"only {len(mine)} of {n} downloads started together reached EDM")
         if kept:
-            finding("high", "edge", f"{len(kept)} of {n} downloads started together stayed with Edge instead of dm: {kept[:3]}")
+            finding("high", "edge", f"{len(kept)} of {n} downloads started together stayed with Edge instead of EDM: {kept[:3]}")
         if st.get("failed"):
-            finding("high", "edge", f"{st['failed']} of {n} downloads taken from Edge failed in dm")
+            finding("high", "edge", f"{st['failed']} of {n} downloads taken from Edge failed in EDM")
         expect = {f"edge{i}.bin": (f"edge{i}", 2 * MB) for i in range(n)}
         ok, bad = verify(mine, expect)
-        measure("edge", f"{ok} of {n} byte-exact in dm's folder")
+        measure("edge", f"{ok} of {n} byte-exact in EDM's folder")
         if bad:
             finding("critical", "edge", f"{len(bad)} files taken from Edge are wrong: {bad[:3]}")
         if not done:
@@ -1478,28 +1478,28 @@ def p_large(ctx):
     if free_gb(tempfile.gettempdir()) < MIN_FREE_GB + 4:
         finding("info", "large", "skipped: not enough free disk for a 1.5 GB file with the safety margin")
         return
-    dm = DM(root, {"connections": 16}, name="large").start()
+    edm = EDM(root, {"connections": 16}, name="large").start()
     try:
-        dm.add([f"{base}/f/large/{size}/large.bin"])
+        edm.add([f"{base}/f/large/{size}/large.bin"])
         t0 = time.time()
         lowest = free_gb(tempfile.gettempdir())
         def settled():
             nonlocal lowest
             lowest = min(lowest, free_gb(tempfile.gettempdir()))
-            return any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows())
+            return any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows())
         wait_for(settled, 600, every=1)
         took = time.time() - t0
-        rows = dm.rows()
-        measure("large", f"{rows[0]['state']} in {took:.0f}s ({size / MB / took:.0f} MB/s); lowest free disk {lowest:.1f} GB; peak rss {dm.peak()[0]:.0f} MB")
+        rows = edm.rows()
+        measure("large", f"{rows[0]['state']} in {took:.0f}s ({size / MB / took:.0f} MB/s); lowest free disk {lowest:.1f} GB; peak rss {edm.peak()[0]:.0f} MB")
         ok, bad = verify(rows, {"large.bin": ("large", size)})
         check("large", "1.5 GB byte-exact", ok == 1 and not bad, str(bad))
         if bad:
             finding("critical", "large", f"a 1.5 GB download is wrong: {bad}")
-        if dm.peak()[0] > 400:
-            finding("medium", "large", f"{dm.peak()[0]:.0f} MB resident for one large download")
+        if edm.peak()[0] > 400:
+            finding("medium", "large", f"{edm.peak()[0]:.0f} MB resident for one large download")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -1509,34 +1509,34 @@ def p_outage(ctx):
     server = ctx["server"]
     base = ctx["base"]
     n, size = 20, 24 * MB
-    dm = DM(root, {"connections": 4, "concurrency": 10}, name="outage").start()
+    edm = EDM(root, {"connections": 4, "concurrency": 10}, name="outage").start()
     try:
         expect = {}
         urls = []
         for i in range(n):
             expect[f"o{i}.bin"] = (f"out{i}", size)
             urls.append(f"{base}/f/out{i}/{size}/o{i}.bin?rate={2 * MB}")
-        dm.add(urls)
-        wait_for(lambda: sum(r["progress"]["downloaded"] for r in dm.rows()) > n * size * 0.2, 90, every=1)
+        edm.add(urls)
+        wait_for(lambda: sum(r["progress"]["downloaded"] for r in edm.rows()) > n * size * 0.2, 90, every=1)
         server.cut_all()
         measure("outage", "the network is down")
         time.sleep(25)
-        mid = states(dm.rows())
+        mid = states(edm.rows())
         measure("outage", f"after 25 s down: {mid}")
         server.down = False
         measure("outage", "the network is back")
-        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 300, every=2)
-        rows = dm.rows()
+        wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 300, every=2)
+        rows = edm.rows()
         st = states(rows)
         # A failed one is given a retry, as a person would.
         for r in rows:
             if r["state"]["kind"] == "failed":
-                dm.call("downloads.resume", ids=[r["id"]])
+                edm.call("downloads.resume", ids=[r["id"]])
         if st.get("failed"):
             measure("outage", f"{st['failed']} failed during the outage; retried by hand")
             finding("low", "outage", f"{st['failed']} of {n} downloads gave up during a 25-second outage instead of waiting for the network (a person retried them)")
-            wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 300, every=2)
-        rows = dm.rows()
+            wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 300, every=2)
+        rows = edm.rows()
         ok, bad = verify(rows, expect)
         measure("outage", f"final {states(rows)}; {ok} byte-exact")
         if bad:
@@ -1544,20 +1544,20 @@ def p_outage(ctx):
         check("outage", "all finished byte-exact", ok == n)
     finally:
         server.down = False
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_expired(ctx):
     """A link that stops working after a few requests, as expiring links do."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8, "attempts": 3}, name="expired").start()
+    edm = EDM(root, {"connections": 8, "attempts": 3}, name="expired").start()
     try:
         size = 16 * MB
-        dm.add([f"{base}/f/exp/{size}/exp.bin?expire=3&rate={2 * MB}"])
-        wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 200, every=1)
-        r = dm.rows()[0]
+        edm.add([f"{base}/f/exp/{size}/exp.bin?expire=3&rate={2 * MB}"])
+        wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 200, every=1)
+        r = edm.rows()[0]
         measure("expired", f"{r['state']}")
         if r["state"]["kind"] == "completed":
             p = pathlib.Path(r["path"])
@@ -1569,15 +1569,15 @@ def p_expired(ctx):
         else:
             check("expired", "ends failed with a reason", bool(r["state"].get("reason")))
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_urls(ctx):
     """Odd links and repeats: nothing crashes, repeats are not downloaded twice."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, name="urls").start()
+    edm = EDM(root, name="urls").start()
     try:
         port = base.rsplit(":", 1)[1]
         odd = {
@@ -1599,32 +1599,32 @@ def p_urls(ctx):
         }
         for k, u in odd.items():
             try:
-                r = dm.add([u])
+                r = edm.add([u])
                 measure("urls", f"{k}: ok={r.get('ok')} {str(r.get('error') or r.get('result'))[:70]}")
             except Exception as e:
                 finding("high", "urls", f"{k}: the control call failed: {e!r}")
-                dm.start()
-        if dm.proc.poll() is not None:
-            finding("high", "urls", "dm died on an odd link")
+                edm.start()
+        if edm.proc.poll() is not None:
+            finding("high", "urls", "EDM died on an odd link")
         # The same link a hundred times.
         same = f"{base}/f/same/1024/same.bin"
         added = 0
         for _ in range(100):
-            r = dm.add([same])
+            r = edm.add([same])
             added += (r.get("result") or {}).get("added", 0)
         measure("urls", f"the same link added 100 times: {added} accepted")
         time.sleep(3)
-        n_same = sum(1 for r in dm.rows() if r["url"].endswith("same.bin"))
+        n_same = sum(1 for r in edm.rows() if r["url"].endswith("same.bin"))
         if n_same > 1:
             finding("low", "urls", f"the same link added 100 times made {n_same} rows")
         # One call with a thousand links, a thousand of them the same.
-        r = dm.add([same] * 1000)
+        r = edm.add([same] * 1000)
         measure("urls", f"1000 repeats in one call: {r.get('result')}")
-        if not dm.proc.poll() is None:
-            finding("high", "urls", "dm died")
+        if not edm.proc.poll() is None:
+            finding("high", "urls", "EDM died")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -1632,67 +1632,67 @@ def p_limits(ctx):
     """The concurrency setting is kept: never more downloads running than it allows."""
     base, root = ctx["base"], ctx["root"]
     cap = 5
-    dm = DM(root, {"connections": 2, "concurrency": cap}, name="limits").start()
+    edm = EDM(root, {"connections": 2, "concurrency": cap}, name="limits").start()
     try:
         urls = [f"{base}/f/lim{i}/{3 * MB}/lim{i}.bin?rate={MB}" for i in range(40)]
-        dm.add(urls)
+        edm.add(urls)
         worst = 0
         t_end = time.time() + 150
         while time.time() < t_end:
-            rows = dm.rows()
+            rows = edm.rows()
             running = sum(1 for r in rows if r["state"]["kind"] == "running")
             worst = max(worst, running)
             if len(rows) >= 40 and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in rows):
                 break
             time.sleep(0.25)
-        measure("limits", f"concurrency {cap}: at most {worst} running at once; {states(dm.rows())}")
+        measure("limits", f"concurrency {cap}: at most {worst} running at once; {states(edm.rows())}")
         if worst > cap:
             finding("medium", "limits", f"{worst} downloads ran at once with the concurrency setting at {cap}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_window(ctx):
-    """dm's window under load: 5000 rows and 60 active downloads; does it keep answering?"""
+    """EDM's window under load: 5000 rows and 60 active downloads; does it keep answering?"""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 4, "concurrency": 60}, name="win", window=True).start()
+    edm = EDM(root, {"connections": 4, "concurrency": 60}, name="win", window=True).start()
     try:
         for k in range(0, 5000, 500):
-            dm.call("downloads.add", urls=[f"{base}/f/w{i}/1024/w{i}.bin" for i in range(k, k + 500)], later=True)
-        dm.add([f"{base}/f/wa{i}/{40 * MB}/wa{i}.bin?rate={MB}" for i in range(60)])
+            edm.call("downloads.add", urls=[f"{base}/f/w{i}/1024/w{i}.bin" for i in range(k, k + 500)], later=True)
+        edm.add([f"{base}/f/wa{i}/{40 * MB}/wa{i}.bin?rate={MB}" for i in range(60)])
         time.sleep(8)
         lat = []
         for _ in range(20):
             t = time.time()
-            dm.call("commands.list")            # one turn of the window's loop
+            edm.call("commands.list")            # one turn of the window's loop
             lat.append(time.time() - t)
             time.sleep(0.5)
         lat.sort()
-        measure("window", f"the window answers a call in median {lat[len(lat) // 2] * 1000:.0f} ms, worst {lat[-1] * 1000:.0f} ms, with {len(dm.rows())} rows")
+        measure("window", f"the window answers a call in median {lat[len(lat) // 2] * 1000:.0f} ms, worst {lat[-1] * 1000:.0f} ms, with {len(edm.rows())} rows")
         if lat[-1] > 1.0:
             finding("medium", "window", f"the window took {lat[-1]:.1f}s to answer once with 5000 rows and 60 active downloads")
         t = time.time()
-        dm.call("ui.inspect")
+        edm.call("ui.inspect")
         took = time.time() - t
-        measure("window", f"ui.inspect (the automation call that describes the window) took {took:.1f}s with {len(dm.rows())} rows")
+        measure("window", f"ui.inspect (the automation call that describes the window) took {took:.1f}s with {len(edm.rows())} rows")
         if took > 3:
-            finding("low", "window", f"ui.inspect takes {took:.1f}s with {len(dm.rows())} rows (about 7 s at 5000, 25 ms at 1500): its cost grows with the square of the list; the window itself keeps answering in ~10 ms")
-        shot = dm.call("ui.screenshot", name="stress-5000-rows")
+            finding("low", "window", f"ui.inspect takes {took:.1f}s with {len(edm.rows())} rows (about 7 s at 5000, 25 ms at 1500): its cost grows with the square of the list; the window itself keeps answering in ~10 ms")
+        shot = edm.call("ui.screenshot", name="stress-5000-rows")
         measure("window", f"screenshot: {shot.get('result') or shot.get('error')}")
-        rss, cpu, fds, th = dm.peak()
+        rss, cpu, fds, th = edm.peak()
         measure("window", f"peak rss {rss:.0f} MB, cpu {cpu:.0f}%, fds {fds}, threads {th}")
         if cpu > 250:
-            finding("low", "window", f"dm uses {cpu:.0f}% of a core with the window open under this load")
+            finding("low", "window", f"EDM uses {cpu:.0f}% of a core with the window open under this load")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 def fs_counter(root):
     """The library that counts each thread's file-system calls (scripts/fs-count.c), built
-    here, and how dm is to load it; or None and why not."""
+    here, and how EDM is to load it; or None and why not."""
     cc = shutil.which("cc")
     if not cc or sys.platform == "win32":
         return None, "no C compiler (cc) to build scripts/fs-count.c"
@@ -1713,24 +1713,24 @@ def p_frame(ctx):
     env, why = fs_counter(root)
     if env is None:
         finding("info", "frame", f"the disk is not counted: {why}")
-    dm = DM(root, {"connections": 1, "concurrency": 10}, name="frame", window=True, env=env).start()
+    edm = EDM(root, {"connections": 1, "concurrency": 10}, name="frame", window=True, env=env).start()
     try:
-        drawing = (dm.call("ui.frames").get("result") or {}).get("drawing")
+        drawing = (edm.call("ui.frames").get("result") or {}).get("drawing")
         if drawing is None:
             finding("info", "frame", "skipped: a frame's costs are counted by a debug build only "
-                                     "(DM_BINARY=target/debug/dm-gpui)")
+                                     "(EDM_BINARY=target/debug/edm-gpui)")
             return
-        dm.add([f"{base}/f/fd{i}/1024/fd{i}.bin" for i in range(500)])
-        finished = wait_for(lambda: states(dm.rows()).get("completed", 0) == 500, 120, every=1)
-        check("frame", "500 small files finish", bool(finished), f"{states(dm.rows())}")
-        dm.call("downloads.add", urls=[f"{base}/f/fw{i}/1024/fw{i}.bin" for i in range(490)], later=True)
-        dm.add([f"{base}/f/fr{i}/{40 * MB}/fr{i}.bin?rate={64 * 1024}" for i in range(10)])
-        running = wait_for(lambda: states(dm.rows()).get("running", 0) == 10, 30, every=0.5)
-        check("frame", "10 downloads run beside 990 other rows", bool(running), f"{states(dm.rows())}")
+        edm.add([f"{base}/f/fd{i}/1024/fd{i}.bin" for i in range(500)])
+        finished = wait_for(lambda: states(edm.rows()).get("completed", 0) == 500, 120, every=1)
+        check("frame", "500 small files finish", bool(finished), f"{states(edm.rows())}")
+        edm.call("downloads.add", urls=[f"{base}/f/fw{i}/1024/fw{i}.bin" for i in range(490)], later=True)
+        edm.add([f"{base}/f/fr{i}/{40 * MB}/fr{i}.bin?rate={64 * 1024}" for i in range(10)])
+        running = wait_for(lambda: states(edm.rows()).get("running", 0) == 10, 30, every=0.5)
+        check("frame", "10 downloads run beside 990 other rows", bool(running), f"{states(edm.rows())}")
         time.sleep(2)
 
         def costs():
-            r = dm.call("ui.frames").get("result") or {}
+            r = edm.call("ui.frames").get("result") or {}
             return r.get("frames", 0), r.get("drawing") or {}
 
         f0, c0 = costs()
@@ -1738,22 +1738,22 @@ def p_frame(ctx):
         # (rows never drawn before), a choice, another place and back.
         t0 = time.time()
         while time.time() - t0 < 6:
-            shown = [t["text"] for t in (dm.call("ui.texts").get("result") or {}).get("texts", [])
+            shown = [t["text"] for t in (edm.call("ui.texts").get("result") or {}).get("texts", [])
                      if t["text"].startswith(("fd", "fw", "fr"))]
             if shown:
-                dm.call("ui.scroll", text=shown[len(shown) // 2], lines=12)
-            ids = [r["id"] for r in dm.rows()]
-            dm.call("ui.select", ids=ids[int(time.time() * 7) % len(ids):][:3])
-            dm.call("ui.place", place="finished" if int(time.time()) % 2 else "all")
+                edm.call("ui.scroll", text=shown[len(shown) // 2], lines=12)
+            ids = [r["id"] for r in edm.rows()]
+            edm.call("ui.select", ids=ids[int(time.time() * 7) % len(ids):][:3])
+            edm.call("ui.place", place="finished" if int(time.time()) % 2 else "all")
             time.sleep(0.3)
-        dm.call("ui.place", place="all")
+        edm.call("ui.place", place="all")
         time.sleep(0.5)
         f1, c1 = costs()
         frames = f1 - f0
         block_on = c1.get("block_on", 0) - c0.get("block_on", 0)
         settings = c1.get("settings", 0) - c0.get("settings", 0)
         fs = None if c1.get("fs") is None else c1["fs"] - (c0.get("fs") or 0)
-        measure("frame", f"{frames} frames at {len(dm.rows())} rows with 10 running: block_on {block_on}, "
+        measure("frame", f"{frames} frames at {len(edm.rows())} rows with 10 running: block_on {block_on}, "
                          f"settings copied {settings}, file-system calls "
                          f"{'not counted' if fs is None else fs}")
         check("frame", "the window drew frames to count", frames >= 10, f"{frames} frames")
@@ -1765,8 +1765,8 @@ def p_frame(ctx):
         if fs is not None:
             check("frame", "no frame asks the disk", fs == 0, f"{fs} file-system calls over {frames} frames")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -1774,94 +1774,94 @@ def p_holds(ctx):
     """A download held by the schedule or the download limit, in the window: Start now, its question, Keep waiting."""
     base, root = ctx["base"], ctx["root"]
 
-    def kind(dm, rid):
-        row = next((r for r in dm.rows() if r["id"] == rid), None)
+    def kind(edm, rid):
+        row = next((r for r in edm.rows() if r["id"] == rid), None)
         return (row["state"]["kind"] if row and isinstance(row["state"], dict) else None), row
 
-    def dialogs(dm):
-        r = dm.call("ui.inspect")
+    def dialogs(edm):
+        r = edm.call("ui.inspect")
         return (r.get("result") or {}).get("dialogs") or [] if r.get("ok") else []
 
-    def click(dm, text, nth=0):
-        r = dm.call("ui.click", text=text, nth=nth)
+    def click(edm, text, nth=0):
+        r = edm.call("ui.click", text=text, nth=nth)
         time.sleep(0.6)                      # a frame or two for the click to land
         return r
 
-    def held_rows(dm, n):
+    def held_rows(edm, n):
         return wait_for(lambda: (lambda rows: rows if len(rows) >= n else None)(
-            [r for r in dm.rows() if r["state"]["kind"] == "paused" and r.get("paused_by_schedule")]), 20)
+            [r for r in edm.rows() if r["state"]["kind"] == "paused" and r.get("paused_by_schedule")]), 20)
 
-    def start_now_and_answer(dm, label, rid, answer):
+    def start_now_and_answer(edm, label, rid, answer):
         """Select the held row, click the toolbar's Start now and answer its question."""
-        dm.call("ui.select", ids=[rid])
+        edm.call("ui.select", ids=[rid])
         time.sleep(0.6)
-        texts = [t["text"] for t in (dm.call("ui.texts").get("result") or {}).get("texts", [])]
+        texts = [t["text"] for t in (edm.call("ui.texts").get("result") or {}).get("texts", [])]
         check("holds", f"{label}: the toolbar's Resume says Start now for a held row", "Start now" in texts,
               f"some of what is shown: {texts[:25]}")
-        clicked = click(dm, "Start now")
-        asked = wait_for(lambda: any("outside the schedule" in d.lower() or "Start outside" in d for d in dialogs(dm)), 10)
+        clicked = click(edm, "Start now")
+        asked = wait_for(lambda: any("outside the schedule" in d.lower() or "Start outside" in d for d in dialogs(edm)), 10)
         check("holds", f"{label}: Start now asks first", clicked.get("ok") and asked,
-              f"{clicked.get('error') or ''} dialogs {dialogs(dm)}")
+              f"{clicked.get('error') or ''} dialogs {dialogs(edm)}")
         if not asked:
             return
         # The question's own button, not the toolbar's of the same name: the
         # first of those words drawn in a dialog's window (nearest the front first).
-        texts = (dm.call("ui.texts").get("result") or {}).get("texts", [])
+        texts = (edm.call("ui.texts").get("result") or {}).get("texts", [])
         named = [t for t in texts if t["text"] == answer]
         nth = next((i for i, t in enumerate(named) if t.get("window") == "dialog"), 0)
-        click(dm, answer, nth)
-        gone = wait_for(lambda: not any("outside" in d.lower() for d in dialogs(dm)), 10)
-        check("holds", f"{label}: {answer} closes the question", gone, f"dialogs {dialogs(dm)}")
+        click(edm, answer, nth)
+        gone = wait_for(lambda: not any("outside" in d.lower() for d in dialogs(edm)), 10)
+        check("holds", f"{label}: {answer} closes the question", gone, f"dialogs {dialogs(edm)}")
 
     # 1. The schedule: a window that opens two hours from now, every day.
     now = time.localtime()
     opens = f"{(now.tm_hour + 2) % 24:02d}:00"
     closes = f"{(now.tm_hour + 3) % 24:02d}:00"
-    dm = DM(root, {"connections": 2, "schedule": {"enabled": True, "from": opens, "to": closes, "days": []}},
+    edm = EDM(root, {"connections": 2, "schedule": {"enabled": True, "from": opens, "to": closes, "days": []}},
             name="holds", window=True).start()
     try:
-        dm.add([f"{base}/f/hold1/{2 * MB}/hold1.bin", f"{base}/f/hold2/{2 * MB}/hold2.bin"])
-        held = held_rows(dm, 2)
+        edm.add([f"{base}/f/hold1/{2 * MB}/hold1.bin", f"{base}/f/hold2/{2 * MB}/hold2.bin"])
+        held = held_rows(edm, 2)
         check("holds", "schedule: two added outside its hours are held, not started", held,
-              f"{states(dm.rows())}")
+              f"{states(edm.rows())}")
         if held:
             first, second = sorted(r["id"] for r in held)
-            start_now_and_answer(dm, "schedule", second, "Keep waiting")
+            start_now_and_answer(edm, "schedule", second, "Keep waiting")
             time.sleep(2)
-            still, _ = kind(dm, second)
+            still, _ = kind(edm, second)
             check("holds", "schedule: Keep waiting leaves it held", still == "paused", f"state {still}")
-            start_now_and_answer(dm, "schedule", first, "Start now")
-            done = wait_for(lambda: kind(dm, first)[0] == "completed", 30)
+            start_now_and_answer(edm, "schedule", first, "Start now")
+            done = wait_for(lambda: kind(edm, first)[0] == "completed", 30)
             check("holds", "schedule: Start now in its question starts that one and it finishes", done,
-                  f"state {kind(dm, first)[0]}")
-            other, _ = kind(dm, second)
+                  f"state {kind(edm, first)[0]}")
+            other, _ = kind(edm, second)
             check("holds", "schedule: only the selection starts; the other stays held", other == "paused",
                   f"state {other}")
-            ok, bad = verify([r for r in dm.rows() if r["id"] == first], {"hold1.bin": ("hold1", 2 * MB)})
+            ok, bad = verify([r for r in edm.rows() if r["id"] == first], {"hold1.bin": ("hold1", 2 * MB)})
             check("holds", "schedule: the file started outside it is whole", ok == 1, f"{bad}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
     # 2. The download limit: 1 MB an hour, spent by the first file.
-    dm = DM(root, {"connections": 2, "limit_mb": 1, "limit_hours": 1}, name="limit", window=True).start()
+    edm = EDM(root, {"connections": 2, "limit_mb": 1, "limit_hours": 1}, name="limit", window=True).start()
     try:
-        dm.add([f"{base}/f/cap1/{2 * MB}/cap1.bin"])
-        wait_for(lambda: any(r["state"]["kind"] in ("completed", "paused") for r in dm.rows()), 30)
-        dm.add([f"{base}/f/cap2/{2 * MB}/cap2.bin"])
-        held = held_rows(dm, 1)
-        check("holds", "limit: a download once the limit is spent is held", held, f"{states(dm.rows())}")
+        edm.add([f"{base}/f/cap1/{2 * MB}/cap1.bin"])
+        wait_for(lambda: any(r["state"]["kind"] in ("completed", "paused") for r in edm.rows()), 30)
+        edm.add([f"{base}/f/cap2/{2 * MB}/cap2.bin"])
+        held = held_rows(edm, 1)
+        check("holds", "limit: a download once the limit is spent is held", held, f"{states(edm.rows())}")
         if held:
             rid = held[-1]["id"]
-            start_now_and_answer(dm, "limit", rid, "Start now")
-            done = wait_for(lambda: kind(dm, rid)[0] == "completed", 30)
+            start_now_and_answer(edm, "limit", rid, "Start now")
+            done = wait_for(lambda: kind(edm, rid)[0] == "completed", 30)
             check("holds", "limit: Start now in its question starts it past the limit and it finishes", done,
-                  f"state {kind(dm, rid)[0]}")
-            ok, bad = verify([r for r in dm.rows() if r["id"] == rid], {"cap2.bin": ("cap2", 2 * MB)})
+                  f"state {kind(edm, rid)[0]}")
+            ok, bad = verify([r for r in edm.rows() if r["id"] == rid], {"cap2.bin": ("cap2", 2 * MB)})
             check("holds", "limit: the file started past it is whole", ok == 1, f"{bad}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -1869,77 +1869,77 @@ def p_hidden(ctx):
     """The window in the tray or minimized (its slower wakes): answered, downloads go on, and shown again it is current."""
     base, root = ctx["base"], ctx["root"]
     for where in ("tray", "minimized"):
-        dm = DM(root, {"connections": 2}, name=f"hidden-{where}", window=True).start()
+        edm = EDM(root, {"connections": 2}, name=f"hidden-{where}", window=True).start()
         try:
             files = {f"{where}{i}.bin": (f"{where}{i}", 4 * MB) for i in range(2)}
-            dm.add([f"{base}/f/{seed}/{size}/{name}?rate={128 * 1024}" for name, (seed, size) in files.items()])
-            wait_for(lambda: len(dm.rows()) == 2, 10)
+            edm.add([f"{base}/f/{seed}/{size}/{name}?rate={128 * 1024}" for name, (seed, size) in files.items()])
+            wait_for(lambda: len(edm.rows()) == 2, 10)
             # Where the window stands before it is put away (screen points, from the top left).
-            stood = (dm.call("ui.windows").get("result") or {}).get("main")
-            put = dm.call("ui.window", to=where)
+            stood = (edm.call("ui.windows").get("result") or {}).get("main")
+            put = edm.call("ui.window", to=where)
             check("hidden", f"{where}: the window can be put there", put.get("ok"), str(put))
             time.sleep(1.5)
             lat = []
             for _ in range(10):
                 t = time.time()
-                dm.call("commands.list")       # one turn of the window's loop
+                edm.call("commands.list")       # one turn of the window's loop
                 lat.append(time.time() - t)
                 time.sleep(0.2)
             measure("hidden", f"{where}: a call answered in worst {max(lat) * 1000:.0f} ms")
             check("hidden", f"{where}: calls are answered within a second", max(lat) < 1.0, f"worst {max(lat):.2f}s")
-            first = sorted(r["id"] for r in dm.rows())[0]
-            dm.call("downloads.pause", ids=[first])
-            paused = wait_for(lambda: next(r for r in dm.rows() if r["id"] == first)["state"]["kind"] == "paused", 3)
-            check("hidden", f"{where}: a pause takes hold", paused, f"{states(dm.rows())}")
-            dm.call("downloads.resume", ids=[first])
-            resumed = wait_for(lambda: next(r for r in dm.rows() if r["id"] == first)["state"]["kind"]
+            first = sorted(r["id"] for r in edm.rows())[0]
+            edm.call("downloads.pause", ids=[first])
+            paused = wait_for(lambda: next(r for r in edm.rows() if r["id"] == first)["state"]["kind"] == "paused", 3)
+            check("hidden", f"{where}: a pause takes hold", paused, f"{states(edm.rows())}")
+            edm.call("downloads.resume", ids=[first])
+            resumed = wait_for(lambda: next(r for r in edm.rows() if r["id"] == first)["state"]["kind"]
                                in ("running", "completed", "queued"), 3)
-            check("hidden", f"{where}: a resume takes hold", resumed, f"{states(dm.rows())}")
-            done = wait_for(lambda: all(r["state"]["kind"] == "completed" for r in dm.rows()), 90)
-            check("hidden", f"{where}: both finish while the window is out of sight", done, f"{states(dm.rows())}")
-            ok, bad = verify(dm.rows(), files)
+            check("hidden", f"{where}: a resume takes hold", resumed, f"{states(edm.rows())}")
+            done = wait_for(lambda: all(r["state"]["kind"] == "completed" for r in edm.rows()), 90)
+            check("hidden", f"{where}: both finish while the window is out of sight", done, f"{states(edm.rows())}")
+            ok, bad = verify(edm.rows(), files)
             check("hidden", f"{where}: and are whole", ok == 2, f"{bad}")
             # A change made while out of sight is on the window when it comes back.
-            dm.add([f"{base}/f/{where}2/{MB}/{where}2.bin"], later=True)
-            late = wait_for(lambda: max((r["id"] for r in dm.rows()), default=None) if len(dm.rows()) == 3 else None, 5)
+            edm.add([f"{base}/f/{where}2/{MB}/{where}2.bin"], later=True)
+            late = wait_for(lambda: max((r["id"] for r in edm.rows()), default=None) if len(edm.rows()) == 3 else None, 5)
             time.sleep(1)
-            dm.call("ui.window", to="shown")
+            edm.call("ui.window", to="shown")
             t = time.time()
             current = wait_for(lambda: (lambda rows: len(rows) == 3 and any(x["id"] == late for x in rows)
                                         and sum(x["status"] == "Complete" for x in rows) == 2)(
-                (dm.call("ui.inspect").get("result") or {}).get("rows", [])), 5, every=0.05)
+                (edm.call("ui.inspect").get("result") or {}).get("rows", [])), 5, every=0.05)
             measure("hidden", f"{where}: shown again, the window read the list in {time.time() - t:.2f}s")
-            seen = (dm.call("ui.inspect").get("result") or {})
+            seen = (edm.call("ui.inspect").get("result") or {})
             check("hidden", f"{where}: shown again, its rows say what the queue says", current and not seen.get("hidden"),
                   f"rows {[(x['id'], x['status']) for x in seen.get('rows', [])]}; hidden {seen.get('hidden')}")
             if where == "tray":
                 # Back from the tray where it was, as the system's window manager puts it back.
                 def back_where_it_stood():
-                    now = (dm.call("ui.windows").get("result") or {}).get("main")
+                    now = (edm.call("ui.windows").get("result") or {}).get("main")
                     same = stood and now and all(abs(a - b) <= 1 for a, b in zip(stood, now))
                     return now if same else None
                 came = wait_for(back_where_it_stood, 5, every=0.1)
                 check("hidden", "tray: shown again, the window is where it stood before", bool(came),
-                      f"before {stood}; after {(dm.call('ui.windows').get('result') or {}).get('main')}")
+                      f"before {stood}; after {(EDM.call('ui.windows').get('result') or {}).get('main')}")
         finally:
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_details(ctx):
     """Several progress windows open at once while their downloads change: each shows its own row's state."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 2}, name="details", window=True).start()
+    edm = EDM(root, {"connections": 2}, name="details", window=True).start()
 
     def words():
         """How many times each button's words are drawn in the dialogs' windows."""
-        texts = (dm.call("ui.texts").get("result") or {}).get("texts", [])
+        texts = (edm.call("ui.texts").get("result") or {}).get("texts", [])
         said = [t["text"] for t in texts if t.get("window") == "dialog"]
         return {w: said.count(w) for w in ("Stop download", "Resume", "Cancel download")}
 
     def windows():
-        return [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])]
+        return [d["title"] for d in (edm.call("ui.windows").get("result") or {}).get("dialogs", [])]
 
     def shows(stop, resume, seconds=2):
         return wait_for(lambda: (lambda w: w["Stop download"] == stop and w["Resume"] == resume)(words()),
@@ -1947,35 +1947,35 @@ def p_details(ctx):
 
     try:
         files = {f"det{i}.bin": (f"det{i}", 4 * MB) for i in range(3)}
-        dm.add([f"{base}/f/{seed}/{size}/{name}?rate={128 * 1024}" for name, (seed, size) in files.items()])
-        wait_for(lambda: len(dm.rows()) == 3 and all(r["state"]["kind"] == "running" for r in dm.rows()), 10)
-        ids = sorted(r["id"] for r in dm.rows())
-        dm.call("ui.select", ids=ids)
-        ran = dm.call("command.run", id="file.show_progress")
+        edm.add([f"{base}/f/{seed}/{size}/{name}?rate={128 * 1024}" for name, (seed, size) in files.items()])
+        wait_for(lambda: len(edm.rows()) == 3 and all(r["state"]["kind"] == "running" for r in edm.rows()), 10)
+        ids = sorted(r["id"] for r in edm.rows())
+        edm.call("ui.select", ids=ids)
+        ran = edm.call("command.run", id="file.show_progress")
         opened = wait_for(lambda: len(windows()) == 3, 5)
         check("details", "Show progress on three running downloads opens a window for each", opened,
               f"{ran.get('error') or ''} windows {windows()}")
         check("details", "each says Stop download", shows(3, 0), f"{words()}")
-        dm.call("downloads.pause", ids=ids[:2])
+        edm.call("downloads.pause", ids=ids[:2])
         check("details", "two paused: their two say Resume, the third Stop download", shows(1, 2), f"{words()}")
-        dm.call("downloads.resume", ids=[ids[0]])
+        edm.call("downloads.resume", ids=[ids[0]])
         check("details", "one resumed: it says Stop download again, the other paused one Resume", shows(2, 1),
               f"{words()}")
-        done = wait_for(lambda: [r["state"]["kind"] for r in sorted(dm.rows(), key=lambda r: r["id"])]
+        done = wait_for(lambda: [r["state"]["kind"] for r in sorted(edm.rows(), key=lambda r: r["id"])]
                         == ["completed", "paused", "completed"], 90)
-        check("details", "the two running finish while their windows are open", done, f"{states(dm.rows())}")
+        check("details", "the two running finish while their windows are open", done, f"{states(edm.rows())}")
         closed = wait_for(lambda: len(windows()) == 1, 5)
         check("details", "the finished ones' windows close; the paused one's stays, saying Resume",
               closed and shows(0, 1), f"windows {windows()}; {words()}")
-        dm.call("downloads.resume", ids=[ids[1]])
-        done = wait_for(lambda: all(r["state"]["kind"] == "completed" for r in dm.rows()), 90)
-        ok, bad = verify(dm.rows(), files)
+        edm.call("downloads.resume", ids=[ids[1]])
+        done = wait_for(lambda: all(r["state"]["kind"] == "completed" for r in edm.rows()), 90)
+        ok, bad = verify(edm.rows(), files)
         check("details", "resumed from its window's state, the last finishes and all three are whole",
-              done and ok == 3, f"{states(dm.rows())} {bad}")
+              done and ok == 3, f"{states(edm.rows())} {bad}")
         check("details", "and no progress window is left", wait_for(lambda: not windows(), 5), f"{windows()}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -1984,13 +1984,13 @@ def p_speedlimit(ctx):
     base, root = ctx["base"], ctx["root"]
     # A home of its own: `holds` keeps one called "limit", and its finished rows here
     # read as this file finished at once (a 1024 KB/s limit "let 235517 KB/s through").
-    dm = DM(root, {"connections": 8}, name="speedlimit").start()
+    edm = EDM(root, {"connections": 8}, name="speedlimit").start()
     try:
-        dm.call("downloads.speed_limit", kb=1024)
+        edm.call("downloads.speed_limit", kb=1024)
         size = 12 * MB
-        dm.add([f"{base}/f/limit/{size}/limit.bin"])
+        edm.add([f"{base}/f/limit/{size}/limit.bin"])
         t0 = time.time()
-        wait_for(lambda: any(r["state"]["kind"] == "completed" and r["url"].endswith("/limit.bin") for r in dm.rows()), 60, every=0.5)
+        wait_for(lambda: any(r["state"]["kind"] == "completed" and r["url"].endswith("/limit.bin") for r in edm.rows()), 60, every=0.5)
         took = time.time() - t0
         rate = size / took / 1024
         measure("speedlimit", f"limit 1024 KB/s: {rate:.0f} KB/s over {took:.1f}s")
@@ -1999,20 +1999,20 @@ def p_speedlimit(ctx):
         if rate < 1024 * 0.5:
             finding("low", "speedlimit", f"a 1024 KB/s limit gave only {rate:.0f} KB/s")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_hls(ctx):
     """An HLS playlist of 300 segments, and one with a missing segment."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8}, name="hls").start()
+    edm = EDM(root, {"connections": 8}, name="hls").start()
     try:
-        dm.add([f"{base}/hls/300/good.m3u8"])
-        dm.add([f"{base}/hls/40/bad.m3u8?missing=20"])
-        wait_for(lambda: len(dm.rows()) >= 2 and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 120, every=1)
-        rows = dm.rows()
+        edm.add([f"{base}/hls/300/good.m3u8"])
+        edm.add([f"{base}/hls/40/bad.m3u8?missing=20"])
+        wait_for(lambda: len(edm.rows()) >= 2 and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 120, every=1)
+        rows = edm.rows()
         for r in rows:
             measure("hls", f"{r['url'][-30:]} -> {r['state']}")
         for r in rows:
@@ -2026,8 +2026,8 @@ def p_hls(ctx):
                 sz = pathlib.Path(r["path"]).stat().st_size
                 finding("high", "hls", f"a playlist with a missing segment (404) was marked completed with {sz} bytes, silently shorter than the stream")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 def settled_stats(pid, most=90):
@@ -2054,64 +2054,64 @@ def settled_stats(pid, most=90):
 def p_leak(ctx):
     """Five waves of downloads: memory, file descriptors and threads return to where they were."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, {"connections": 8, "concurrency": 16}, name="leak").start()
+    edm = EDM(root, {"connections": 8, "concurrency": 16}, name="leak").start()
     try:
         series = []
         for wave in range(5):
             urls = [f"{base}/f/leak{wave}_{i}/{2 * MB}/w{wave}_{i}.bin" for i in range(150)]
-            dm.add(urls)
-            wait_for(lambda: len(dm.rows()) >= 150 * (wave + 1) and all(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 300, every=1)
+            edm.add(urls)
+            wait_for(lambda: len(edm.rows()) >= 150 * (wave + 1) and all(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 300, every=1)
             # The first wave and the last, which are compared, once idle threads have gone;
             # the others as they are a moment after.
             if wave in (0, 4):
-                rss, cpu, fds, th = settled_stats(dm.proc.pid)
+                rss, cpu, fds, th = settled_stats(edm.proc.pid)
             else:
                 time.sleep(3)
-                rss, cpu, fds, th = proc_stats(dm.proc.pid)
+                rss, cpu, fds, th = proc_stats(edm.proc.pid)
             series.append((rss, fds, th))
-            measure("leak", f"after wave {wave + 1}: rss {rss:.0f} MB, fds {fds}, threads {th}, rows {len(dm.rows())}")
+            measure("leak", f"after wave {wave + 1}: rss {rss:.0f} MB, fds {fds}, threads {th}, rows {len(edm.rows())}")
         if series[-1][1] > series[0][1] + 60:
             finding("medium", "leak", f"open files grew from {series[0][1]} to {series[-1][1]} over five identical waves")
         if series[-1][0] > series[0][0] * 1.8 + 50:
             finding("medium", "leak", f"memory grew from {series[0][0]:.0f} to {series[-1][0]:.0f} MB over five identical waves of 150 files")
         if series[-1][2] > series[0][2] + 30:
             finding("medium", "leak", f"threads grew from {series[0][2]} to {series[-1][2]}")
-        failed = [r for r in dm.rows() if r["state"]["kind"] == "failed"]
+        failed = [r for r in edm.rows() if r["state"]["kind"] == "failed"]
         if failed:
             finding("high", "leak", f"{len(failed)} of 750 failed")
         expect = {f"w{w}_{i}.bin": (f"leak{w}_{i}", 2 * MB) for w in range(5) for i in range(150)}
-        ok, bad = verify(dm.rows(), expect)
+        ok, bad = verify(edm.rows(), expect)
         measure("leak", f"{ok} of 750 verified byte-exact")
         if bad:
             finding("critical", "leak", f"{len(bad)} wrong files over the waves: {bad[:3]}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_sleep(ctx):
-    """The computer sleeps in the middle of downloads and wakes: dm frozen while its connections are dropped, or left silent, then woken; every file finishes byte-exact."""
+    """The computer sleeps in the middle of downloads and wakes: EDM frozen while its connections are dropped, or left silent, then woken; every file finishes byte-exact."""
     # A real sleep would sleep the computer running the check (gaps row 20). What a download
-    # meets across one is made here instead: dm's process frozen (SIGSTOP, as the system stops
+    # meets across one is made here instead: EDM's process frozen (SIGSTOP, as the system stops
     # it), the network gone meanwhile, and the process woken (SIGCONT) to connections that were
-    # reset, or that a peer gone away without a word left silent, which only dm's own silence
+    # reset, or that a peer gone away without a word left silent, which only EDM's own silence
     # timeout can find. Windows has no SIGSTOP: it keeps itself awake while a row runs (awake.rs).
     if not hasattr(signal, "SIGSTOP"):
         finding("info", "sleep", "skipped: no SIGSTOP on this system (Windows keeps itself awake while a download runs)")
         return
     root, server, base = ctx["root"], ctx["server"], ctx["base"]
     n, size, asleep = 8, 16 * MB, 20
-    silence = 30  # dm's "Time out a silent connection after" default, in seconds
+    silence = 30  # EDM's "Time out a silent connection after" default, in seconds
     for mode in ("reset", "silent"):
-        dm = DM(root, {"connections": 4, "concurrency": n}, name=f"sleep-{mode}").start()
+        edm = EDM(root, {"connections": 4, "concurrency": n}, name=f"sleep-{mode}").start()
         frozen = False
         try:
             expect = {f"z{mode}{i}.bin": (f"sleep{mode}{i}", size) for i in range(n)}
-            dm.add([f"{base}/f/sleep{mode}{i}/{size}/z{mode}{i}.bin?rate={512 * 1024}" for i in range(n)])
-            wait_for(lambda: sum(r["progress"]["downloaded"] for r in dm.rows()) > n * size * 0.3, 120, every=0.5)
-            before = sum(r["progress"]["downloaded"] for r in dm.rows())
-            os.kill(dm.proc.pid, signal.SIGSTOP)
+            edm.add([f"{base}/f/sleep{mode}{i}/{size}/z{mode}{i}.bin?rate={512 * 1024}" for i in range(n)])
+            wait_for(lambda: sum(r["progress"]["downloaded"] for r in edm.rows()) > n * size * 0.3, 120, every=0.5)
+            before = sum(r["progress"]["downloaded"] for r in edm.rows())
+            os.kill(edm.proc.pid, signal.SIGSTOP)
             frozen = True
             if mode == "reset":
                 server.cut_all()
@@ -2120,13 +2120,13 @@ def p_sleep(ctx):
             time.sleep(asleep)
             if mode == "reset":
                 server.down = False
-            os.kill(dm.proc.pid, signal.SIGCONT)
+            os.kill(edm.proc.pid, signal.SIGCONT)
             frozen = False
             woke = time.time()
             measure("sleep", f"{mode}: asleep {asleep} s at {before / (n * size):.0%} of {n} downloads")
-            wait_for(lambda: len(dm.rows()) == n and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 240, every=1)
+            wait_for(lambda: len(edm.rows()) == n and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 240, every=1)
             took = time.time() - woke
-            rows = dm.rows()
+            rows = edm.rows()
             st = states(rows)
             ok, bad = verify(rows, expect)
             measure("sleep", f"{mode}: {st} {took:.0f} s after waking; {ok} of {n} byte-exact")
@@ -2141,11 +2141,11 @@ def p_sleep(ctx):
             check("sleep", f"{mode}: and within {limit} s of waking", took < limit, f"{took:.0f} s")
         finally:
             if frozen:
-                os.kill(dm.proc.pid, signal.SIGCONT)
+                os.kill(edm.proc.pid, signal.SIGCONT)
             server.mute_before = 0
             server.down = False
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -2155,9 +2155,9 @@ def p_clipboard(ctx):
     # Only where the clipboard is no one's: an X server of the check's own (the Linux container's
     # Xvfb, which `stress-inside.sh` says so for). Anywhere else a copy would overwrite the
     # person's own clipboard (gaps row 20).
-    if not (sys.platform.startswith("linux") and os.environ.get("DM_SCRATCH_CLIPBOARD") == "1"
+    if not (sys.platform.startswith("linux") and os.environ.get("EDM_SCRATCH_CLIPBOARD") == "1"
             and shutil.which("xclip") and os.environ.get("DISPLAY")):
-        finding("info", "clipboard", "skipped: it runs only on a clipboard that is no one's (the Linux container's Xvfb, DM_SCRATCH_CLIPBOARD=1, xclip)")
+        finding("info", "clipboard", "skipped: it runs only on a clipboard that is no one's (the Linux container's Xvfb, EDM_SCRATCH_CLIPBOARD=1, xclip)")
         return
 
     def copy(text):
@@ -2166,7 +2166,7 @@ def p_clipboard(ctx):
         subprocess.run(["xclip", "-selection", "clipboard", "-i"], input=text.encode(), timeout=20, check=True)
 
     def drawn():
-        return [t["text"] for t in (dm.call("ui.texts").get("result") or {}).get("texts", [])]
+        return [t["text"] for t in (edm.call("ui.texts").get("result") or {}).get("texts", [])]
 
     def offered(seconds=4):
         """What the bar offers: one link, a count of several, or nothing."""
@@ -2179,23 +2179,23 @@ def p_clipboard(ctx):
         return wait_for(look, seconds, every=0.2)
 
     def dialogs():
-        return [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])]
+        return [d["title"] for d in (edm.call("ui.windows").get("result") or {}).get("dialogs", [])]
 
     links = {f"clip{i}.bin": (f"clip{i}", 2 * MB) for i in range(4)}
     url = {name: f"{base}/f/{seed}/{size}/{name}" for name, (seed, size) in links.items()}
-    dm = DM(root, {"connections": 2, "watch_clipboard": True}, name="clipboard", window=True).start()
+    edm = EDM(root, {"connections": 2, "watch_clipboard": True}, name="clipboard", window=True).start()
     try:
         time.sleep(1.5)
         copy(url["clip0.bin"])
         check("clipboard", "a link another program copied is offered within a few seconds", offered() == "one", f"{drawn()[:12]}")
-        dm.call("ui.click", text="Download")
+        edm.call("ui.click", text="Download")
         opened = wait_for(lambda: "Download details" in dialogs(), 5, every=0.2)
         check("clipboard", "Download opens Download details for it", opened, f"{dialogs()}")
-        dm.call("ui.click", text="Start now")
-        done = wait_for(lambda: any(r["state"]["kind"] == "completed" for r in dm.rows()), 60)
-        ok, bad = verify(dm.rows(), {"clip0.bin": links["clip0.bin"]})
-        check("clipboard", "Start now downloads it, byte-exact", done and ok == 1 and not bad, f"{states(dm.rows())} {bad}")
-        # Something else first: dm looks again only when the clipboard changes.
+        edm.call("ui.click", text="Start now")
+        done = wait_for(lambda: any(r["state"]["kind"] == "completed" for r in edm.rows()), 60)
+        ok, bad = verify(edm.rows(), {"clip0.bin": links["clip0.bin"]})
+        check("clipboard", "Start now downloads it, byte-exact", done and ok == 1 and not bad, f"{states(edm.rows())} {bad}")
+        # Something else first: EDM looks again only when the clipboard changes.
         copy("not a link at all")
         time.sleep(1.5)
         copy(url["clip0.bin"])
@@ -2204,44 +2204,44 @@ def p_clipboard(ctx):
         check("clipboard", "a sentence with a link in it is not an offer", offered(3) is None)
         copy("\n".join(url[n] for n in ("clip1.bin", "clip2.bin", "clip3.bin")))
         check("clipboard", "three links copied together are offered as three", offered() == "Links on your clipboard: 3", f"{offered(1)}")
-        dm.call("ui.click", text="Dismiss")
+        edm.call("ui.click", text="Dismiss")
         gone = wait_for(lambda: offered(0.3) is None, 3, every=0.2)
         copy("not a link at all")
         time.sleep(1.5)
         copy("\n".join(url[n] for n in ("clip1.bin", "clip2.bin", "clip3.bin")))
         check("clipboard", "Dismiss takes the bar away, and the dismissed links are not offered again", gone and offered(3) is None)
-        # A burst: 300 different links copied as fast as a script can, dm still answering.
+        # A burst: 300 different links copied as fast as a script can, EDM still answering.
         lat = []
         for i in range(300):
             copy(f"{base}/f/burst{i}/{MB}/burst{i}.bin")
             if i % 30 == 0:
                 t0 = time.time()
-                dm.call("queue.list")
+                edm.call("queue.list")
                 lat.append(time.time() - t0)
         shown = offered() == "one"
-        dm.call("ui.click", text="Download")
+        edm.call("ui.click", text="Download")
         wait_for(lambda: "Download details" in dialogs(), 5, every=0.2)
         # The offer is the last copied: Download details names it.
         named = wait_for(lambda: any("burst299" in t for t in drawn()), 3, every=0.2)
         measure("clipboard", f"300 copies in a burst: a call answered in at most {max(lat) * 1000:.0f} ms")
-        check("clipboard", "after a burst of 300 copies dm answers, and offers the last one copied",
-              shown and bool(named) and max(lat) < 2.0 and dm.proc.poll() is None, f"worst {max(lat):.2f}s, offered {shown}, named {bool(named)}")
-        dm.call("ui.click", text="Cancel")
+        check("clipboard", "after a burst of 300 copies EDM answers, and offers the last one copied",
+              shown and bool(named) and max(lat) < 2.0 and edm.proc.poll() is None, f"worst {max(lat):.2f}s, offered {shown}, named {bool(named)}")
+        edm.call("ui.click", text="Cancel")
         wait_for(lambda: "Download details" not in dialogs(), 3, every=0.2)
         # A huge text, as copying a whole page: no offer, no stall.
         copy("words " * (5 * MB // 6))
         t0 = time.time()
         time.sleep(2.5)
-        dm.call("queue.list")
-        rss = proc_stats(dm.proc.pid)[0]
+        edm.call("queue.list")
+        rss = proc_stats(edm.proc.pid)[0]
         measure("clipboard", f"a 5 MB text on the clipboard: answered {time.time() - t0 - 2.5:.2f}s after, rss {rss:.0f} MB")
-        check("clipboard", "five megabytes of text copied are no offer, and dm keeps answering",
-              offered(2) is None and dm.proc.poll() is None)
-        check("clipboard", "nothing was added to the list behind the person's back", len(dm.rows()) == 1, f"{len(dm.rows())} rows")
+        check("clipboard", "five megabytes of text copied are no offer, and EDM keeps answering",
+              offered(2) is None and edm.proc.poll() is None)
+        check("clipboard", "nothing was added to the list behind the person's back", len(edm.rows()) == 1, f"{len(edm.rows())} rows")
     finally:
-        dm.stop()
+        edm.stop()
     # Take at once: a copied link opens Download details with no bar first.
-    dm = DM(root, {"connections": 2, "watch_clipboard": True, "start_copied": True}, name="clipboard-take", window=True).start()
+    edm = EDM(root, {"connections": 2, "watch_clipboard": True, "start_copied": True}, name="clipboard-take", window=True).start()
     try:
         time.sleep(1.5)
         copy(url["clip1.bin"])
@@ -2249,7 +2249,7 @@ def p_clipboard(ctx):
         check("clipboard", "with Take a copied link at once, a copy opens Download details, no bar first",
               opened and offered(0.5) is None, f"{dialogs()}")
     finally:
-        dm.stop()
+        edm.stop()
         shutil.rmtree(root / "clipboard-out", ignore_errors=True)
 
 
@@ -2258,14 +2258,14 @@ class Answers:
     the window's thread: how long each answer took (gaps row 183). An answer waits behind
     whatever the window's thread is doing, so the worst is what a person waits for a frame."""
 
-    def __init__(self, dm):
-        self.dm = dm
+    def __init__(self, edm):
+        self.edm = edm
         self.times = []
         self._stop = threading.Event()
         self._thread = None
 
     def __enter__(self):
-        port = int((self.dm.home / "control.port").read_text(encoding="utf-8"))
+        port = int((self.edm.home / "control.port").read_text(encoding="utf-8"))
         conn = socket.create_connection(("127.0.0.1", port), timeout=120)
         replies = conn.makefile("r", encoding="utf-8")
 
@@ -2273,7 +2273,7 @@ class Answers:
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             return json.loads(replies.readline())
 
-        assert call("auth", token=(self.dm.home / "control.token").read_text(encoding="utf-8").strip())["ok"]
+        assert call("auth", token=(self.edm.home / "control.token").read_text(encoding="utf-8").strip())["ok"]
 
         def run():
             try:
@@ -2306,8 +2306,8 @@ def p_handlers(ctx):
     base, root = ctx["base"], ctx["root"]
     limit = 0.1
 
-    def kinds(dm):
-        return states(dm.rows())
+    def kinds(edm):
+        return states(edm.rows())
 
     def answers_held(what, answers):
         ok = check("handlers", f"the window answers in under {limit * 1000:.0f} ms throughout {what}",
@@ -2315,40 +2315,40 @@ def p_handlers(ctx):
         if not ok:
             finding("high", "handlers", f"the window waited {answers.worst() * 1000:.0f} ms on its thread during {what}")
 
-    dm = DM(root, {"connections": 1, "concurrency": 3}, name="handlers", window=True).start()
+    edm = EDM(root, {"connections": 1, "concurrency": 3}, name="handlers", window=True).start()
     try:
         # Stop download on 10,000 chosen rows: three running, the rest waiting in line.
         for k in range(0, 10000, 1000):
-            dm.add([f"{base}/f/h{i}/{MB}/h{i}.bin?rate=1024" for i in range(k, k + 1000)])
-        wait_for(lambda: len(dm.rows()) == 10000, 60)
-        ids = [r["id"] for r in dm.rows()]
-        dm.call("ui.select", ids=ids)
+            edm.add([f"{base}/f/h{i}/{MB}/h{i}.bin?rate=1024" for i in range(k, k + 1000)])
+        wait_for(lambda: len(edm.rows()) == 10000, 60)
+        ids = [r["id"] for r in edm.rows()]
+        edm.call("ui.select", ids=ids)
         time.sleep(1)
-        with Answers(dm) as answers:
+        with Answers(edm) as answers:
             t0 = time.time()
-            ran = dm.call("command.run", id="file.stop_download")
+            ran = edm.call("command.run", id="file.stop_download")
             took = time.time() - t0
-            stopped = wait_for(lambda: kinds(dm).get("paused", 0) == 10000, 120, every=0.25)
+            stopped = wait_for(lambda: kinds(edm).get("paused", 0) == 10000, 120, every=0.25)
             took_all = time.time() - t0
             time.sleep(0.3)
         measure("handlers", f"Stop on 10,000 chosen rows: the command answered in {took * 1000:.0f} ms, every row paused in {took_all:.1f} s; ui.texts meanwhile median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
-        check("handlers", "Stop on 10,000 chosen rows pauses every one", bool(stopped) and ran.get("ok"), f"{ran.get('error') or ''} {kinds(dm)}")
+        check("handlers", "Stop on 10,000 chosen rows pauses every one", bool(stopped) and ran.get("ok"), f"{ran.get('error') or ''} {kinds(edm)}")
         answers_held("Stop on 10,000 rows", answers)
         # Resume on 1,000 of them.
-        dm.call("ui.select", ids=ids[:1000])
+        edm.call("ui.select", ids=ids[:1000])
         time.sleep(0.5)
-        with Answers(dm) as answers:
+        with Answers(edm) as answers:
             t0 = time.time()
-            dm.call("command.run", id="file.download_now")
+            edm.call("command.run", id="file.download_now")
             took = time.time() - t0
-            went = wait_for(lambda: kinds(dm).get("paused", 0) == 9000, 120, every=0.25)
+            went = wait_for(lambda: kinds(edm).get("paused", 0) == 9000, 120, every=0.25)
             time.sleep(0.3)
         measure("handlers", f"Resume on 1,000 of 10,000 rows: the command answered in {took * 1000:.0f} ms; ui.texts meanwhile median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms")
-        check("handlers", "Resume on 1,000 chosen rows sends each on", bool(went), f"{kinds(dm)}")
+        check("handlers", "Resume on 1,000 chosen rows sends each on", bool(went), f"{kinds(edm)}")
         answers_held("Resume on 1,000 rows", answers)
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
     if sys.platform != "darwin" or not shutil.which("hdiutil"):
         finding("info", "handlers", "the move to another volume runs on macOS only, where a disk image is that volume")
@@ -2357,7 +2357,7 @@ def p_handlers(ctx):
         finding("info", "handlers", "the move to another volume skipped: too little disk for 1 GB twice")
         return
     image, mount = root / "other.dmg", root / "other"
-    made = subprocess.run(["hdiutil", "create", "-size", "1200m", "-fs", "HFS+", "-volname", "dm-move",
+    made = subprocess.run(["hdiutil", "create", "-size", "1200m", "-fs", "HFS+", "-volname", "edm-move",
                            str(image)], capture_output=True, text=True, encoding="utf-8", errors="replace")
     attached = made.returncode == 0 and subprocess.run(
         ["hdiutil", "attach", str(image), "-mountpoint", str(mount), "-nobrowse"],
@@ -2365,54 +2365,54 @@ def p_handlers(ctx):
     if not attached:
         finding("info", "handlers", f"the move to another volume skipped: no disk image ({made.stderr.strip()})")
         return
-    dm = DM(root, {"connections": 4}, name="handlers-move", window=True).start()
+    edm = EDM(root, {"connections": 4}, name="handlers-move", window=True).start()
     try:
         size = 1024 * MB
-        dm.add([f"{base}/f/move/{size}/big.bin"])
-        done = wait_for(lambda: [r["state"]["kind"] for r in dm.rows()] == ["completed"], 180)
-        check("handlers", "a 1 GB file is fetched to move", bool(done), f"{kinds(dm)}")
+        edm.add([f"{base}/f/move/{size}/big.bin"])
+        done = wait_for(lambda: [r["state"]["kind"] for r in edm.rows()] == ["completed"], 180)
+        check("handlers", "a 1 GB file is fetched to move", bool(done), f"{kinds(edm)}")
         if not done:
             return
-        row = dm.rows()[0]
-        dm.call("ui.select", ids=[row["id"]])
-        dm.call("command.run", id="file.move_rename")
-        wait_for(lambda: "Move/Rename" in [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])], 5, every=0.1)
+        row = edm.rows()[0]
+        edm.call("ui.select", ids=[row["id"]])
+        edm.call("command.run", id="file.move_rename")
+        wait_for(lambda: "Move/Rename" in [d["title"] for d in (edm.call("ui.windows").get("result") or {}).get("dialogs", [])], 5, every=0.1)
         time.sleep(0.5)
         # The name field has the focus; the folder's is the next.
-        dm.call("ui.key", key="Tab")
-        dm.call("ui.key", key="A", modifiers=["cmd"])
-        dm.call("ui.type", text=str(mount))
+        edm.call("ui.key", key="Tab")
+        edm.call("ui.key", key="A", modifiers=["cmd"])
+        edm.call("ui.type", text=str(mount))
         time.sleep(0.3)
         moved = mount / "big.bin"
-        with Answers(dm) as answers:
+        with Answers(edm) as answers:
             t0 = time.time()
-            dm.call("ui.click", text="OK")
+            edm.call("ui.click", text="OK")
             took = time.time() - t0
-            arrived = wait_for(lambda: (lambda r: r and r[0].get("path") == str(moved))(dm.rows()), 120, every=0.1)
+            arrived = wait_for(lambda: (lambda r: r and r[0].get("path") == str(moved))(edm.rows()), 120, every=0.1)
             took_all = time.time() - t0
             time.sleep(0.3)
         measure("handlers", f"a 1 GB file moved to another volume: OK answered in {took * 1000:.0f} ms, the row there in {took_all:.1f} s; ui.texts meanwhile median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
         check("handlers", "Move/Rename to another volume moves the whole file and the row follows it",
-              bool(arrived) and moved.exists() and moved.stat().st_size == size and not (dm.out / "big.bin").exists(),
-              f"{dm.rows()[0].get('path')}")
+              bool(arrived) and moved.exists() and moved.stat().st_size == size and not (edm.out / "big.bin").exists(),
+              f"{EDM.rows()[0].get('path')}")
         answers_held("the move", answers)
         # Browse…: the system's folder panel open, the window still drawing and answering. The
-        # panel is left open; the dm is ended with it.
-        dm.call("command.run", id="file.move_rename")
-        wait_for(lambda: "Move/Rename" in [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])], 5, every=0.1)
+        # panel is left open; the EDM is ended with it.
+        edm.call("command.run", id="file.move_rename")
+        wait_for(lambda: "Move/Rename" in [d["title"] for d in (edm.call("ui.windows").get("result") or {}).get("dialogs", [])], 5, every=0.1)
         time.sleep(0.5)
-        dm.call("ui.click", text="Browse…")
+        edm.call("ui.click", text="Browse…")
         time.sleep(1.5)
-        with Answers(dm) as answers:
+        with Answers(edm) as answers:
             time.sleep(1.5)
         measure("handlers", f"with the folder panel open: ui.texts median {answers.median() * 1000:.0f} ms, worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
         check("handlers", "the window answers while the system's folder panel is open", len(answers.times) > 10)
         answers_held("the folder panel", answers)
     finally:
-        dm.stop()
+        edm.stop()
         subprocess.run(["hdiutil", "detach", str(mount), "-force"], capture_output=True)
         image.unlink(missing_ok=True)
-        shutil.rmtree(dm.out, ignore_errors=True)
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -2424,15 +2424,15 @@ def p_import(ctx):
     listed = root / "import-10000.txt"
     listed.write_text("".join(f"{base}/f/im{i}/{MB}/im{i}.bin?rate=1024\n" for i in range(count)), encoding="utf-8")
 
-    def said(dm):
+    def said(edm):
         # What the status bar says after its counts, from what is drawn (ui.inspect describes every row: slow
         # at 10,000, and asked on the window's thread it would be what the probe measures).
-        texts = (dm.call("ui.texts").get("result") or {}).get("texts", [])
+        texts = (edm.call("ui.texts").get("result") or {}).get("texts", [])
         said = next((t["text"] for t in texts if "Imported" in t["text"]), "")
         return said[said.find("Imported"):] if said else ""
 
-    def dialogs(dm):
-        return [d["title"] for d in (dm.call("ui.windows").get("result") or {}).get("dialogs", [])]
+    def dialogs(edm):
+        return [d["title"] for d in (edm.call("ui.windows").get("result") or {}).get("dialogs", [])]
 
     def held(what, answers):
         measure("import", f"{what}: ui.texts meanwhile median {answers.median() * 1000:.0f} ms, "
@@ -2444,60 +2444,60 @@ def p_import(ctx):
 
     # Progress windows on, as a person has them: an imported row is the window's own and
     # opens none (a row started elsewhere, a browser's, would).
-    dm = DM(root, {"connections": 1, "concurrency": 3, "show_progress": True}, name="import", window=True).start()
+    edm = EDM(root, {"connections": 1, "concurrency": 3, "show_progress": True}, name="import", window=True).start()
     try:
         time.sleep(1)
-        with Answers(dm) as answers:
+        with Answers(edm) as answers:
             t0 = time.time()
-            chose = dm.call("ui.choose", path=str(listed))
+            chose = edm.call("ui.choose", path=str(listed))
             if not chose.get("ok"):
-                finding("info", "import", f"skipped: this dm cannot be given a list to import ({chose.get('error')})")
+                finding("info", "import", f"skipped: this EDM cannot be given a list to import ({chose.get('error')})")
                 return
-            ran = dm.call("command.run", id="program.import")
+            ran = edm.call("command.run", id="program.import")
             took = time.time() - t0
-            added = wait_for(lambda: len(dm.rows()) == count, 180, every=0.25)
+            added = wait_for(lambda: len(edm.rows()) == count, 180, every=0.25)
             took_rows = time.time() - t0
-            told = wait_for(lambda: f"Imported {count}" in said(dm), 60, every=0.25)
+            told = wait_for(lambda: f"Imported {count}" in said(edm), 60, every=0.25)
             took_all = time.time() - t0
             time.sleep(0.5)
         measure("import", f"{count:,} links imported: the command answered in {took * 1000:.0f} ms, "
                           f"the rows listed in {took_rows:.1f} s, said in {took_all:.1f} s")
         check("import", f"Import adds the {count:,} links", bool(added) and ran.get("ok"),
-              f"{ran.get('error') or ''} {len(dm.rows())} rows")
-        check("import", "Import says how many it added", bool(told), said(dm))
+              f"{ran.get('error') or ''} {len(edm.rows())} rows")
+        check("import", "Import says how many it added", bool(told), said(edm))
         held(f"an import of {count:,} links", answers)
-        opened = dialogs(dm)
+        opened = dialogs(edm)
         check("import", "the imported rows are the window's own: no progress window opens for them",
               not opened, f"{opened}")
-        # The same list again: every link is listed already, so dm asks first; Skip them.
-        with Answers(dm) as answers:
+        # The same list again: every link is listed already, so EDM asks first; Skip them.
+        with Answers(edm) as answers:
             t0 = time.time()
-            dm.call("ui.choose", path=str(listed))
-            dm.call("command.run", id="program.import")
-            asked = wait_for(lambda: any("already" in d.lower() for d in dialogs(dm)), 60, every=0.1)
+            edm.call("ui.choose", path=str(listed))
+            edm.call("command.run", id="program.import")
+            asked = wait_for(lambda: any("already" in d.lower() for d in dialogs(edm)), 60, every=0.1)
             took_ask = time.time() - t0
             if asked:
-                dm.call("ui.click", text="Skip them")
-            skipped = wait_for(lambda: "Imported 0" in said(dm), 60, every=0.25)
+                edm.call("ui.click", text="Skip them")
+            skipped = wait_for(lambda: "Imported 0" in said(edm), 60, every=0.25)
             took_all = time.time() - t0
             time.sleep(0.5)
         measure("import", f"the same list again: asked in {took_ask * 1000:.0f} ms, skipped in {took_all:.1f} s; "
                           f"ui.texts meanwhile median {answers.median() * 1000:.0f} ms, "
                           f"worst {answers.worst() * 1000:.0f} ms over {len(answers.times)} asks")
         check("import", "the same list again asks first, and Skip them adds none",
-              bool(asked) and bool(skipped) and len(dm.rows()) == count, f"{said(dm)}; {len(dm.rows())} rows")
+              bool(asked) and bool(skipped) and len(edm.rows()) == count, f"{said(edm)}; {len(edm.rows())} rows")
         # What the list costs is how soon it asks: counting 10,000 links against 10,000 rows held
         # the window a minute when it was done there. The question is a sheet, whose slide in and
         # out held the window's thread about 0.27 s each when GPUI began and ended it (gaps row
-        # 194); dm slides it now with the window working on (`sheets.rs`).
+        # 194); EDM slides it now with the window working on (`sheets.rs`).
         check("import", "the same list again is read and counted off the window's thread: asked within a second",
               bool(asked) and took_ask < 1.0, f"asked in {took_ask:.1f} s")
         held("the same list again, its question opening and closing", answers)
-        rss, cpu, fds, th = dm.peak()
+        rss, cpu, fds, th = edm.peak()
         measure("import", f"peak rss {rss:.0f} MB, cpu {cpu:.0f}%")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
         listed.unlink(missing_ok=True)
 
 
@@ -2510,7 +2510,7 @@ SOAK_ARGS = {}
 
 
 def soak_reader(pid):
-    """A reader of dm's resident memory and private bytes (MB) and open handles, read without
+    """A reader of EDM's resident memory and private bytes (MB) and open handles, read without
     starting a process each minute, and its closer. Windows: the working set, the private commit
     and GetProcessHandleCount (with the GDI and USER objects); Linux: VmRSS, the private pages of
     smaps_rollup and /proc/<pid>/fd; macOS: proc_pid_rusage's resident size and footprint, and
@@ -2618,7 +2618,7 @@ def soak_reader(pid):
 
 def soak_flat(samples, key, warm, what):
     """Whether each stretch of `warm` seconds after the first, by its median, stays within a
-    tenth over the level dm settled at: the median of the first stretch's second half. Falling
+    tenth over the level EDM settled at: the median of the first stretch's second half. Falling
     is no leak and passes. (ok, what was found)."""
     vals = [(s["t"], s[key]) for s in samples if s[key] is not None]
     first = [v for t, v in vals if warm / 2 <= t <= warm]
@@ -2650,15 +2650,15 @@ def p_soak(ctx):
     """The long run: downloads added and finished or removed for hours against cuts and outages; memory, handles, the list file and the window's answer stay level (not in a run of all phases)."""
     base, root, server = ctx["base"], ctx["root"], ctx["server"]
     args = SOAK_ARGS
-    minutes = float(args.get("minutes") or os.environ.get("DM_SOAK_MINUTES") or 72 * 60)
-    count = int(args.get("count") or os.environ.get("DM_SOAK_COUNT") or 50000)
+    minutes = float(args.get("minutes") or os.environ.get("EDM_SOAK_MINUTES") or 72 * 60)
+    count = int(args.get("count") or os.environ.get("EDM_SOAK_COUNT") or 50000)
     duration = minutes * 60
     # The first hour is the warm-up the levels are judged from; a short try takes a third of itself.
     warm = min(3600.0, duration / 3)
-    every = float(args.get("every") or os.environ.get("DM_SOAK_EVERY") or min(15.0, minutes / 5)) * 60
-    most = int(args.get("inflight") or os.environ.get("DM_SOAK_INFLIGHT") or 40)
-    csv_path = pathlib.Path(args.get("csv") or os.environ.get("DM_SOAK_CSV")
-                            or pathlib.Path(tempfile.gettempdir()) / time.strftime("dm-soak-%Y%m%d-%H%M%S.csv"))
+    every = float(args.get("every") or os.environ.get("EDM_SOAK_EVERY") or min(15.0, minutes / 5)) * 60
+    most = int(args.get("inflight") or os.environ.get("EDM_SOAK_INFLIGHT") or 40)
+    csv_path = pathlib.Path(args.get("csv") or os.environ.get("EDM_SOAK_CSV")
+                            or pathlib.Path(tempfile.gettempdir()) / time.strftime("edm-soak-%Y%m%d-%H%M%S.csv"))
     measure("soak", f"{minutes:.0f} min, {count:,} downloads, at most {most} at once, a cut or an outage every "
                     f"{every / 60:.1f} min, warm-up {warm / 60:.0f} min; samples to {csv_path}")
     # Sizes from a page's icon to a large video, the small ones most often; the larger paced so
@@ -2666,10 +2666,10 @@ def p_soak(ctx):
     sizes = [(4096, 30, 0), (65537, 25, 0), (MB, 20, 0), (4 * MB + 7, 14, 4 * MB),
              (16 * MB, 8, 4 * MB), (48 * MB + 3, 3, 8 * MB)]
     weights = [w for _, w, _ in sizes]
-    rnd = random.Random(int(os.environ.get("DM_SOAK_SEED", "72")))
-    dm = DM(root, {"connections": 4, "concurrency": 8, "attempts": 10}, name="soak", window=True).start()
-    dm._stop.set()                      # the soak reads its own figures, once a minute
-    read, close = soak_reader(dm.proc.pid)
+    rnd = random.Random(int(os.environ.get("EDM_SOAK_SEED", "72")))
+    edm = EDM(root, {"connections": 4, "concurrency": 8, "attempts": 10}, name="soak", window=True).start()
+    edm._stop.set()                      # the soak reads its own figures, once a minute
+    read, close = soak_reader(edm.proc.pid)
     live = {}                           # name -> what was added: seed, size, id, path, retries
     tally = {"added": 0, "verified": 0, "cancelled": 0, "gave_up": 0, "retried": 0}
     bad = []
@@ -2685,7 +2685,7 @@ def p_soak(ctx):
 
     def whole(name, rec, path):
         """A finished file checked against what the server made (size, then digest), then deleted."""
-        p = pathlib.Path(path) if path else dm.out / name
+        p = pathlib.Path(path) if path else edm.out / name
         why = None
         if not p.exists():
             why = "file missing"
@@ -2734,26 +2734,26 @@ def p_soak(ctx):
                 tally["cancelled"] += 1
         if stuck:
             tally["retried"] += len(stuck)
-            dm.call("downloads.resume", ids=stuck)
+            edm.call("downloads.resume", ids=stuck)
         if drop:
-            dm.call("downloads.cancel", ids=drop)
+            edm.call("downloads.cancel", ids=drop)
 
     def clear():
         """Delete completed, as a person does now and then: every finished file checked whole and
         taken off the disk first, then the finished and cancelled rows taken off the list. A row
         that finished between the two is checked where it was being saved."""
-        for r in dm.rows():
+        for r in edm.rows():
             rec = live.get(name_of(r))
             if rec and kind_of(r) == "completed" and not rec["checked"]:
                 rec["id"], rec["path"] = r["id"], r.get("path") or rec["path"]
                 whole(name_of(r), rec, rec["path"])
                 rec["checked"] = True
-        ran = dm.call("command.run", id="downloads.clear_finished")
+        ran = edm.call("command.run", id="downloads.clear_finished")
         if not ran.get("ok"):
             finding("high", "soak", f"Delete completed was refused: {ran.get('error')}")
         # The command runs off the window's thread: its rows go a moment later.
         time.sleep(1)
-        listed = {name_of(r) for r in dm.rows()}
+        listed = {name_of(r) for r in edm.rows()}
         for name in [n for n, rec in live.items() if n not in listed and rec["id"] is not None]:
             rec = live.pop(name)
             if not rec["checked"] and not rec["cancel"]:
@@ -2761,14 +2761,14 @@ def p_soak(ctx):
 
     def sample(now):
         rss, private, handles, gui = read()
-        q = dm.home / "queue.json"
-        j = dm.home / "queue.journal"
+        q = edm.home / "queue.json"
+        j = edm.home / "queue.journal"
         t = time.time()
         try:
-            took = (time.time() - t) * 1000 if dm.call("ui.texts").get("ok") else None
+            took = (time.time() - t) * 1000 if edm.call("ui.texts").get("ok") else None
         except (OSError, ValueError):
             took = None
-        rows = len(dm.rows())
+        rows = len(edm.rows())
         state = "down" if net["outage_end"] else ("cuts" if now < net["flaky_until"] else "up")
         samples.append({"t": now - t0, "rss": rss, "private": private, "handles": handles, "texts": took})
 
@@ -2789,8 +2789,8 @@ def p_soak(ctx):
     try:
         while True:
             now = time.time()
-            if dm.proc.poll() is not None:
-                stopped = f"dm exited with {dm.proc.returncode} after {(now - t0) / 3600:.2f} h"
+            if edm.proc.poll() is not None:
+                stopped = f"EDM exited with {edm.proc.returncode} after {(now - t0) / 3600:.2f} h"
                 finding("critical", "soak", stopped)
                 break
             adding = now - t0 < duration and tally["added"] < count
@@ -2836,11 +2836,11 @@ def p_soak(ctx):
                     live[name] = {"seed": seed, "size": size, "id": None, "path": None,
                                   "retries": 0, "cancel": False, "checked": False}
                     tally["added"] += 1
-                r = dm.add(urls)
+                r = edm.add(urls)
                 if not r.get("ok"):
                     finding("high", "soak", f"adding {len(urls)} links was refused: {r.get('error')}")
             if now >= next_look:
-                look(dm.rows())
+                look(edm.rows())
                 next_look = now + 5
             if now >= next_clear:
                 clear()
@@ -2854,20 +2854,20 @@ def p_soak(ctx):
                 next_sample = now + 60
             time.sleep(1)
         server.down = False
-        if dm.proc.poll() is None:
+        if edm.proc.poll() is None:
             clear()
             sample(time.time())
             ends = []
             for _ in range(5):
                 t = time.time()
-                dm.call("ui.texts")
+                edm.call("ui.texts")
                 ends.append(time.time() - t)
                 time.sleep(1)
             ends.sort()
             last = ends[len(ends) // 2]
             measure("soak", f"ui.texts at the end: median {last * 1000:.0f} ms, worst {ends[-1] * 1000:.0f} ms of 5")
             check("soak", "ui.texts answers in under 100 ms at the end", last < 0.1, f"median {last * 1000:.0f} ms")
-            left = [p.name for p in dm.out.iterdir()] if dm.out.exists() else []
+            left = [p.name for p in edm.out.iterdir()] if edm.out.exists() else []
             if left:
                 finding("low", "soak", f"{len(left)} files left in the download folder after every row was checked or removed: {left[:5]}")
         took = time.time() - t0
@@ -2878,7 +2878,7 @@ def p_soak(ctx):
             a, z = samples[0], samples[-1]
             measure("soak", f"first sample to last: rss {a['rss']} -> {z['rss']} MB, private {a['private']} -> {z['private']} MB, "
                             f"handles {a['handles']} -> {z['handles']}")
-        check("soak", "dm ran to the end", stopped is None, stopped or "")
+        check("soak", "EDM ran to the end", stopped is None, stopped or "")
         check("soak", f"all {count:,} downloads added", tally["added"] >= count,
               f"{tally['added']:,} added in {took / 3600:.2f} h")
         check("soak", "every finished file whole (size and digest)", not bad, f"{bad[:3]}")
@@ -2894,8 +2894,8 @@ def p_soak(ctx):
         server.down = False
         csv_file.close()
         close()
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
         print(f"   samples: {csv_path}", flush=True)
 
 
@@ -2915,11 +2915,11 @@ def main():
         return
     names = [a for a in args if not a.startswith("-")] or [k for k in PHASES if k not in LONG]
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cargo build -p dm-gpui")
-    root = pathlib.Path(tempfile.mkdtemp(prefix="dm-stress-"))
+        sys.exit(f"no EDM at {BINARY}: cargo build -p edm-gpui")
+    root = pathlib.Path(tempfile.mkdtemp(prefix="edm-stress-"))
     server, base = start_server()
     ctx = {"root": root, "base": base, "server": server}
-    print(f"stress check: dm {BINARY}, server {base}, folder {root}, {free_gb(tempfile.gettempdir()):.1f} GB free", flush=True)
+    print(f"stress check: EDM {BINARY}, server {base}, folder {root}, {free_gb(tempfile.gettempdir()):.1f} GB free", flush=True)
     try:
         for name in names:
             if name not in PHASES:
@@ -2940,10 +2940,10 @@ def main():
             print(f"   ({time.time() - t0:.0f}s, {free_gb(tempfile.gettempdir()):.1f} GB free)", flush=True)
     finally:
         server.shutdown()
-        # Only the dm this run started: another run's is not this one's to end.
+        # Only the EDM this run started: another run's is not this one's to end.
         for d in LIVE_DMS:
             d.stop()
-        if os.environ.get("DM_STRESS_KEEP"):
+        if os.environ.get("EDM_STRESS_KEEP"):
             print(f"kept {root}")
         else:
             shutil.rmtree(root, ignore_errors=True)

@@ -1,0 +1,660 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! A click on the panel: asking the background and handing the media over.
+
+mod player;
+
+use player::{heights_listed, lines_of_heights, player_id, player_list};
+
+use super::*;
+
+/// The player's media and the frame it is in, for a message to the
+/// background, or `None` when the panel is already busy.
+pub(super) fn asking() -> Option<(String, String)> {
+    let (src, settled) = with_panel(|p| {
+        let src = p
+            .current
+            .as_ref()
+            .and_then(media_of)
+            .map(|m| m.src)
+            .unwrap_or_default();
+        (src, p.settled)
+    })?;
+    if settled {
+        return None;
+    }
+    let frame = window()
+        .and_then(|w| w.location().href().ok())
+        .unwrap_or_default();
+    Some((src, frame))
+}
+
+/// How long an answer asked for ahead of a click is still the one to give.
+const READ_AHEAD_MS: f64 = 120_000.0;
+
+/// The app's answer about the page's qualities: the one asked for when the
+/// panel was raised if it is still fresh, else a new ask. An answer that was
+/// a refusal or never came is dropped, so the next click asks again.
+fn reading(src: &str, frame: &str) -> Promise {
+    let now = js_sys::Date::now();
+    let kept = READING.with(|r| {
+        r.borrow()
+            .as_ref()
+            .filter(|(page, at, _)| page == frame && now - at < READ_AHEAD_MS)
+            .map(|(_, _, promise)| promise.clone())
+    });
+    if let Some(promise) = kept {
+        return promise;
+    }
+    let asked = message(decide::FORMATS_MESSAGE, src, frame);
+    let page = frame.to_string();
+    let promise = wasm_bindgen_futures::future_to_promise(async move {
+        let reply = send(asked.into()).await;
+        let ok = reply
+            .as_ref()
+            .ok()
+            .and_then(|r| Reflect::get(r, &"ok".into()).ok())
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        if !ok {
+            READING.with(|r| {
+                let mut r = r.borrow_mut();
+                if r.as_ref().is_some_and(|(p, _, _)| *p == page) {
+                    *r = None;
+                }
+            });
+        }
+        reply
+    });
+    READING.with(|r| *r.borrow_mut() = Some((frame.to_string(), now, promise.clone())));
+    promise
+}
+
+/// Asks for the page's qualities now, so they are there at the click.
+pub(super) fn read_ahead(src: &str) {
+    let frame = window()
+        .and_then(|w| w.location().href().ok())
+        .unwrap_or_default();
+    let _ = reading(src, &frame);
+}
+
+pub(super) fn message(kind: &str, src: &str, frame: &str) -> js_sys::Object {
+    let message = js_sys::Object::new();
+    let _ = Reflect::set(&message, &"type".into(), &kind.into());
+    let _ = Reflect::set(&message, &"src".into(), &src.into());
+    let _ = Reflect::set(&message, &"frame".into(), &frame.into());
+    message
+}
+
+pub(super) fn text_of(reply: &JsValue, key: &str) -> String {
+    Reflect::get(reply, &key.into())
+        .ok()
+        .and_then(|v| v.as_string())
+        .unwrap_or_default()
+}
+
+/// A click on the bar. A file is one quality and goes at once; a player
+/// page's qualities are asked of the app first and, when there is more than
+/// one, listed with their sizes.
+pub(super) fn clicked() {
+    // A copy-protected player: said, and nothing handed over.
+    if with_panel(|p| {
+        let protected = p.go.has_attribute("data-protected");
+        if protected {
+            say(p, &words::PANEL_PROTECTED_SAID.say());
+        }
+        protected
+    })
+    .unwrap_or(false)
+    {
+        return;
+    }
+    let Some((src, frame)) = asking() else {
+        return;
+    };
+    let page = with_panel(|p| !p.caret.has_attribute("hidden")).unwrap_or(false);
+    if !page {
+        hand(&src, &frame, None, None);
+        return;
+    }
+    with_panel(|p| {
+        p.settled = true;
+        // Short enough for the bar's title, which cut the longer one to
+        // "Reading the vi…".
+        set_title(p, &words::PANEL_READING.say());
+        close_list(p);
+        // Said, so a wait is not taken for a hang: reading a video page can
+        // take up to half a minute.
+        say(p, &words::PANEL_READING_SAID.say());
+    });
+    let pending = reading(&src, &frame);
+    // YouTube's own player lists its qualities in a moment: shown at once,
+    // and the app's reading, with each one's size, takes the list's place
+    // when it comes. A list already clicked is left alone.
+    // Whatever goes wrong behind the click (the background asleep, the app
+    // not answering, a helper that never returns), the panel does not stay
+    // on "Reading qualities…": past the longest the app may take, it says so
+    // and gives the click back. A list the player gave stays.
+    let answered = std::rc::Rc::new(std::cell::Cell::new(false));
+    let fast = std::rc::Rc::new(std::cell::Cell::new(false));
+    // Set once the player's list is no longer wanted: the app's own list is
+    // shown, or the click has given up.
+    let stop = std::rc::Rc::new(std::cell::Cell::new(false));
+    let player =
+        decide::youtube_video_id(&frame).map(|id| player_list(id, std::rc::Rc::clone(&stop)));
+    if let Some(player) = player.clone() {
+        let (src, frame, fast) = (src.clone(), frame.clone(), std::rc::Rc::clone(&fast));
+        let stop = std::rc::Rc::clone(&stop);
+        wasm_bindgen_futures::spawn_local(async move {
+            let heights = heights_listed(player).await;
+            // Still reading (nothing listed or handed over yet), and a
+            // choice worth making. The app's answer may have come and be
+            // waiting on this list: it had less to offer.
+            let waiting = !stop.get() && !fast.get() && with_panel(|p| p.settled).unwrap_or(false);
+            if heights.len() < 2 || !waiting {
+                return;
+            }
+            fast.set(true);
+            with_panel(|p| {
+                p.settled = false;
+                say(p, "");
+            });
+            list(&src, &frame, &lines_of_heights(&heights));
+        });
+    }
+    {
+        let answered = std::rc::Rc::clone(&answered);
+        let (fast, stop) = (std::rc::Rc::clone(&fast), std::rc::Rc::clone(&stop));
+        set_timeout(
+            move || {
+                if !answered.replace(true) && !fast.get() {
+                    stop.set(true);
+                    failed(&words::PANEL_TIMED_OUT.say());
+                }
+            },
+            decide::FORMATS_PATIENCE_MS,
+        );
+    }
+    wasm_bindgen_futures::spawn_local(async move {
+        let reply = JsFuture::from(pending).await;
+        // A reply after the watchdog spoke is the old click's: dropped.
+        if answered.replace(true) {
+            return;
+        }
+        // The player's list was clicked already: the app has its hand-off.
+        if fast.get() && with_panel(|p| p.settled).unwrap_or(false) {
+            stop.set(true);
+            return;
+        }
+        let reply = match reply {
+            Ok(reply) => reply,
+            Err(e) => {
+                stop.set(true);
+                web_sys::console::debug_2(
+                    &"EDM: the panel's message was not delivered:".into(),
+                    &e,
+                );
+                failed(&words::PANEL_UPDATED.say());
+                return;
+            }
+        };
+        let ok = Reflect::get(&reply, &"ok".into())
+            .ok()
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let choices: Array = Reflect::get(&reply, &"choices".into())
+            .ok()
+            .and_then(|v| v.dyn_into().ok())
+            .unwrap_or_default();
+        let choices = if ok {
+            with_page_lines(choices, &player_id().await)
+        } else {
+            choices
+        };
+        if ok && choices.length() >= 2 {
+            stop.set(true);
+        } else if let Some(player) = player {
+            // Less than a choice, or a refusal, while YouTube's own player
+            // may still be getting its list: that is waited for (bounded,
+            // the panel still saying it reads the qualities) rather than
+            // the page handed over unasked or the click given back, as a
+            // first click that comes before the player has a list would
+            // hand the page over (macOS, gaps row 178).
+            // Listed by the player meanwhile, or the panel no longer
+            // reading (a new player under it): nothing more to do here.
+            let _ = heights_listed(player).await;
+            if fast.get() || !with_panel(|p| p.settled).unwrap_or(false) {
+                return;
+            }
+        }
+        if !ok {
+            failed(&text_of(&reply, "said"));
+            return;
+        }
+        with_panel(|p| {
+            p.settled = false;
+            say(p, "");
+        });
+        match choices.length() {
+            0 => hand(&src, &frame, None, None),
+            1 => hand_choice(&src, &frame, &choices.get(0)),
+            _ => list(&src, &frame, &choices),
+        }
+    });
+}
+
+/// The video files the page lists in its own data, added to the lines the background
+/// gave: for the video whose file the player has been seen to fetch, the page's SD and
+/// HD files and its DASH stream, as a site that names them all shows them.
+fn with_page_lines(choices: Array, player: &str) -> Array {
+    let seen: Vec<String> = choices
+        .iter()
+        .flat_map(|c| [text_of(&c, "url"), text_of(&c, "sound")])
+        .filter(|u| !u.is_empty())
+        .collect();
+    let Some(mut text) = document()
+        .and_then(|d| d.document_element())
+        .map(|e| e.outer_html())
+    else {
+        return choices;
+    };
+    // Then what the page's own answers said about media, newest first (kept by the page
+    // script): each as a script of its own, a bare manifest as a JSON string.
+    for body in super::bodies::kept_texts().into_iter().rev() {
+        let body = if body.trim_start().starts_with('<') {
+            serde_json::to_string(&body).unwrap_or_default()
+        } else {
+            body
+        };
+        if !body.contains("</script") {
+            text.push_str("<script>");
+            text.push_str(&body);
+            text.push_str("</script>");
+        }
+    }
+    // The video a site's finder named for this player comes first; the lines found by the file
+    // the player was seen to fetch follow.
+    let mut lines = decide::page_lines_for_player(&text, player);
+    lines.extend(decide::page_lines(&text, &seen));
+    for line in lines {
+        if choices.iter().any(|c| text_of(&c, "url") == line.url) {
+            continue;
+        }
+        let item = js_sys::Object::new();
+        let _ = Reflect::set(&item, &"url".into(), &line.url.as_str().into());
+        let _ = Reflect::set(&item, &"label".into(), &line.label.as_str().into());
+        if let Some(sound) = &line.sound {
+            let _ = Reflect::set(&item, &"sound".into(), &sound.as_str().into());
+        }
+        let _ = Reflect::set(
+            &item,
+            &"line".into(),
+            &decide::choice_line(&line.label, None).into(),
+        );
+        choices.push(&item);
+    }
+    choices
+}
+
+/// The video's title as the page gives it: the element the site's rule names,
+/// else the page's title, else its `og:title` (gaps row 124), cleaned of the
+/// site's name. It heads each line of the list and names a file whose own name
+/// says nothing (gaps row 75).
+fn video_title(document: &web_sys::Document) -> String {
+    let page = window()
+        .and_then(|w| w.location().href().ok())
+        .unwrap_or_default();
+    let og = document
+        .query_selector("meta[property='og:title']")
+        .ok()
+        .flatten()
+        .and_then(|m| m.get_attribute("content"))
+        .unwrap_or_default();
+    let ruled = Reflect::get(&js_sys::global(), &"dmTitleRule".into())
+        .ok()
+        .and_then(|v| v.as_string())
+        .filter(|s| !s.is_empty())
+        .and_then(|selector| document.query_selector(&selector).ok().flatten())
+        .and_then(|e| e.text_content())
+        .map(|t| t.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default();
+    let own = if ruled.is_empty() {
+        document.title()
+    } else {
+        ruled
+    };
+    decide::clean_title(decide::page_title(&own, &og), &page)
+}
+
+/// The list: one line per quality, with its size.
+pub(super) fn list(src: &str, frame: &str, choices: &Array) {
+    let Some(document) = document() else {
+        return;
+    };
+    // Each line as reference A words it: its number, the video's title, the
+    // kind and quality (gaps row 72a).
+    let title = video_title(&document);
+    let first = with_panel(|p| {
+        set_title(p, &words::PANEL_DOWNLOAD_VIDEO.say());
+        close_list(p);
+        // Reference A's first line: every quality listed, handed over at
+        // once; the app asks about each in turn (gaps row 72b).
+        if choices.length() > 1 {
+            if let Ok(all) = document.create_element("button") {
+                // Looks as a line does; told apart from the qualities.
+                all.set_class_name("item all");
+                let _ = all.set_attribute("role", "menuitem");
+                all.set_text_content(Some(&words::PANEL_DOWNLOAD_ALL.say()));
+                let (src, frame, every) = (src.to_string(), frame.to_string(), choices.clone());
+                listen(&all, "click", move |event| {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    for choice in every.iter() {
+                        hand_choice(&src, &frame, &choice);
+                    }
+                });
+                let _ = p.list.append_child(&all);
+            }
+        }
+        part_line(&document, p);
+        for (number, choice) in choices.iter().enumerate() {
+            let Ok(item) = document.create_element("button") else {
+                continue;
+            };
+            item.set_class_name("item");
+            let _ = item.set_attribute("role", "menuitem");
+            item.set_text_content(Some(&decide::reference_line(
+                number + 1,
+                &title,
+                &text_of(&choice, "line"),
+            )));
+            let (src, frame) = (src.to_string(), frame.to_string());
+            listen(&item, "click", move |event| {
+                event.prevent_default();
+                event.stop_propagation();
+                hand_choice(&src, &frame, &choice);
+            });
+            let _ = p.list.append_child(&item);
+        }
+        open_list(p)
+    })
+    .flatten();
+    focus(first);
+}
+
+/// The list's "Part" line: where a part of the video starts and ends, both
+/// optional, as "1:30" or seconds. Whichever line is clicked is handed over
+/// with them; the app opens "Download details" with the part filled in.
+fn part_line(document: &web_sys::Document, p: &Panel) {
+    let Ok(row) = document.create_element("div") else {
+        return;
+    };
+    row.set_class_name("part");
+    let mut fields = Vec::new();
+    for (word, class, name) in [
+        (words::PANEL_PART, "from", words::PANEL_PART_START),
+        (words::PANEL_PART_TO, "to", words::PANEL_PART_END),
+    ] {
+        let Ok(label) = document.create_element("span") else {
+            return;
+        };
+        label.set_text_content(Some(&word.say()));
+        let Ok(input) = document.create_element("input") else {
+            return;
+        };
+        input.set_class_name(class);
+        let _ = input.set_attribute("type", "text");
+        let _ = input.set_attribute("placeholder", "m:ss");
+        let _ = input.set_attribute("aria-label", &name.say());
+        let _ = input.set_attribute("autocomplete", "off");
+        let _ = input.set_attribute("spellcheck", "false");
+        let _ = input.set_attribute("maxlength", "16");
+        // A page's shortcuts (a player's space, arrows, f, m) must not take
+        // what is typed here.
+        for event in ["keydown", "keyup", "keypress"] {
+            listen(&input, event, |event| event.stop_propagation());
+        }
+        fields.push((label, input));
+    }
+    for (label, input) in fields {
+        let _ = row.append_child(&label);
+        let _ = row.append_child(&input);
+    }
+    let _ = p.list.append_child(&row);
+}
+
+/// What the "Part" line holds, as typed, cleaned of anything but a time.
+fn part_typed(class: &str) -> Option<String> {
+    with_panel(|p| {
+        let input = p
+            .list
+            .query_selector(&format!(".part .{class}"))
+            .ok()
+            .flatten()?
+            .dyn_into::<web_sys::HtmlInputElement>()
+            .ok()?;
+        Some(decide::part_text(&input.value())).filter(|s| !s.is_empty())
+    })
+    .flatten()
+}
+
+/// One line of the list, handed over: a quality of the page the app's
+/// the app reads, or a stream the page loaded, which goes by its own address.
+pub(super) fn hand_choice(src: &str, frame: &str, choice: &JsValue) {
+    let label = Some(text_of(choice, "label")).filter(|l| !l.is_empty());
+    let url = text_of(choice, "url");
+    if url.is_empty() {
+        hand(src, frame, Some(text_of(choice, "quality")), label);
+    } else {
+        let sound = Some(text_of(choice, "sound")).filter(|s| !s.is_empty());
+        hand_with(&url, frame, None, label, sound);
+    }
+}
+
+pub(super) fn failed(said: &str) {
+    with_panel(|p| {
+        p.settled = true;
+        p.wrap.set_class_name("wrap dead");
+        set_title(p, &words::PANEL_NOT_TAKEN.say());
+        say(p, said);
+    });
+    hide_soon(6000);
+}
+
+/// Hands the player's media to the app through the background, at the
+/// quality picked; the app asks where to save it.
+pub(super) fn hand(src: &str, frame: &str, quality: Option<String>, label: Option<String>) {
+    hand_with(src, frame, quality, label, None);
+}
+
+/// As [`hand`], with the address of a sound the player fetched apart from
+/// the picture at `src`, which the app fetches with it and joins.
+pub(super) fn hand_with(
+    src: &str,
+    frame: &str,
+    quality: Option<String>,
+    label: Option<String>,
+    sound: Option<String>,
+) {
+    let message = message(PANEL_MESSAGE, src, frame);
+    if let Some(sound) = &sound {
+        let _ = Reflect::set(&message, &"sound".into(), &sound.into());
+    }
+    if let Some(quality) = &quality {
+        let _ = Reflect::set(&message, &"quality".into(), &quality.into());
+    }
+    if let Some(label) = &label {
+        let _ = Reflect::set(&message, &"label".into(), &label.into());
+    }
+    // The page's title goes with it: the app names a file by it when the
+    // file's own name says nothing (gaps row 75). It was read for the list
+    // and never sent, so X's videos kept names such as "GiFPAi8WYAEgiBu".
+    if let Some(title) = document()
+        .map(|d| video_title(&d))
+        .filter(|t| !t.is_empty())
+    {
+        let _ = Reflect::set(&message, &"title".into(), &title.into());
+    }
+    // Read before the list closes: the "Part" line is part of it.
+    for (key, class) in [("from", "from"), ("to", "to")] {
+        if let Some(text) = part_typed(class) {
+            let _ = Reflect::set(&message, &key.into(), &text.into());
+        }
+    }
+    with_panel(|p| {
+        p.settled = true;
+        close_list(p);
+        set_title(p, &words::PANEL_SENDING.say());
+    });
+    wasm_bindgen_futures::spawn_local(async move {
+        let answer = send(message.into()).await;
+        let (ok, said) = match answer {
+            Ok(reply) => (
+                Reflect::get(&reply, &"ok".into())
+                    .ok()
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                text_of(&reply, "said"),
+            ),
+            // The extension was updated or removed under this page.
+            Err(e) => {
+                web_sys::console::debug_2(
+                    &"EDM: the panel's message was not delivered:".into(),
+                    &e,
+                );
+                (false, words::PANEL_UPDATED.say())
+            }
+        };
+        if !ok {
+            failed(&said);
+            return;
+        }
+        // EDM could not take it and the browser is downloading it instead:
+        // said as that, not as sent.
+        let in_browser = said.starts_with("the browser is downloading it");
+        let title = if in_browser {
+            words::PANEL_IN_BROWSER
+        } else {
+            words::PANEL_SENT
+        };
+        // The background's answer in the browser's language, and the quality it was sent at,
+        // where the page said one, ahead of it.
+        let said = words::answered(&said);
+        let said = match label.as_deref().filter(|l| !l.is_empty()) {
+            Some(label) if !in_browser => format!("{label}: {said}"),
+            _ => said,
+        };
+        with_panel(|p| {
+            p.wrap.set_class_name("wrap done");
+            set_title(p, &title.say());
+            say(p, &said);
+        });
+        hide_soon(2500);
+    });
+}
+
+pub(super) async fn send(message: JsValue) -> Result<JsValue, JsValue> {
+    let runtime = Reflect::get(&ext(), &"runtime".into())?;
+    let send: Function = Reflect::get(&runtime, &"sendMessage".into())?.dyn_into()?;
+    let returned = send.call1(&runtime, &message)?;
+    let promise: Promise = returned.dyn_into()?;
+    JsFuture::from(promise).await
+}
+
+/// Starts the page script; called by `extension/content.js` once the
+/// WebAssembly has loaded. Runs once per page and frame.
+#[wasm_bindgen]
+pub fn content_start(ext: JsValue) {
+    words::use_api(&ext);
+    EXT.with(|cell| *cell.borrow_mut() = ext);
+    let Some(document) = document() else {
+        return;
+    };
+    let global: JsValue = js_sys::global().into();
+    if Reflect::has(&global, &"__dmPanel".into()).unwrap_or(false) {
+        return;
+    }
+    let _ = Reflect::set(&global, &"__dmPanel".into(), &JsValue::TRUE);
+
+    let Some(panel) = build(&document) else {
+        return;
+    };
+    PANEL.with(|cell| *cell.borrow_mut() = Some(panel));
+    // Kept off this site? Read now, and followed as the list changes, so
+    // the toolbar popup turning it back on is in force without a reload.
+    wasm_bindgen_futures::spawn_local(async {
+        apply_off(&sites_off().await);
+        apply_rules(&stored_rules().await);
+    });
+    let changed = Closure::<dyn Fn(JsValue, JsValue)>::new(|changes: JsValue, area: JsValue| {
+        if area.as_string().as_deref() != Some("local") {
+            return;
+        }
+        // The app's Options › Browser, in force without a reload.
+        if let Ok(rules) = Reflect::get(&changes, &RULES_KEY.into()) {
+            if rules.is_object() {
+                apply_rules(
+                    &Reflect::get(&rules, &"newValue".into()).unwrap_or(JsValue::UNDEFINED),
+                );
+            }
+        }
+        let Ok(change) = Reflect::get(&changes, &decide::PANEL_OFF_KEY.into()) else {
+            return;
+        };
+        if change.is_object() {
+            apply_off(&list_of(
+                &Reflect::get(&change, &"newValue".into()).unwrap_or(JsValue::UNDEFINED),
+            ));
+        }
+    });
+    let on_changed = Reflect::get(&self::ext(), &"storage".into())
+        .and_then(|storage| Reflect::get(&storage, &"onChanged".into()))
+        .and_then(|event| Reflect::get(&event, &"addListener".into()).map(|add| (event, add)));
+    if let Ok((event, add)) = on_changed {
+        if let Ok(add) = add.dyn_into::<Function>() {
+            let _ = add.call1(&event, changed.as_ref());
+        }
+    }
+    changed.forget();
+
+    listen(&document, "mousemove", on_pointer);
+    // Alt-click and "Download all/selected links" are answered by
+    // `extension/content.js` itself, before this loads: a page that forbids
+    // WebAssembly still has them.
+    // The keyboard's way in: the focus on a player raises its panel, and
+    // Tab from it goes into the panel.
+    listen(&document, "focusin", on_focus);
+    listen(&document, "focusout", on_blur);
+    let tab = Closure::<dyn Fn(Event)>::new(on_page_key);
+    let _ = document.add_event_listener_with_callback_and_bool(
+        "keydown",
+        tab.as_ref().unchecked_ref(),
+        true,
+    );
+    tab.forget();
+    // Fullscreen: only the fullscreen element is drawn, so the panel goes
+    // inside it, and back to the body after.
+    listen(&document, "fullscreenchange", on_fullscreen);
+    // Capturing, because `play` does not bubble.
+    let play = Closure::<dyn Fn(Event)>::new(on_play);
+    let _ = document.add_event_listener_with_callback_and_bool(
+        "play",
+        play.as_ref().unchecked_ref(),
+        true,
+    );
+    play.forget();
+    // Capturing, so a scroll inside any container moves the panel too.
+    let moved = Closure::<dyn Fn(Event)>::new(on_move);
+    let _ = document.add_event_listener_with_callback_and_bool(
+        "scroll",
+        moved.as_ref().unchecked_ref(),
+        true,
+    );
+    moved.forget();
+    if let Some(window) = window() {
+        listen(&window, "resize", on_move);
+    }
+}

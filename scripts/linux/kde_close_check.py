@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Closing dm's window under KDE's compositor (KWin, Wayland), run by
+"""Closing EDM's window under KDE's compositor (KWin, Wayland), run by
 scripts/linux-kde-close-check.sh in the Arch container.
 
 What a KDE user reported: closing the window left a phantom window. This
 does what that person does, and reads what KWin itself says about it:
 
-  1. dm opens a window KWin manages;
+  1. EDM opens a window KWin manages;
   2. the window is closed (KWin's own closeWindow, the same request the
-     close button sends): dm minimizes into the task manager instead of
+     close button sends): EDM minimizes into the task manager instead of
      going on showing a window it no longer draws, KWin says it is minimized
-     (it leaves the screen), and dm runs on, answers, and downloads on;
+     (it leaves the screen), and EDM runs on, answers, and downloads on;
   3. the task manager restores it (minimized = false): the window is back,
      and it draws and answers.
 
@@ -41,7 +41,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
+BINARY = os.environ.get("EDM_BINARY", "/target/debug/edm-gpui")
 HERE = pathlib.Path(__file__).parent
 failed = 0
 reports = []  # what KWin's scripts said, in order
@@ -64,7 +64,7 @@ def wait(probe, seconds):
 
 
 # --- a D-Bus service KWin's scripts report to -------------------------------
-PROBE = """<node><interface name="test.dm.Probe">
+PROBE = """<node><interface name="test.EDM.Probe">
 <method name="report"><arg type="s" direction="in"/></method></interface></node>"""
 
 
@@ -77,7 +77,7 @@ def serve_probe():
         info = Gio.DBusNodeInfo.new_for_xml(PROBE)
         connection.register_object("/", info.interfaces[0], call, None, None)
 
-    Gio.bus_own_name(Gio.BusType.SESSION, "test.dm.Probe", Gio.BusNameOwnerFlags.NONE, acquired, None, None)
+    Gio.bus_own_name(Gio.BusType.SESSION, "test.EDM.Probe", Gio.BusNameOwnerFlags.NONE, acquired, None, None)
     threading.Thread(target=GLib.MainLoop().run, daemon=True).start()
 
 
@@ -99,16 +99,16 @@ def kwin_script(source, name):
 
 
 def say(text):
-    return (f'callDBus("test.dm.Probe", "/", "test.dm.Probe", "report", {json.dumps(text)});')
+    return (f'callDBus("test.EDM.Probe", "/", "test.EDM.Probe", "report", {json.dumps(text)});')
 
 
-# A script that reports each dm window as it appears, and each change of its
-# minimized state after, as KWin sees them. dm's by its class, or by the main window's title:
-# "dm", or while downloads run how far and how fast before " — dm" (gaps row U16).
+# A script that reports each EDM window as it appears, and each change of its
+# minimized state after, as KWin sees them. EDM's by its class, or by the main window's title:
+# "EDM", or while downloads run how far and how fast before " — EDM" (gaps row U16).
 WATCH = """
-function dm(w) { return String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || /^(dm|.* \\u2014 dm)$/.test(String(w.caption)); }
+function EDM(w) { return String(w.resourceClass).toLowerCase().indexOf("EDM") >= 0 || /^(EDM|.* \\u2014 EDM)$/.test(String(w.caption)); }
 function watch(w) {
-  if (!dm(w)) return;
+  if (!EDM(w)) return;
   %s
   w.minimizedChanged.connect(function () { %s });
 }
@@ -118,10 +118,10 @@ workspace.windowList().forEach(watch);
     say("added").replace('"added"', '"added:" + w.caption + ":" + w.resourceClass + ":" + w.minimized'),
     say("x").replace('"x"', '"minimized:" + w.minimized'),
 )
-CLOSE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || /^(dm|.* \\u2014 dm)$/.test(String(w.caption))) { w.closeWindow(); } });'
-RESTORE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || /^(dm|.* \\u2014 dm)$/.test(String(w.caption))) { w.minimized = false; %s } });' % (
+CLOSE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("EDM") >= 0 || /^(EDM|.* \\u2014 EDM)$/.test(String(w.caption))) { w.closeWindow(); } });'
+RESTORE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("EDM") >= 0 || /^(EDM|.* \\u2014 EDM)$/.test(String(w.caption))) { w.minimized = false; %s } });' % (
     say("x").replace('"x"', '"restored:" + w.minimized'))
-STATE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("dm") >= 0 || /^(dm|.* \\u2014 dm)$/.test(String(w.caption))) { %s } });' % (
+STATE = 'workspace.windowList().forEach(function (w) { if (String(w.resourceClass).toLowerCase().indexOf("EDM") >= 0 || /^(EDM|.* \\u2014 EDM)$/.test(String(w.caption))) { %s } });' % (
     say("x").replace('"x"', '"state:" + w.minimized + ":" + w.hidden'))
 
 
@@ -146,7 +146,7 @@ def main():
     home = pathlib.Path(tempfile.mkdtemp())
     (home / "dl").mkdir()
     (home / "settings.json").write_text(json.dumps({"download_dir": str(home / "dl")}), encoding="utf-8")
-    env = dict(os.environ, DM_HOME=str(home), HOME=str(home), XDG_SESSION_TYPE="wayland",
+    env = dict(os.environ, EDM_HOME=str(home), HOME=str(home), XDG_SESSION_TYPE="wayland",
                XDG_CURRENT_DESKTOP="KDE")
     env.pop("DISPLAY", None)
 
@@ -162,22 +162,22 @@ def main():
     time.sleep(0.7)
     host = subprocess.Popen([sys.executable, str(HERE / "tray_host.py")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(1)
-    kwin_script(WATCH, "dm-watch")
+    kwin_script(WATCH, "edm-watch")
     app = subprocess.Popen([BINARY, "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
-        check("KWin manages a window for dm", bool(wait(lambda: any(r.startswith("added:") for r in reports), 40)),
+        check("KWin manages a window for EDM", bool(wait(lambda: any(r.startswith("added:") for r in reports), 40)),
               str(reports))
         control = Control(home)
         check("the window starts shown, not minimized", any(r.startswith("added:") and r.endswith(":false") for r in reports),
               str(reports))
         time.sleep(3)  # the tray item registers with the watcher
 
-        kwin_script(CLOSE, "dm-close")
+        kwin_script(CLOSE, "edm-close")
         check("closing the window minimizes it: KWin says it left the screen",
               bool(wait(lambda: "minimized:true" in reports, 15)), str(reports))
-        check("dm keeps running", app.poll() is None, app.stderr.read().decode()[-400:] if app.poll() is not None else "")
+        check("EDM keeps running", app.poll() is None, app.stderr.read().decode()[-400:] if app.poll() is not None else "")
         state = control.call("ui.inspect")
-        check("dm still answers", isinstance(state, dict))
+        check("EDM still answers", isinstance(state, dict))
         check("and it is not parked as hidden, drawing nothing", state["hidden"] is False)
 
         # Downloads go on with the window away.
@@ -190,7 +190,7 @@ def main():
               bool(landed) and landed[0].read_bytes() == (site / "after-close.bin").read_bytes())
 
         # The task manager brings the window back.
-        kwin_script(RESTORE, "dm-restore")
+        kwin_script(RESTORE, "edm-restore")
         check("restoring it from the task manager shows the window again",
               bool(wait(lambda: "minimized:false" in reports and "restored:false" in reports, 15)), str(reports))
         control.call("downloads.add", {"urls": ["http://127.0.0.1:9/shown-again.bin"], "later": True})
@@ -200,9 +200,9 @@ def main():
 
         # Closing it a second time does the same: the cycle repeats.
         reports.clear()
-        kwin_script(CLOSE, "dm-close-again")
+        kwin_script(CLOSE, "edm-close-again")
         check("closing it again minimizes it again", bool(wait(lambda: "minimized:true" in reports, 15)), str(reports))
-        check("and dm is still there", app.poll() is None)
+        check("and EDM is still there", app.poll() is None)
     finally:
         for p in (app, host, watcher):
             p.terminate()

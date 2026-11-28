@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""dm as someone new meets it: a fresh dm home, nothing set, real X11
+"""EDM as someone new meets it: a fresh EDM home, nothing set, real X11
 input. Run by scripts/linux-newcomer-check.sh inside the Linux container.
 
 Each step is what a person who has used other download managers would try
 first, and each leaves a screenshot in /shots to be looked at, not only a
 check: the first window, the browser bar and its buttons, a file added by
 hand, a link that is broken, words that are not a link, a real YouTube
-page (the first video, with dm fetching what it needs), Options › Browser,
+page (the first video, with EDM fetching what it needs), Options › Browser,
 and saying not now to the bar. The checks are what a person would notice.
 """
 import os
@@ -34,7 +34,7 @@ HERE = pathlib.Path(__file__).parent
 exec(compile((HERE / "gui.py").read_text(encoding="utf-8").replace("\nmain()\n", "\n"), str(HERE / "gui.py"), "exec"))
 
 SHOTS = pathlib.Path("/shots")
-VIDEO = os.environ.get("DM_VIDEO", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
+VIDEO = os.environ.get("EDM_VIDEO", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
 
 
 def shot(name):
@@ -56,12 +56,12 @@ def newcomer():
     # Toolkits publish their windows over AT-SPI only with a screen
     # reader said to be running, and the clicks find controls that way.
     screen_reader_on()
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-new-"))
-    env = {**os.environ, "DM_HOME": str(home)}
-    app = dm_popen([str(BINARY), "--control", "0"], env=env,
-                   stdout=subprocess.DEVNULL, stderr=open(SHOTS / "dm.log", "w", encoding="utf-8"))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-new-"))
+    env = {**os.environ, "EDM_HOME": str(home)}
+    app = edm_popen([str(BINARY), "--control", "0"], env=env,
+                   stdout=subprocess.DEVNULL, stderr=open(SHOTS / "EDM.log", "w", encoding="utf-8"))
     try:
-        check("dm opens a window", wait_for(dm_windows, 30))
+        check("EDM opens a window", wait_for(edm_windows, 30))
         ORACLE = oracle(home)
         time.sleep(2)
         shot("01-first-start")
@@ -71,7 +71,7 @@ def newcomer():
         time.sleep(2)
         shot("02-firefox-button")
         check("its Firefox button can be clicked", clicked)
-        check("and dm is still running", app.poll() is None)
+        check("and EDM is still running", app.poll() is None)
 
         files = SlowFiles()
         small = files.url("small-file.zip")
@@ -116,7 +116,7 @@ def newcomer():
         time.sleep(3)
         later = where("push button", "Start now")
         print(f"        Start now at {first}, and 3 s on at {later}", flush=True)
-        check("Start now stays where it was while dm looks at the page", first == later, f"{first} then {later}")
+        check("Start now stays where it was while EDM looks at the page", first == later, f"{first} then {later}")
         click("push button", "Start now")
         time.sleep(1)
         check("a YouTube page's Start now takes the first click",
@@ -155,7 +155,7 @@ def newcomer():
         check("and it offers the extension", where("push button", "Chrome and others"))
         key("Escape")
         time.sleep(0.5)
-        check("dm ran throughout", app.poll() is None)
+        check("EDM ran throughout", app.poll() is None)
     finally:
         end(app)
     print(f"\n{sum(RESULTS)} of {len(RESULTS)} newcomer checks passed", flush=True)

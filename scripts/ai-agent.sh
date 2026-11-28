@@ -1,7 +1,7 @@
 #!/bin/bash
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # The free AI models' turns, for .github/workflows/ai-fix.yml and ai-tests.yml: sourced,
@@ -80,7 +80,7 @@ ai_guard() {
     git add -N . 2>/dev/null
     changed=$(git status --porcelain)
     if [ -z "$changed" ]; then echo none; return; fi
-    guarded='\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/behaviour-baseline/|crates/dm-gpui/src/window_tests/golden\.rs|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml'
+    guarded='\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/behaviour-baseline/|crates/edm-gpui/src/window_tests/golden\.rs|docs/coverage-floor\.txt|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml'
     if [ "$AI_CONTRACT_ADD" != 1 ]; then guarded+='|docs/behaviour-contract\.md'; fi
     guarded=" ($guarded)"
     if grep -qE "$guarded" <<<"$changed"; then

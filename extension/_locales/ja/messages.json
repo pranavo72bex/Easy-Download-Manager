@@ -1,24 +1,24 @@
 {
   "extName": {
-    "message": "dm — ダウンロードマネージャー"
+    "message": "EDM — ダウンロードマネージャー"
   },
   "extDescription": {
-    "message": "ダウンロードと動画を dm アプリに渡し、アプリがダウンロードします。アプリがなければブラウザーが保存します。"
+    "message": "ダウンロードと動画を EDM アプリに渡し、アプリがダウンロードします。アプリがなければブラウザーが保存します。"
   },
   "menuLink": {
-    "message": "リンクを dm でダウンロード"
+    "message": "リンクを EDM でダウンロード"
   },
   "menuMedia": {
-    "message": "メディアを dm でダウンロード"
+    "message": "メディアを EDM でダウンロード"
   },
   "menuAllLinks": {
-    "message": "すべてのリンクを dm でダウンロード"
+    "message": "すべてのリンクを EDM でダウンロード"
   },
   "menuSelectedLinks": {
-    "message": "選択したリンクを dm でダウンロード"
+    "message": "選択したリンクを EDM でダウンロード"
   },
   "popupLooking": {
-    "message": "dm アプリを探しています…"
+    "message": "EDM アプリを探しています…"
   },
   "popupCatch": {
     "message": "ダウンロードを取り込む"
@@ -80,22 +80,22 @@
     "message": "このページから渡すサインイン情報はありません"
   },
   "popupOpen": {
-    "message": "dm を開く"
+    "message": "EDM を開く"
   },
   "popupGetApp": {
-    "message": "dm アプリを入手"
+    "message": "EDM アプリを入手"
   },
   "popupNoAnswer": {
-    "message": "dm アプリが応答しませんでした"
+    "message": "EDM アプリが応答しませんでした"
   },
   "popupOpening": {
-    "message": "dm を開いています…"
+    "message": "EDM を開いています…"
   },
   "popupIsOpen": {
-    "message": "dm を開きました"
+    "message": "EDM を開きました"
   },
   "popupConnected": {
-    "message": "dm $VERSION$ に接続しました",
+    "message": "EDM $VERSION$ に接続しました",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -103,7 +103,7 @@
     }
   },
   "popupConnectedOld": {
-    "message": "dm $VERSION$ に接続しました · dm アプリを更新してください。それまではブラウザーがダウンロードを保存します",
+    "message": "EDM $VERSION$ に接続しました · EDM アプリを更新してください。それまではブラウザーがダウンロードを保存します",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -130,13 +130,13 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm はまだこのブラウザーに接続されていません。"
+    "message": "EDM はまだこのブラウザーに接続されていません。"
   },
   "popupStepGet": {
-    "message": "1. このコンピューターに dm アプリがまだない場合は、入手してインストールし、一度開いてください。"
+    "message": "1. このコンピューターに EDM アプリがまだない場合は、入手してインストールし、一度開いてください。"
   },
   "popupStepOpen": {
-    "message": "2. インストール済みの場合は、dm を開いてください（すでに開いている場合はもう一度開いてください）。このウィンドウは自動的に接続します。"
+    "message": "2. インストール済みの場合は、EDM を開いてください（すでに開いている場合はもう一度開いてください）。このウィンドウは自動的に接続します。"
   },
   "popupAdvanced": {
     "message": "上級者向け: $COMMAND$",
@@ -187,7 +187,7 @@
     "message": "完了分を消去"
   },
   "popupNotAnswering": {
-    "message": "dm が応答しませんでした（$REASON$）。dm を開いてください（すでに開いている場合はもう一度開いてください）。このウィンドウは自動的に再試行します。それでも応答しない場合: $COMMAND$",
+    "message": "EDM が応答しませんでした（$REASON$）。EDM を開いてください（すでに開いている場合はもう一度開いてください）。このウィンドウは自動的に再試行します。それでも応答しない場合: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"
@@ -207,13 +207,13 @@
     "message": "保護された動画"
   },
   "panelProtectedSaid": {
-    "message": "この動画はコピー保護されているため、サイト自身のプレーヤーでしか再生できません。dm は保護された動画をダウンロードしません。"
+    "message": "この動画はコピー保護されているため、サイト自身のプレーヤーでしか再生できません。EDM は保護された動画をダウンロードしません。"
   },
   "panelThroughApp": {
-    "message": "このページ（dm アプリ経由）"
+    "message": "このページ（EDM アプリ経由）"
   },
   "panelHelp": {
-    "message": "dm はこの動画を dm アプリでダウンロードします。名前とフォルダーはアプリで選べます。ブラウザーに残すキー（dm のオプションで変更していなければ Alt）を押しながらクリックしたリンクはブラウザーに残ります。"
+    "message": "EDM はこの動画を EDM アプリでダウンロードします。名前とフォルダーはアプリで選べます。ブラウザーに残すキー（EDM のオプションで変更していなければ Alt）を押しながらクリックしたリンクはブラウザーに残ります。"
   },
   "panelDrag": {
     "message": "ドラッグして移動"
@@ -242,22 +242,22 @@
     "message": "画質を読み込んでいます…"
   },
   "panelReadingSaid": {
-    "message": "dm がこのページの動画の画質を読み込んでいます。最大で 30 秒ほどかかることがあります。"
+    "message": "EDM がこのページの動画の画質を読み込んでいます。最大で 30 秒ほどかかることがあります。"
   },
   "panelTimedOut": {
-    "message": "dm が時間内に応答しませんでした。もう一度試すか、動画を右クリックして「メディアを dm でダウンロード」を選んでください。"
+    "message": "EDM が時間内に応答しませんでした。もう一度試すか、動画を右クリックして「メディアを EDM でダウンロード」を選んでください。"
   },
   "panelSending": {
-    "message": "dm に送信しています…"
+    "message": "EDM に送信しています…"
   },
   "panelNotTaken": {
-    "message": "dm が受け取れませんでした"
+    "message": "EDM が受け取れませんでした"
   },
   "panelUpdated": {
-    "message": "dm が更新されました。使うにはこのページを再読み込みしてください"
+    "message": "EDM が更新されました。使うにはこのページを再読み込みしてください"
   },
   "panelSent": {
-    "message": "dm に送信しました"
+    "message": "EDM に送信しました"
   },
   "panelInBrowser": {
     "message": "ブラウザーでダウンロード中"
@@ -289,19 +289,19 @@
     }
   },
   "panelAppReading": {
-    "message": "dm アプリがこのページの動画を読み込んでいます"
+    "message": "EDM アプリがこのページの動画を読み込んでいます"
   },
   "panelAppHas": {
-    "message": "dm アプリが受け取りました"
+    "message": "EDM アプリが受け取りました"
   },
   "panelAppDownloading": {
-    "message": "dm アプリがダウンロードしています"
+    "message": "EDM アプリがダウンロードしています"
   },
   "panelNoAnswer": {
-    "message": "dm が応答しませんでした"
+    "message": "EDM が応答しませんでした"
   },
   "panelFailed": {
-    "message": "dm が応答しませんでした。もう一度試すか、動画を右クリックして「メディアを dm でダウンロード」を選んでください。"
+    "message": "EDM が応答しませんでした。もう一度試すか、動画を右クリックして「メディアを EDM でダウンロード」を選んでください。"
   },
   "panelHls": {
     "message": "HLS ストリーム、最高画質"
@@ -310,7 +310,7 @@
     "message": "ダウンロード"
   },
   "toastSentMany": {
-    "message": "$COUNT$ 件のダウンロードを dm に送りました",
+    "message": "$COUNT$ 件のダウンロードを EDM に送りました",
     "description": "The one toast for several downloads handed to the app together.",
     "placeholders": {
       "count": {

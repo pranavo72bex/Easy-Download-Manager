@@ -1,9 +1,9 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""The QA harness: a headless dm of each scenario's own, the servers, the checks.
+"""The QA harness: a headless EDM of each scenario's own, the servers, the checks.
 
 In the compose stack the servers are other containers (ORIGIN, TOXIPROXY,
 MOCKVIDEO). Run on a developer's computer with none set, the origin runs in
@@ -28,7 +28,7 @@ sys.path.insert(0, str(QA / "origin"))
 import content  # noqa: E402
 
 ROOT = QA.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug/edm-gpui")
 DOWNLOADS = pathlib.Path(os.environ.get("QA_DOWNLOADS") or "/downloads")
 if not DOWNLOADS.exists():
     DOWNLOADS = pathlib.Path(tempfile.mkdtemp(prefix="qa-downloads-"))
@@ -75,10 +75,10 @@ def stats(name=None):
     return s.get(name, {}) if name else s
 
 
-# ------------------------------------------------------------------ dm
+# ------------------------------------------------------------------ EDM
 
-class DM:
-    """One headless dm with a home and settings of its own."""
+class EDM:
+    """One headless EDM with a home and settings of its own."""
 
     def __init__(self, scenario, settings=None, out=None):
         self.root = pathlib.Path(tempfile.mkdtemp(prefix=f"qa-{scenario}-"))
@@ -99,15 +99,15 @@ class DM:
             (self.home / stale).unlink(missing_ok=True)
         self.errlog = open(self.root / "stderr.log", "ab")
         self.proc = subprocess.Popen([str(BINARY), "--headless", "--control", "0"],
-                                     env={**os.environ, "DM_HOME": str(self.home)},
+                                     env={**os.environ, "EDM_HOME": str(self.home)},
                                      stdout=subprocess.DEVNULL, stderr=self.errlog)
         deadline = time.time() + 60
         while not ((self.home / "control.port").exists() and (self.home / "control.token").exists()
                    and (self.home / "control.port").read_text(encoding="utf-8").strip()):
             if self.proc.poll() is not None:
-                raise Fail(f"dm exited at start ({self.proc.returncode}): {self.log()[-800:]}")
+                raise Fail(f"EDM exited at start ({self.proc.returncode}): {self.log()[-800:]}")
             if time.time() > deadline:
-                raise Fail("dm never opened its control port")
+                raise Fail("EDM never opened its control port")
             time.sleep(0.1)
         self.conn = socket.create_connection(("127.0.0.1", int((self.home / "control.port").read_text(encoding="utf-8"))), timeout=60)
         self.replies = self.conn.makefile("r", encoding="utf-8")
@@ -119,7 +119,7 @@ class DM:
         self.conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
         line = self.replies.readline()
         if not line:
-            raise Fail(f"dm closed the control connection on {method}: {self.log()[-800:]}")
+            raise Fail(f"EDM closed the control connection on {method}: {self.log()[-800:]}")
         return json.loads(line)
 
     def add(self, *urls, **kw):
@@ -145,7 +145,7 @@ class DM:
             if last and last["state"]["kind"] in kinds:
                 return last
             if self.proc.poll() is not None:
-                raise Fail(f"dm died ({self.proc.returncode}) while waiting for {needle}: {self.log()[-800:]}")
+                raise Fail(f"EDM died ({self.proc.returncode}) while waiting for {needle}: {self.log()[-800:]}")
             time.sleep(0.2)
         raise Fail(f"{needle} not {'/'.join(kinds)} after {seconds}s: {last and last['state']} "
                    f"{last and last['progress']}")
@@ -194,7 +194,7 @@ class DM:
         # one left made the next one's download "not fit" (BUGLOG.md, T-008).
         shutil.rmtree(self.out, ignore_errors=True)
         shutil.rmtree(self.root, ignore_errors=True)
-        check("panicked" not in log, f"dm panicked: {log[-1500:]}")
+        check("panicked" not in log, f"EDM panicked: {log[-1500:]}")
 
 
 # ------------------------------------------------------------------ checks
@@ -209,13 +209,13 @@ def exact(row, name, size):
     return p
 
 
-def no_leftovers(dm, row=None):
+def no_leftovers(edm, row=None):
     """Nothing unfinished left: no parts folder for the row, no part files beside the file."""
     if row is not None:
-        parts = pathlib.Path(row.get("parts_dir") or dm.home / "parts" / str(row["id"]))
+        parts = pathlib.Path(row.get("parts_dir") or edm.home / "parts" / str(row["id"]))
         if parts.exists() and any(parts.iterdir()):
             raise Fail(f"parts left in {parts}: {[p.name for p in parts.iterdir()][:5]}")
-    junk = [p.name for p in dm.out.rglob("*") if p.is_file() and (p.suffix in (".part", ".tmp", ".dmpart", ".crdownload") or p.name.startswith("."))]
+    junk = [p.name for p in edm.out.rglob("*") if p.is_file() and (p.suffix in (".part", ".tmp", ".dmpart", ".crdownload") or p.name.startswith("."))]
     check(not junk, f"unfinished files in the download folder: {junk[:5]}")
 
 
@@ -235,7 +235,7 @@ def toxiproxy(method, path, body=None):
 
 
 def proxied(port=18080):
-    """A toxiproxy proxy to origin:8080, fresh, and its address for dm."""
+    """A toxiproxy proxy to origin:8080, fresh, and its address for EDM."""
     if not TOXIPROXY:
         raise Skip("no toxiproxy")
     try:

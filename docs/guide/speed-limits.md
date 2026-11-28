@@ -1,6 +1,6 @@
 # Keep some speed for everything else
 
-How to stop dm from using all of your connection, step by step.
+How to stop EDM from using all of your connection, step by step.
 
 1. Open the **Downloads** menu and point at **Speed limiter**.
 2. Choose **Low speed (256 KB/s)**, **Medium speed (1 MB/s)** or **High

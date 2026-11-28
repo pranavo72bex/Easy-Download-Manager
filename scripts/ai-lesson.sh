@@ -1,7 +1,7 @@
 #!/bin/bash
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # What one AI run teaches the next ones (docs/ai-skills/learning.md): a free model
@@ -18,7 +18,7 @@ set -uo pipefail
 how=${1:-no change passed}
 {
     cat <<'EOF'
-An unattended bot just worked on a Rust project (dm, a download manager with a desktop window and an Android app).
+An unattended bot just worked on a Rust project (EDM, a download manager with a desktop window and an Android app).
 From what its checks printed below, write ONE fact (at most 200 characters) that would help a later bot working on
 this codebase: about the code, its tests, its build, or a trap to avoid. Not about this one run's outcome; no advice
 to a person. Say which page it belongs to: "desktop" (the GPUI window), "android" (the phone app), "engine"

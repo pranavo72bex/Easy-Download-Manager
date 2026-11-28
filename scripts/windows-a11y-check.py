@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""What a screen reader finds in dm's dialogs and its list on Windows (gaps rows 160, U23):
+"""What a screen reader finds in EDM's dialogs and its list on Windows (gaps rows 160, U23):
 
     python scripts/windows-a11y-check.py
 
-Every dialog of dm's is a window of its own (contract row B42), and a screen
+Every dialog of EDM's is a window of its own (contract row B42), and a screen
 reader reads a window only through what the program gives the system's
 accessibility interface for that window. This starts the real binary on a
 throwaway home with its window shown, opens each dialog through the control
 protocol, and asks Windows' UI Automation (what Narrator and other screen
 readers read) for the buttons inside that dialog's own window. The buttons
-listed for each dialog below have to be drawn by dm and found there by name.
+listed for each dialog below have to be drawn by EDM and found there by name.
 
 Then the main window's list (gaps row U23), with downloads from a server of
 its own: a table named Downloads, a row for each download under the headings'
@@ -25,7 +25,7 @@ where this computer's UI Automation client reads ARIA's properties; and the
 progress window's Connections, open or shut and turned by a click.
 
 Windows only (on Linux, `scripts/linux-gui-check.sh` asks AT-SPI the same);
-standard library and Windows PowerShell only. The binary is `DM_BINARY`, else
+standard library and Windows PowerShell only. The binary is `EDM_BINARY`, else
 the debug build under `CARGO_TARGET_DIR` or `target`. Exits non-zero,
 naming each dialog, button and list check not reached. The window is shown as
 a person's is: leave the mouse and keyboard alone while it runs (two minutes
@@ -61,7 +61,7 @@ DIALOGS = [
     ("downloads.options", "Options", ["General", "Advanced", "OK", "Cancel"]),
     ("downloads.scheduler", "Scheduler", ["Start now", "Stop", "OK", "Cancel"]),
     ("downloads.speed_limiter.settings", "Speed limiter", ["OK", "Cancel"]),
-    ("help.about", "About dm", ["Check for updates"]),
+    ("help.about", "About EDM", ["Check for updates"]),
 ]
 
 # Asks UI Automation what the process's window titled $Title holds.
@@ -91,8 +91,8 @@ if ($dialog) {
 """
 
 # Asks UI Automation what a window of the process tells of its table, buttons, bars and status
-# region (gaps row U23): the main window, known by its title ("dm", or how far and how fast the
-# downloads are before " — dm", gaps row U16), or with -Like the first window whose title is
+# region (gaps row U23): the main window, known by its title ("EDM", or how far and how fast the
+# downloads are before " — EDM", gaps row U16), or with -Like the first window whose title is
 # like that pattern. A row is a data item with data items (its cells) inside; a heading is a
 # cell of the first row. The dash is written as its number: Windows PowerShell reads a script
 # without a byte-order mark in the computer's own code page.
@@ -106,11 +106,11 @@ $T = [System.Windows.Automation.TreeScope]
 $C = [System.Windows.Automation.ControlType]
 $byProcess = New-Object System.Windows.Automation.PropertyCondition($A::ProcessIdProperty, $ProcessId)
 $windows = @($A::RootElement.FindAll($T::Children, $byProcess))
-$ending = ' ' + [char]0x2014 + ' dm'
+$ending = ' ' + [char]0x2014 + ' EDM'
 if ($Like) {
   $window = $windows | Where-Object { $_.Current.Name -like $Like } | Select-Object -First 1
 } else {
-  $window = $windows | Where-Object { $_.Current.Name -eq 'dm' -or $_.Current.Name.EndsWith($ending) } | Select-Object -First 1
+  $window = $windows | Where-Object { $_.Current.Name -eq 'EDM' -or $_.Current.Name.EndsWith($ending) } | Select-Object -First 1
 }
 # Read where this computer's UI Automation client knows them: a live region's politeness
 # (.NET 4.7.1 and later) and ARIA's properties, where a heading's sort is written.
@@ -204,7 +204,7 @@ class Files(http.server.BaseHTTPRequestHandler):
                 self.wfile.write((BLOCK[i:] + BLOCK[:i])[:n])
                 at += n
                 if name == SLOW:
-                    # About 128 KiB a second a connection: a minute or more on dm's connections.
+                    # About 128 KiB a second a connection: a minute or more on EDM's connections.
                     time.sleep(0.5)
         except OSError:
             pass
@@ -215,14 +215,14 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 def binary():
-    if os.environ.get("DM_BINARY"):
-        return pathlib.Path(os.environ["DM_BINARY"])
+    if os.environ.get("EDM_BINARY"):
+        return pathlib.Path(os.environ["EDM_BINARY"])
     for target in filter(None, [os.environ.get("CARGO_TARGET_DIR"), str(ROOT / "target")]):
-        # The window dm ships on Windows (docs/gaps.md G9).
-        candidate = pathlib.Path(target) / "debug" / "dm-gpui.exe"
+        # The window EDM ships on Windows (docs/gaps.md G9).
+        candidate = pathlib.Path(target) / "debug" / "edm-gpui.exe"
         if candidate.exists():
             return candidate
-    sys.exit("no dm-gpui.exe: build it (cargo build -p dm-gpui) or set DM_BINARY")
+    sys.exit("no edm-gpui.exe: build it (cargo build -p edm-gpui) or set EDM_BINARY")
 
 
 def as_list(value):
@@ -352,7 +352,7 @@ def main():
     if sys.platform != "win32":
         sys.exit("Windows only: on Linux, scripts/linux-gui-check.sh asks AT-SPI the same")
     exe = binary()
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-a11y-"))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-a11y-"))
     (home / "downloads").mkdir()
     # Without the progress and finished windows a new install opens on every download (contract
     # row B63): the list is what is read, and the progress window is opened when asked for.
@@ -363,7 +363,7 @@ def main():
     reader.write_text(UIA, encoding="utf-8")
     told = home / "told.ps1"
     told.write_text(TOLD, encoding="utf-8")
-    env = dict(os.environ, DM_HOME=str(home))
+    env = dict(os.environ, EDM_HOME=str(home))
     app = subprocess.Popen([str(exe), "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     failures = []
@@ -372,7 +372,7 @@ def main():
     conn = None
     try:
         port_file = home / "control.port"
-        port = until("dm's control port", lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip(), 90)
+        port = until("EDM's control port", lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip(), 90)
         conn = socket.create_connection(("127.0.0.1", int(port)), timeout=60)
         replies = conn.makefile("r", encoding="utf-8")
 
@@ -399,7 +399,7 @@ def main():
                 return {}
 
         call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
-        until("dm's window", lambda: call("ui.inspect").get("ok"), 30)
+        until("EDM's window", lambda: call("ui.inspect").get("ok"), 30)
         time.sleep(1.5)
         for command, title, wanted in DIALOGS:
             reply = call("command.run", id=command)
@@ -427,7 +427,7 @@ def main():
             # A page's tab is read as a tab (the GPUI window's Options), a button as a button.
             tabs = as_list(seen.get("tabs"))
             missing = [w for w in wanted if w not in buttons and w not in tabs]
-            print(f"{title}: dm drew {', '.join(wanted)}; UI Automation reads buttons "
+            print(f"{title}: EDM drew {', '.join(wanted)}; UI Automation reads buttons "
                   f"[{' | '.join(buttons)}], tabs [{' | '.join(tabs)}], text fields [{' | '.join(fields)}]")
             if not seen.get("found"):
                 windows = ", ".join(repr(w) for w in as_list(seen.get("windows")))

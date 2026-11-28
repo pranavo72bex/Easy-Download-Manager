@@ -1,14 +1,14 @@
 # UI design
 
-How dm's window is drawn, and the rules a window is checked against. The window is the GPUI
-one (`crates/dm-gpui`), one code for desktop and phone. Its colours are in
-`crates/dm-gpui/src/window/theme.rs`, its sizes in `crates/dm-gpui/src/widgets/native.rs` and
+How EDM's window is drawn, and the rules a window is checked against. The window is the GPUI
+one (`crates/edm-gpui`), one code for desktop and phone. Its colours are in
+`crates/edm-gpui/src/window/theme.rs`, its sizes in `crates/edm-gpui/src/widgets/native.rs` and
 `widgets/space.rs`, and its look is held by the pictures in `docs/behaviour-baseline/gpui/`
 (contract row B25). A rule below that the window does not yet follow names the gaps row that
 brings it there.
 
-An AI agent working on the window starts from the `dm-design` skill
-(`.claude/skills/dm-design/SKILL.md`): it maps the general interface skills beside it
+An AI agent working on the window starts from the `edm-design` skill
+(`.claude/skills/edm-design/SKILL.md`): it maps the general interface skills beside it
 (`better-interface`, `better-ui`, …, written for web pages) onto these rules and tokens, and
 these rules win where they differ.
 
@@ -83,7 +83,7 @@ The eye must have somewhere to start. Every window is checked against these, at 
     [command …]` starts the real binary on a throwaway home with rows in every state and saves
     a PNG of the window and of each dialog a command opens. Look at it in each theme.
 12. **Every dialog has its "?"** at the foot's leading end, opening its page of the guide
-    (`native::help_button`, a page in `dm_desktop_base::help::PAGES`).
+    (`native::help_button`, a page in `edm_desktop_base::help::PAGES`).
 13. **A fact is one helper.** A window that reports facts (the progress window, View ›
     Details, Statistics) draws each with `native::fact`: its name in `muted` from the edge, its
     value beside it.
@@ -92,7 +92,7 @@ The eye must have somewhere to start. Every window is checked against these, at 
 15. **Right to left is mirrored twice.** A row's order through `mirror::row`, and its words
     against the right through `mirror::text` on the window's root (`native::dialog` does it for a
     dialog): GPUI lays words from the left whatever the language. Look at a change in Arabic
-    (`DM_SHOT_LANG=ar`) as well as in English.
+    (`EDM_SHOT_LANG=ar`) as well as in English.
 
 16. **Finder is the reference on macOS** (the maintainer, 2026-11-26). The window reads as
     Finder does: body text `TEXT` (13), secondary text `SMALL_TEXT` (11) in `muted`, a side
@@ -126,7 +126,7 @@ The words are part of the design: short words rank themselves.
   | category (a kind of file and its folder) | kind |
   | Theme (Options › General) | look |
   | "… (KB/s, 0 for none)" for a speed | "…, KB/s (0 for none)" |
-  | Start dm when I sign in | start with the computer |
+  | Start EDM when I sign in | start with the computer |
 
   Check all and Uncheck all tick a list's boxes; Select all chooses rows: two things, two
   names.
@@ -146,11 +146,11 @@ The words are part of the design: short words rank themselves.
 Chosen in Options › General › Theme and kept as `theme` in the settings; an older `classic` is
 read as `system`. On top of the theme, the window follows the system: its accent colour (where
 the words on it stay at 4.5 to 1), Windows' Mica under the frame, and Windows' High Contrast,
-whose colours replace dm's whatever the theme.
+whose colours replace EDM's whatever the theme.
 
 ## Colours (`window/theme.rs`)
 
-Each system's programs are drawn in that system's colours, so dm keeps a palette for each:
+Each system's programs are drawn in that system's colours, so EDM keeps a palette for each:
 macOS's AppKit colours, Windows 11's WinUI (Fluent) colours, GNOME's libadwaita colours on
 Linux, and under High Contrast the system's own. A widget reads the role, never the value:
 
@@ -168,7 +168,7 @@ Linux, and under High Contrast the system's own. A widget reads the role, never 
 | `SCRIM` | The shade behind a sheet or a drawer |
 | `selection` / `on_selection` | What is chosen; the words on it |
 | `warning` | A failure and a destructive button's words |
-| `success` | What is in order (an extension that has spoken to dm); a finished row's tick, its word in `muted` |
+| `success` | What is in order (an extension that has spoken to EDM); a finished row's tick, its word in `muted` |
 
 Contrast is tested, not eyeballed (`theme/tests.rs`): words at 4.5 to 1 on every surface they
 sit on, in every palette.
@@ -197,14 +197,14 @@ A button with a face answers the pointer by shading its face (`Theme::answering`
 none (a toolbar item, a place, a column's heading) by the stripe, and pressed a step past it
 (`Theme::pressed_soft`). On a phone a finger's press is drawn by `widgets::press` from the
 moment it lands (a tap reaches GPUI's `.active()` only at the lift); nothing hovers. The
-font is the system's (`.SystemUIFont`); dm ships none. Everything is multiplied by the text size setting (`zoom.rs`, B66: stops of 60%, 80%, 100%, 120%, 150% and 200%).
-Pictures are dm's own SVGs (`assets/icons/`).
+font is the system's (`.SystemUIFont`); EDM ships none. Everything is multiplied by the text size setting (`zoom.rs`, B66: stops of 60%, 80%, 100%, 120%, 150% and 200%).
+Pictures are EDM's own SVGs (`assets/icons/`).
 
 ## The main window
 
 - **Width:** under 600 points (`narrow::NARROW_BELOW`) the window is the phone's: cards, a
   bottom bar and a floating Add button; 360 points is the least (`narrow::LEAST_WIDTH`).
-- **Menus:** Tasks, File, Downloads, View, Help (`menus.rs`; on macOS also dm's own menu and
+- **Menus:** Tasks, File, Downloads, View, Help (`menus.rs`; on macOS also EDM's own menu and
   Edit).
 - **Toolbar:** pictures with their names under them; View › Customize toolbar sets the style
   and which buttons.

@@ -1,14 +1,14 @@
 name: Benchmark, weekly
 
-# dm's side of the benchmark (bench/, gaps row R5) on a Linux runner, every week and by hand:
-# dm's release build, alone, through bench/bench.mjs's scenarios under a virtual display, then
-# judged by bench/against-last.mjs against dm's own numbers from the last run of this workflow
-# on the same branch that passed (its `bench-dm` artifact). A parameter worse than the last run by
+# EDM's side of the benchmark (bench/, gaps row R5) on a Linux runner, every week and by hand:
+# EDM's release build, alone, through bench/bench.mjs's scenarios under a virtual display, then
+# judged by bench/against-last.mjs against EDM's own numbers from the last run of this workflow
+# on the same branch that passed (its `bench-EDM` artifact). A parameter worse than the last run by
 # more than the tolerance (20% and the harness's slack; the machine-bound scenarios' times scaled
 # by each run's ceiling, as bench/README.md scales the frozen floors) fails the run, naming it.
 # The first run on a branch, or one whose last numbers have expired, has nothing to compare and
 # passes; its numbers become the last. A bot's branch (bot/) is held to main's last numbers, and
-# scripts/ai-merge.sh reads whether it was compared at all ("dm against its last numbers" ran).
+# scripts/ai-merge.sh reads whether it was compared at all ("EDM against its last numbers" ran).
 #
 # Reference A is not on CI. Its frozen floor (bench/reference-a-baseline.json, never edited) is
 # judged here by compare.mjs for reading only; the side-by-side run beside reference A stays the
@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   bench:
-    name: dm against its own last numbers
+    name: EDM against its own last numbers
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -46,7 +46,7 @@ jobs:
           shared-key: bench-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Linux libraries dm links, and a display for its window
+      - name: Linux libraries EDM links, and a display for its window
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libxkbcommon0 libxkbcommon-x11-0
@@ -61,17 +61,17 @@ jobs:
           node bench/shaper.mjs --self-test
           echo "BENCH=$RUNNER_TEMP/bench" >> "$GITHUB_ENV"
 
-      - name: Build dm (release), the build the baseline is judged against
-        run: cargo build --release -p dm-gpui --locked
+      - name: Build EDM (release), the build the baseline is judged against
+        run: cargo build --release -p edm-gpui --locked
 
       # Every scenario but inet (the public internet is never a floor), three repetitions where
       # the harness takes them (bench/README.md: do not judge by one run).
-      - name: The benchmark, dm alone
+      - name: The benchmark, EDM alone
         shell: bash
         env:
-          BENCH_APPS: dm
+          BENCH_APPS: EDM
           BENCH_REPS: "3"
-          DM_BINARY: ${{ github.workspace }}/target/release/dm-gpui
+          EDM_BINARY: ${{ github.workspace }}/target/release/edm-gpui
         run: |
           set -o pipefail # bench.mjs's failure, not tee's success, is the step's
           mkdir -p "$BENCH"
@@ -82,7 +82,7 @@ jobs:
           done
 
       # A bot's branch is held to main's numbers, not its own (it has none): scripts/ai-merge.sh
-      # merges a bot's change to the app only when dm is not worse than on main.
+      # merges a bot's change to the app only when EDM is not worse than on main.
       - name: The last run's numbers (this branch, the last run that passed; main's for a bot's)
         id: last
         env:
@@ -92,7 +92,7 @@ jobs:
         run: |
           id=$(gh run list --workflow bench.yml --branch "$BRANCH" --status success --limit 1 \
             --json databaseId --jq '.[0].databaseId // empty')
-          if [ -n "$id" ] && gh run download "$id" -n bench-dm -D "$RUNNER_TEMP/bench-last" \
+          if [ -n "$id" ] && gh run download "$id" -n bench-EDM -D "$RUNNER_TEMP/bench-last" \
               && [ -d "$RUNNER_TEMP/bench-last/results" ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "run=$id" >> "$GITHUB_OUTPUT"
@@ -102,7 +102,7 @@ jobs:
             echo "no last numbers on $BRANCH${id:+ (those of run $id have expired)}"
           fi
 
-      - name: dm against its last numbers
+      - name: EDM against its last numbers
         if: steps.last.outputs.found == 'true'
         env:
           LAST: ${{ steps.last.outputs.run }}
@@ -120,13 +120,13 @@ jobs:
             echo "::warning::worse than the last run, accepted by hand: these numbers become the last"
             exit 0
           fi
-          [ "$status" = 1 ] && echo "::error::dm is worse than its last run (see the summary for which parameters)"
+          [ "$status" = 1 ] && echo "::error::EDM is worse than its last run (see the summary for which parameters)"
           exit "$status"
 
       - name: The first numbers on this branch
         if: steps.last.outputs.found != 'true'
         run: |
-          echo "## dm against its own last numbers" >> "$GITHUB_STEP_SUMMARY"
+          echo "## EDM against its own last numbers" >> "$GITHUB_STEP_SUMMARY"
           echo "No last numbers on this branch: nothing compared. This run's become the last." >> "$GITHUB_STEP_SUMMARY"
 
       # For reading only: a CI runner is not the baseline laptop, and the comparison with
@@ -148,7 +148,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
-          name: bench-dm
+          name: bench-EDM
           path: ${{ runner.temp }}/bench
           if-no-files-found: warn
           retention-days: 90

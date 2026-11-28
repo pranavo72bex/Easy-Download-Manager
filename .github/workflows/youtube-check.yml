@@ -1,12 +1,12 @@
 name: YouTube, weekly
 
-# YouTube changes its player every week or two, and dm answers the player's checks itself, as
-# reference A does: the player script cut down to what answers them (dm-core youtube/player.rs),
+# YouTube changes its player every week or two, and EDM answers the player's checks itself, as
+# reference A does: the player script cut down to what answers them (edm-core youtube/player.rs),
 # run in the computer's own JavaScript engine (javascript.rs; on Windows, Windows' own, so nothing
-# is fetched or shipped for it). Every Monday, and by hand, this reads real videos through dm's own
+# is fetched or shipped for it). Every Monday, and by hand, this reads real videos through EDM's own
 # reader and asks YouTube for the first kilobyte of each stream it chose, as a download does. When a
 # video is not read, or its streams are refused, it says so in an issue (one, added to while it is
-# open) with the player that failed and dm's words, so the cutter is put right before people find
+# open) with the player that failed and EDM's words, so the cutter is put right before people find
 # it broken. A schedule runs only from the default branch (main).
 on:
   schedule:
@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   youtube:
-    name: real videos through dm's own reader
+    name: real videos through EDM's own reader
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -31,11 +31,11 @@ jobs:
         with:
           toolchain: 1.98.1 # as rust-toolchain.toml
       - name: The reader
-        run: cargo build --release -p dm-core --example youtube_read --locked
+        run: cargo build --release -p edm-core --example youtube_read --locked
       - name: Read real videos, and ask for each stream's first kilobyte
         id: read
         env:
-          DM_FETCH_FIRST: "1"
+          EDM_FETCH_FIRST: "1"
         # An ordinary video, a music video (its streams locked behind signatures), a 4K one and
         # a Short (YouTube's own channel's).
         run: |
@@ -48,8 +48,8 @@ jobs:
           & target\release\examples\youtube_read.exe @videos | Tee-Object -FilePath "$env:RUNNER_TEMP\youtube.txt"
           $lines = Get-Content "$env:RUNNER_TEMP\youtube.txt"
           # YouTube's bot check ("Sign in to confirm you're not a bot") turns the runner's
-          # address away before dm reads anything: it says nothing of dm's reader, and is not
-          # counted as dm failing (the first run by hand, 2026-11-09, opened issue #37 for two such
+          # address away before EDM reads anything: it says nothing of EDM's reader, and is not
+          # counted as EDM failing (the first run by hand, 2026-11-09, opened issue #37 for two such
           # videos while the other two were read and their streams accepted).
           $botChecked = @($lines | Where-Object { $_ -match '^FAIL' -and $_ -match 'not a bot' })
           $failed = @($lines | Where-Object { ($_ -match '^FAIL' -and $_ -notmatch 'not a bot') -or $_ -match '^REFUSED' })
@@ -61,8 +61,8 @@ jobs:
           }
           if ($read.Count -eq 0) {
             # Nothing was read at all: the check is blind this week, which is worth a red run
-            # but not an issue about dm.
-            "::warning::every video met YouTube's bot check; nothing of dm's reader was checked"
+            # but not an issue about EDM.
+            "::warning::every video met YouTube's bot check; nothing of EDM's reader was checked"
             exit 1
           }
       - name: Say so in an issue
@@ -73,22 +73,22 @@ jobs:
         run: |
           $said = Get-Content "$env:RUNNER_TEMP\youtube.txt" -Raw
           $body = @"
-          dm's own YouTube reader failed this week's check ($env:RUN).
+          EDM's own YouTube reader failed this week's check ($env:RUN).
 
           ``````
           $said
           ``````
 
-          A line ``FAIL`` is a video dm could not read (its words follow); ``REFUSED`` is a stream
-          YouTube would not give for the answers dm worked out, which means the player changed in a
-          way ``crates/dm-core/src/youtube/player.rs`` does not know. ``PLAYER`` names the
+          A line ``FAIL`` is a video EDM could not read (its words follow); ``REFUSED`` is a stream
+          YouTube would not give for the answers EDM worked out, which means the player changed in a
+          way ``crates/edm-core/src/youtube/player.rs`` does not know. ``PLAYER`` names the
           player script read. "Sign in to confirm you're not a bot" is YouTube turning the runner's
           address away, not the player: run it again, or read the same videos on a person's machine:
 
-              cargo run -p dm-core --example youtube_read -- <watch-url>...
+              cargo run -p edm-core --example youtube_read -- <watch-url>...
           "@
           Set-Content -Path "$env:RUNNER_TEMP\issue.md" -Value $body -Encoding utf8
-          $title = "YouTube: dm's own reader failed the weekly check"
+          $title = "YouTube: EDM's own reader failed the weekly check"
           $open = gh issue list --state open --search "in:title $title" --json number --jq '.[0].number'
           if ($open) {
             gh issue comment $open --body-file "$env:RUNNER_TEMP\issue.md"

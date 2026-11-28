@@ -1,16 +1,16 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask vendor [--version <version>] [<crate>…]` (gaps rows P3, A17, X5 and N16): makes
 //! the crates in `vendor/` again, the eight of [`CRATES`] or those named. Each is the
 //! crate published on crates.io, or for one crates.io has not (gpui-android, from gpui-mobile)
 //! GitHub's archive of a commit, fetched with `curl` (Windows 10 and later have it), checked
-//! against the SHA-256 held here (ring's), unpacked with `tar`, with the files dm's build does
+//! against the SHA-256 held here (ring's), unpacked with `tar`, with the files EDM's build does
 //! not use removed and `vendor/patches/<crate>.patch` applied with `git apply`, then put
 //! in place of the copy. Nothing from the crates is run. The crates are unpacked in
-//! `DM_VENDOR_WORK`, a folder of the caller's, or else in a new folder of the system's own,
+//! `EDM_VENDOR_WORK`, a folder of the caller's, or else in a new folder of the system's own,
 //! removed after.
 //!
 //! `--version` makes the named crates from another published version instead, which has no
@@ -21,15 +21,15 @@
 //! `https://crates.io/api/v1/crates/<name>/versions`, as `checksum`), run this, mend any hunk
 //! `git apply` refuses, and write the patch again with `git diff` between the published crate
 //! (with the same files removed) and the mended copy, keeping the text at the patch's head. Every
-//! `dm(<tag>):` mark is a row of the table in `vendor/README.md` (`vendor_marks.rs`).
+//! `EDM(<tag>):` mark is a row of the table in `vendor/README.md` (`vendor_marks.rs`).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// One crate dm builds from a patched copy in `vendor/`.
+/// One crate EDM builds from a patched copy in `vendor/`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Vendored {
-    /// Its name on crates.io (for a copy made from GitHub, the name dm gives it), which is also
+    /// Its name on crates.io (for a copy made from GitHub, the name EDM gives it), which is also
     /// its folder in `vendor/` and its patch's name in `vendor/patches/`.
     pub(crate) name: &'static str,
     /// The published version the copy is made from (from GitHub, the version its manifest says).
@@ -37,7 +37,7 @@ pub(crate) struct Vendored {
     /// The SHA-256 of that version's `.crate`, in lower-case hex, as crates.io lists it; or of
     /// GitHub's archive of the commit.
     pub(crate) sha256: &'static str,
-    /// What dm's build does not use, removed from the unpacked crate (paths relative to it).
+    /// What EDM's build does not use, removed from the unpacked crate (paths relative to it).
     pub(crate) remove: &'static [&'static str],
     /// Where it is fetched from.
     pub(crate) source: Source,
@@ -61,11 +61,11 @@ pub(crate) enum Source {
 /// The version of librqbit and its SHA-1 wrapper the copies are made from.
 pub(crate) const LIBRQBIT_VERSION: &str = "9.1.0";
 
-/// The version of the GPUI copies: the one dm-gpui pins (`gpui-pre =0.3.12` in
+/// The version of the GPUI copies: the one edm-gpui pins (`gpui-pre =0.3.12` in
 /// `Cargo.toml`).
 pub(crate) const GPUI_VERSION: &str = "0.3.12";
 
-/// Removed from the librqbit crates: their own lock file (dm's is `Cargo.lock`), cargo's
+/// Removed from the librqbit crates: their own lock file (EDM's is `Cargo.lock`), cargo's
 /// marks, the web interface (the `webui` feature), test torrents, examples and the manifest as
 /// written before publishing.
 const LIBRQBIT_REMOVE: &[&str] = &[
@@ -104,7 +104,7 @@ const GPUI_ANDROID_REMOVE: &[&str] = &[
     "src/target_platform.rs",
 ];
 
-/// Every crate dm keeps a patched copy of, in the order they are made when none is named.
+/// Every crate EDM keeps a patched copy of, in the order they are made when none is named.
 pub(crate) const CRATES: [Vendored; 8] = [
     Vendored {
         name: "librqbit",
@@ -318,16 +318,16 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 /// The folder the crates are unpacked in, and whether it is this run's own (removed after):
-/// `DM_VENDOR_WORK`, made absolute, or a new one in the system's temporary folder.
+/// `EDM_VENDOR_WORK`, made absolute, or a new one in the system's temporary folder.
 fn work_dir() -> Result<(PathBuf, bool), String> {
-    let (dir, own) = match std::env::var_os("DM_VENDOR_WORK").filter(|d| !d.is_empty()) {
+    let (dir, own) = match std::env::var_os("EDM_VENDOR_WORK").filter(|d| !d.is_empty()) {
         Some(dir) => {
             let dir = PathBuf::from(dir);
             let here = std::env::current_dir().map_err(|e| format!("this folder: {e}"))?;
             (here.join(dir), false)
         }
         None => {
-            let dir = std::env::temp_dir().join(format!("dm-vendor-{}", std::process::id()));
+            let dir = std::env::temp_dir().join(format!("edm-vendor-{}", std::process::id()));
             remove_path(&dir)?;
             (dir, true)
         }
@@ -509,7 +509,7 @@ mod tests {
         assert!(commit.chars().all(|ch| ch.is_ascii_hexdigit()));
     }
 
-    /// The copies are of the versions dm's manifest asks for, or `[patch.crates-io]` would leave
+    /// The copies are of the versions EDM's manifest asks for, or `[patch.crates-io]` would leave
     /// them unused.
     #[test]
     fn the_versions_held_are_those_desktop_cargo_toml_pins() {
@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     fn a_missing_path_is_not_a_failure_to_remove() {
-        let gone = std::env::temp_dir().join(format!("dm-vendor-none-{}", std::process::id()));
+        let gone = std::env::temp_dir().join(format!("edm-vendor-none-{}", std::process::id()));
         assert!(remove_path(&gone).is_ok());
     }
 }

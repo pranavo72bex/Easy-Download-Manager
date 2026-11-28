@@ -9,8 +9,8 @@ own; asking again for one already open brings it to the front.
 ## What it shows
 
 - **File name**, **Status** and **Size.** Hold the mouse over a failure's
-  **Status** to read dm's own sentence for it. Under a failure, a line says
-  the next step where dm knows one (see [What dm's messages
+  **Status** to read EDM's own sentence for it. Under a failure, a line says
+  the next step where EDM knows one (see [What EDM's messages
   mean](failures.md)).
 - **Category:** the kind of file, or the category you made that it belongs
   to.
@@ -24,7 +24,7 @@ An empty value shows "—".
 
 - **Address**, **User name** and **Password:** the link, and the sign-in that
   goes with it.
-- **User-Agent:** the browser name dm gives the server for this download.
+- **User-Agent:** the browser name EDM gives the server for this download.
 - **Request headers:** other headers to send, written `Name: value | Name:
   value`.
 - **Note:** your own words, kept with the download.
@@ -51,12 +51,12 @@ changed.
 ## A finished file
 
 - **SHA-256:** the file's SHA-256 digest. It says "Working it out…" while
-  dm reads the file. You can select it and copy it. dm keeps the digest a
+  EDM reads the file. You can select it and copy it. EDM keeps the digest a
   file had when it finished, and says under it "Unchanged since it
   finished." or "Changed since it finished: its SHA-256 then was another."
 - **Check against:** paste a digest you were given (CRC32, MD5, SHA-1,
   SHA-256 or SHA-512, told apart by its length; a name such as `sha256:`
-  in front is allowed). dm works out the same kind and says "It matches."
+  in front is allowed). EDM works out the same kind and says "It matches."
   or "It does not match."
 - **Contents:** for a ZIP file, the files in it with their sizes, and **and
   … more** past the first ones.
@@ -64,11 +64,11 @@ changed.
 ## Buttons
 
 - **Open:** opens the finished file. Greyed until it has finished and while
-  the file is not where dm saved it.
+  the file is not where EDM saved it.
 - **Copy details:** for a failed download only. Copies a short report to
   paste to whoever is helping you, and the status bar says so.
 - **Cancel:** closes the window and keeps nothing you changed.
-- **OK:** keeps what you changed and closes the window. If dm cannot keep
+- **OK:** keeps what you changed and closes the window. If EDM cannot keep
   it, the window stays open and says why.
 
 ## Good to know

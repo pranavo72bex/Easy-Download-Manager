@@ -15,8 +15,8 @@ window (**Details** on its row) and read **Can resume**. **Yes** means it
 can; "No — a stop starts it again from the beginning" means the server
 does not allow it.
 
-When you exit dm while downloads run, dm asks **Exit dm?** first: **Exit**
-pauses them, and they pick up where they left off the next time you open dm.
+When you exit EDM while downloads run, EDM asks **Exit EDM?** first: **Exit**
+pauses them, and they pick up where they left off the next time you open EDM.
 
 A download that failed offers **Retry** instead; most go on from what they
 already have. If its link has expired, give it a fresh one with

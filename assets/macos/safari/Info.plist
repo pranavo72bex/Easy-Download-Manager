@@ -1,24 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- dm's Safari extension, `dm Safari Extension.appex` in dm.app/Contents/PlugIns, written by
-     scripts/safari-extension.sh: @ID@ is dm.app's own id followed by .safari-extension, as
-     macOS requires of an extension inside an app, and @VERSION@ and @BUILD@ are dm.app's.
+<!-- EDM's Safari extension, `EDM Safari Extension.appex` in EDM.app/Contents/PlugIns, written by
+     scripts/safari-extension.sh: @ID@ is EDM.app's own id followed by .safari-extension, as
+     macOS requires of an extension inside an app, and @VERSION@ and @BUILD@ are EDM.app's.
      Safari loads the web extension from Contents/Resources (dist/safari) and sends its
-     native messages to the program, whose handler class is made by crates/dm-safari. -->
+     native messages to the program, whose handler class is made by crates/edm-safari. -->
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>dm</string>
+	<string>EDM</string>
 	<key>CFBundleExecutable</key>
-	<string>dm-safari</string>
+	<string>edm-safari</string>
 	<key>CFBundleIdentifier</key>
 	<string>@ID@</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>dm Safari Extension</string>
+	<string>EDM Safari Extension</string>
 	<key>CFBundlePackageType</key>
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
@@ -32,7 +32,7 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>NSHumanReadableDescription</key>
-	<string>Hands the downloads you choose in Safari to dm.</string>
+	<string>Hands the downloads you choose in Safari to EDM.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>

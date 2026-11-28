@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The daily site watch's results, as the README's site table (gaps row W6).
@@ -23,10 +23,10 @@ The README is not changed by CI: the table of the last scheduled run is that run
     gh run download "$(gh run list --workflow sites.yml --limit 1 --json databaseId --jq '.[0].databaseId')"         --name site-watch --dir site-watch
     python3 scripts/site-table.py site-watch/*.json --readme README.md
 
-A site's status is one of: `pass` (a whole video with sound landed in dm's folder),
-`fail` (it did not: the site or dm changed), `blocked` (a login wall or bot check
+A site's status is one of: `pass` (a whole video with sound landed in EDM's folder),
+`fail` (it did not: the site or EDM changed), `blocked` (a login wall or bot check
 answered the check's browser, or the file was still arriving when the wait ran
-out: nothing of dm was judged, as video-sites-check.py judges it) and `error` (the
+out: nothing of EDM was judged, as video-sites-check.py judges it) and `error` (the
 check stopped before it reached the site). `fail` and `error` open the issue.
 """
 import argparse
@@ -79,7 +79,7 @@ WORDS = {
 # sites-check.py's own words for a page that showed the check no video at all, or a sign-in
 # dialog over its player, and YouTube's for an address it will not serve (its player's
 # "Sign in to confirm you're not a bot", LOGIN_REQUIRED; or UNPLAYABLE, "Video unavailable", which
-# a runner's address was told of "Me at the zoo" on 2026-11-23, issue #56): nothing of dm was tried.
+# a runner's address was told of "Me at the zoo" on 2026-11-23, issue #56): nothing of EDM was tried.
 BLOCKED_RESULTS = ("no public video post found", "no video player appeared", "not signed in within",
                    "a login wall covers the player")
 BOT_CHECK = re.compile(r"not a bot|unusual traffic|prove your humanity|just a moment|verify you are human|captcha"
@@ -100,7 +100,7 @@ def site_status(r):
         return "error"
     if any(b in result for b in BLOCKED_RESULTS):
         return "blocked"
-    for row in r.get("dm_rows") or []:
+    for row in r.get("edm_rows") or []:
         if ((row.get("state") or {}).get("kind") == "running"
                 and ((row.get("progress") or {}).get("downloaded") or 0) > 0):
             return "blocked"
@@ -112,7 +112,7 @@ def site_detail(r):
     result = r.get("result") or "no result"
     if result == "OK":
         m = r.get("media") or {}
-        said = "a whole video with sound landed in dm's folder"
+        said = "a whole video with sound landed in EDM's folder"
         facts = [f"{m['height']} tall" if m.get("height") else "", f"{m['seconds']:.0f} s" if m.get("seconds") else ""]
         facts = [f for f in facts if f]
         return said + (f" ({', '.join(facts)})" if facts else "")
@@ -131,7 +131,7 @@ def youtube_row(checks):
     failed = [c for c in own if not c["ok"]]
     if not failed:
         return {"site": "youtube", "status": "pass",
-                "detail": "a whole video landed in dm's folder, read by dm's own reader"}
+                "detail": "a whole video landed in EDM's folder, read by EDM's own reader"}
     first = failed[0]
     said = first["name"].removeprefix("YouTube: ") + (f" ({first['detail']})" if first["detail"] else "")
     bot = first["name"] == "YouTube: the watch page loads" or any(BOT_CHECK.search(str(c["detail"] or "")) for c in failed)
@@ -199,7 +199,7 @@ def table(runs, rows):
         lines.append(f"| {cell(r.get('name') or name_of(r.get('site')), 40)} | {WORDS.get(r.get('status'), r.get('status'))} "
                      f"| {cell(r.get('detail'))} |")
     lines += ["", "*Not judged*: a login wall or bot check met the check's browser, or the file was still "
-              "arriving when the wait ended; neither says anything of dm. The table is made by "
+              "arriving when the wait ended; neither says anything of EDM. The table is made by "
               "`scripts/site-table.py` from `.github/workflows/sites.yml`."]
     return "\n".join(lines)
 
@@ -253,21 +253,21 @@ def self_test():
     yt = youtube_row([{"ok": o, "name": n, "detail": d} for o, n, d in sample_checks])
     assert yt["status"] == "blocked", yt
     assert youtube_row([{"ok": True, "name": "YouTube: x", "detail": ""}])["status"] == "pass"
-    assert youtube_row([{"ok": False, "name": "YouTube: the video lands in dm's folder", "detail": "[]"}])["status"] == "fail"
+    assert youtube_row([{"ok": False, "name": "YouTube: the video lands in EDM's folder", "detail": "[]"}])["status"] == "fail"
     assert youtube_row([{"ok": False, "name": "the extension's service worker starts", "detail": ""}])["status"] == "error"
     assert site_status({"result": "OK"}) == "pass"
     assert site_status({"result": "no video player appeared (login wall, bot check or the page needs a click)"}) == "blocked"
     assert site_status({"result": "the panel listed no qualities"}) == "fail"
     assert site_status({"result": "a login wall covers the player (login wall: Log in to TikTok), "
-                                  "so dm's panel stays off it"}) == "blocked"
+                                  "so EDM's panel stays off it"}) == "blocked"
     assert youtube_row([{"ok": False, "name": "YouTube: its player offers the video",
                          "detail": "YouTube's player says LOGIN_REQUIRED: Sign in to confirm you’re not a bot"}]
                        )["status"] == "blocked"
     assert youtube_row([{"ok": False, "name": "YouTube: its player offers the video",
                          "detail": "YouTube's player says UNPLAYABLE: Video unavailable"}])["status"] == "blocked"
     assert site_status({"result": "check failed: RuntimeError('x')"}) == "error"
-    assert site_status({"result": "the download did not finish into dm's folder",
-                        "dm_rows": [{"state": {"kind": "running"}, "progress": {"downloaded": 5}}]}) == "blocked"
+    assert site_status({"result": "the download did not finish into EDM's folder",
+                        "edm_rows": [{"state": {"kind": "running"}, "progress": {"downloaded": 5}}]}) == "blocked"
     assert "720 tall" in site_detail({"result": "OK", "media": {"height": 720, "seconds": 26.2}})
     rows = [{"site": "vimeo", "name": "Vimeo", "status": "fail", "detail": "a | b\nc"},
             {"site": "youtube", "name": "YouTube", "status": "pass", "detail": "ok"}]

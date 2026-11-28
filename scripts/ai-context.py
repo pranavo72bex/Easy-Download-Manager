@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """What a free model is handed before it works: `python3 scripts/ai-context.py [FILE]`.
@@ -14,7 +14,7 @@ alone starts with:
    when, word for word, first;
 2. how to work: the test first, then make it build (`cargo test -p CRATE --no-run` after each
    edit), then make it pass, then the checks;
-3. which part of dm the task is about (the desktop window, the phone, the engine, the
+3. which part of EDM the task is about (the desktop window, the phone, the engine, the
    browser extension, video pages), from its words and the crates its tests name, and the
    skill pages for it (docs/ai-skills/, .claude/skills/), in the order they win, only when
    scripts/ai-skills-check.py finds them clean;
@@ -22,7 +22,7 @@ alone starts with:
    with its line and whether it is public, so a model calls what exists and is reachable;
 5. a test to copy: the head of the test file the new test goes in (its imports, its helpers,
    one whole test), or the nearest one;
-6. for the window, the public methods of its test harness (crates/dm-gpui/src/harness.rs);
+6. for the window, the public methods of its test harness (crates/edm-gpui/src/harness.rs);
 7. the files that mention the task's words, their last commits, and a map of the crates
    (cut first when the whole is too long).
 
@@ -41,41 +41,41 @@ LIMIT = 60000
 ITEM = re.compile(r"^\s*(pub(\([^)]*\))?\s+)?(async\s+)?(unsafe\s+)?(const\s+fn|fn|struct|enum|trait|impl|const|static|type|mod)\b")
 AREAS = {
     "android": {
-        "words": r"android|phone|mobile|apk|notification|tap|touch|swipe|back button|gradle|dm-android",
-        "crates": ["dm-android", "dm-gpui"],
+        "words": r"android|phone|mobile|apk|notification|tap|touch|swipe|back button|gradle|edm-android",
+        "crates": ["edm-android", "edm-gpui"],
         "skills": ["docs/ai-skills/android.md", "docs/ai-skills/desktop.md", "docs/ai-skills/ui-ux.md",
-                   ".claude/skills/dm-design/SKILL.md", ".claude/skills/break/scenarios.md"],
-        "tests": ["cargo test -p dm-android", "cargo nextest run -p dm-gpui -E 'test(~phone)'"],
+                   ".claude/skills/edm-design/SKILL.md", ".claude/skills/break/scenarios.md"],
+        "tests": ["cargo test -p edm-android", "cargo nextest run -p edm-gpui -E 'test(~phone)'"],
     },
     "desktop": {
         "words": r"window|dialog|button|menu|toolbar|layout|column|theme|dark mode|font|icon|label|word|"
-                 r"translat|language|i18n|scheduler|options|settings|progress window|tray|dm-gpui",
-        "crates": ["dm-gpui", "dm-desktop-base"],
-        "skills": ["docs/ai-skills/desktop.md", ".claude/skills/dm-design/SKILL.md", "docs/ai-skills/ui-ux.md",
+                 r"translat|language|i18n|scheduler|options|settings|progress window|tray|edm-gpui",
+        "crates": ["edm-gpui", "edm-desktop-base"],
+        "skills": ["docs/ai-skills/desktop.md", ".claude/skills/edm-design/SKILL.md", "docs/ai-skills/ui-ux.md",
                    ".claude/skills/break/scenarios.md"],
-        "tests": ["cargo nextest run -p dm-gpui -E 'test(~NAME)'", "cargo test -p dm-gpui window_tests"],
+        "tests": ["cargo nextest run -p edm-gpui -E 'test(~NAME)'", "cargo test -p edm-gpui window_tests"],
     },
     "engine": {
         "words": r"download|resume|range|connection|segment|speed|http|https|ftp|torrent|magnet|redirect|"
-                 r"server|header|proxy|archive|zip|rar|7z|checksum|queue|dm-core|dm-net|dm-shell",
-        "crates": ["dm-core", "dm-net", "dm-shell"],
+                 r"server|header|proxy|archive|zip|rar|7z|checksum|queue|edm-core|edm-net|edm-shell",
+        "crates": ["edm-core", "edm-net", "edm-shell"],
         "skills": ["docs/ai-skills/engine.md"],
-        "tests": ["cargo nextest run -p dm-core -E 'test(~NAME)'", "cargo test -p dm-core --test zoo"],
+        "tests": ["cargo nextest run -p edm-core -E 'test(~NAME)'", "cargo test -p edm-core --test zoo"],
     },
     "extension": {
-        "words": r"browser|extension|chrome|firefox|edge|safari|catch|hand ?off|native host|dm-catcher|dm-protocol",
-        "crates": ["dm-catcher", "dm-protocol"],
+        "words": r"browser|extension|chrome|firefox|edge|safari|catch|hand ?off|native host|edm-catcher|edm-protocol",
+        "crates": ["edm-catcher", "edm-protocol"],
         "skills": [],
-        "tests": ["cd crates/dm-catcher && cargo test"],
+        "tests": ["cd crates/edm-catcher && cargo test"],
     },
     "video": {
-        "words": r"youtube|video|stream|hls|dash|m3u8|caption|subtitle|playlist|site|dm-media|dm-js",
-        "crates": ["dm-media", "dm-js", "dm-core"],
+        "words": r"youtube|video|stream|hls|dash|m3u8|caption|subtitle|playlist|site|edm-media|edm-js",
+        "crates": ["edm-media", "edm-js", "edm-core"],
         "skills": ["docs/ai-skills/engine.md"],
-        "tests": ["cargo nextest run -p dm-media", "cargo nextest run -p dm-js"],
+        "tests": ["cargo nextest run -p edm-media", "cargo nextest run -p edm-js"],
     },
 }
-STOP = set("""the a an and or of to in on for with is are was were be been it this that dm not no but if
+STOP = set("""the a an and or of to in on for with is are was were be been it this that EDM not no but if
 then when what which who how why from by at as can cannot does do did has have had will would should
 could there their they them its into out up down over under more most less very just also only than
 so too all any some each every one two new old get got set use used using make made like""".split())
@@ -120,7 +120,7 @@ def areas_of(text):
         for crate in area["crates"]:
             scores[name] += 3 * low.count(crate)
     # The crates the failing tests or the file name: the strongest sign.
-    for crate in re.findall(r"crates/(dm-[a-z-]+)|\b(dm-[a-z-]+)\t", text):
+    for crate in re.findall(r"crates/(edm-[a-z-]+)|\b(edm-[a-z-]+)\t", text):
         name = crate[0] or crate[1]
         for area_name, area in AREAS.items():
             if name in area["crates"]:
@@ -281,7 +281,7 @@ def skills_clean():
 
 def main():
     text = task_text()
-    # A step of docs/gaps.md: its own words decide the part of dm and the files.
+    # A step of docs/gaps.md: its own words decide the part of EDM and the files.
     step = step_of(text)
     if step:
         text += "\n" + " ".join(step[1])
@@ -297,7 +297,7 @@ def main():
         c = f.split("/")[1]
         if c not in crates:
             crates.insert(0, c)
-    main_crate = next((f.split("/")[1] for f in files), crates[0] if crates else "dm-core")
+    main_crate = next((f.split("/")[1] for f in files), crates[0] if crates else "edm-core")
     out = ["# What this task is about (made by scripts/ai-context.py)", ""]
     if step:
         rid, cells = step
@@ -314,7 +314,7 @@ def main():
     out.append("4. Make the change, smallest first, and run the test again until it passes.")
     out.append("5. Then `cargo fmt --all` and `cargo clippy --workspace --all-targets --locked -- -D warnings`. The workflow runs the whole suite (`cargo xtask test --profile ci`) after you and hands back only what failed: do not run it yourself, its output fills your context.")
     out.append("")
-    out.append(f"Part of dm: **{', '.join(areas)}** (crates: {', '.join(crates)}).")
+    out.append(f"Part of EDM: **{', '.join(areas)}** (crates: {', '.join(crates)}).")
     out.append("")
     out.append("## Read these first, in this order (the first wins)")
     out.append("")
@@ -325,7 +325,7 @@ def main():
         seen = set()
         # The task's own method first: an improvement follows improving.md.
         if os.environ.get("AI_TASK") == "improve" and os.path.exists("docs/ai-skills/improving.md"):
-            out.append(f"{n}. `docs/ai-skills/improving.md` (how to improve dm unattended: this task)")
+            out.append(f"{n}. `docs/ai-skills/improving.md` (how to improve EDM unattended: this task)")
             seen.add("docs/ai-skills/improving.md")
             n += 1
         for a in areas:
@@ -354,11 +354,11 @@ def main():
         out.extend(template)
         out.append("```")
         out.append("")
-    if "dm-gpui" in crates or any("dm-gpui" in f for f in files):
-        out.append("## The window test harness: its public methods (`crates/dm-gpui/src/harness.rs` and `harness/`)")
+    if "edm-gpui" in crates or any("edm-gpui" in f for f in files):
+        out.append("## The window test harness: its public methods (`crates/edm-gpui/src/harness.rs` and `harness/`)")
         out.append("")
         out.append("```")
-        for h in ["crates/dm-gpui/src/harness.rs"] + sorted(git("ls-files", "crates/dm-gpui/src/harness").split()):
+        for h in ["crates/edm-gpui/src/harness.rs"] + sorted(git("ls-files", "crates/edm-gpui/src/harness").split()):
             if h.endswith(".rs"):
                 out.extend(f"{h.rsplit('/', 1)[-1]}:{l}" for l in outline(h, only_public=True, limit=60))
         out.append("```")

@@ -4,10 +4,10 @@ name: Firefox, signed for self-distribution
 # Firefox build as unlisted, for self-distribution: automatic, usually
 # within minutes, without the human review the listed add-on waits in. The
 # signed .xpi is attached to the release named below, so people can install
-# dm's extension in ordinary Firefox while the store review is pending.
+# EDM's extension in ordinary Firefox while the store review is pending.
 #
 # Each version can be signed once: bump the extension's version (both
-# manifests and crates/dm-catcher/Cargo.toml) before running it again.
+# manifests and crates/edm-catcher/Cargo.toml) before running it again.
 on:
   workflow_dispatch:
     inputs:
@@ -37,7 +37,7 @@ jobs:
           toolchain: 1.98.1 # as rust-toolchain.toml
           targets: wasm32-unknown-unknown
       - name: Tests
-        working-directory: crates/dm-catcher
+        working-directory: crates/edm-catcher
         run: cargo test --locked
       - name: Build the Firefox zip
         run: sh scripts/package.sh
@@ -56,7 +56,7 @@ jobs:
             --upload-source-code dist/source.zip \
             --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
           rm dist/source.zip
-          for x in dist/signed/*.xpi; do mv "$x" "dist/signed/dm-firefox-$version.xpi"; done
+          for x in dist/signed/*.xpi; do mv "$x" "dist/signed/edm-firefox-$version.xpi"; done
           ls -la dist/signed
       - name: Attach it to the release
         run: gh release upload "$RELEASE" dist/signed/*.xpi --clobber

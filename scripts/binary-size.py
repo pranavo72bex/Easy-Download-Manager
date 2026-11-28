@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The release binary's size against the last one recorded for this system (gaps row 188).
@@ -66,7 +66,7 @@ def main():
     print(f"{key}: {size:,} bytes, {change:+.1%} from the {was:,} recorded")
     if change > LIMIT:
         sys.exit(f"the binary grew by {change:.1%}, over {LIMIT:.0%}: find out why before it ships "
-                 "(cargo bloat --release -p dm-gpui --crates), or record the new size if it is meant")
+                 "(cargo bloat --release -p edm-gpui --crates), or record the new size if it is meant")
     if change < -LIMIT:
         print("much smaller than recorded: record the new size")
 

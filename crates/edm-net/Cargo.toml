@@ -1,0 +1,67 @@
+[package]
+name = "edm-net"
+version = "0.10.3"
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (deny.toml).
+publish = false
+
+# EDM's network, out of the engine (gaps row A6): the HTTP client and its TLS, proxies and the
+# proxy script, names and redirects, sign-ins (Basic, Digest, NTLM) and cookies, the speed
+# ceiling, a body's decoding, the second network path, the stop flag and EDM's error. What a
+# download is stays in edm-core; edm-js runs the proxy script.
+[dependencies]
+# EDM's own JavaScript interpreter, for a proxy configuration script (gaps row F15).
+edm-js.workspace = true
+bytes.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process", "net"] }
+# rustls rather than the system OpenSSL; its TLS is handed the same rustls set-up as the stream
+# protocols (`tls_config`): ring and the public roots.
+reqwest.workspace = true
+tokio-rustls.workspace = true
+webpki-roots.workspace = true
+# The `Proxy-Authorization` an HTTP CONNECT to a proxy with a login carries.
+base64.workspace = true
+futures-util.workspace = true
+thiserror.workspace = true
+serde = { workspace = true, features = ["derive", "rc"] }
+serde_json.workspace = true
+percent-encoding.workspace = true
+# Digest sign-ins.
+sha2.workspace = true
+md-5.workspace = true
+# NTLM sign-ins (`ntlm.rs`): its NT hash is MD4 of the password, and its
+# client challenge must be unpredictable.
+md4.workspace = true
+getrandom.workspace = true
+url.workspace = true
+# A body a server compresses unasked is undone here and not by reqwest, which
+# gives no count of the bytes on the wire: with it the expansion is held to a
+# ratio (`decode.rs`), as a decompression bomb needs.
+flate2.workspace = true
+brotli-decompressor.workspace = true
+
+# Calls into the C library that std does not wrap (the local time: `clock`). Already in the
+# tree through tokio.
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# The second path's interfaces; the local time's zone rules (`clock`, Win32_System_Time).
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_System_Threading", "Win32_System_Time"] }
+
+[dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+edm-test-support.workspace = true
+tokio = { workspace = true, features = ["full"] }
+axum.workspace = true
+tempfile.workspace = true
+rcgen.workspace = true
+
+# Used as `md5` (Digest sign-ins), which the name `md-5` hides from cargo-machete.
+[package.metadata.cargo-machete]
+ignored = ["md-5"]
+
+[lints]
+workspace = true

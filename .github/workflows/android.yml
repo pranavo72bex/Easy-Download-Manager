@@ -1,18 +1,18 @@
 name: Android, the engine built
 
-# dm on Android, all in Rust (gaps rows N1, N2, N14, N16): crates/dm-android is the
-# desktop's engine and its rules (dm-core, dm-net, dm-media, dm-torrent, dm-shell) under a GPUI
-# window on gpui-android (vendor/gpui-android, dm's copy of gpui-mobile's Android
+# EDM on Android, all in Rust (gaps rows N1, N2, N14, N16): crates/edm-android is the
+# desktop's engine and its rules (edm-core, edm-net, edm-media, edm-torrent, edm-shell) under a GPUI
+# window on gpui-android (vendor/gpui-android, EDM's copy of gpui-mobile's Android
 # platform), with the phone's services through JNI. This keeps it building for the phone's two
 # kinds of processor, the ARM of phones (arm64-v8a) and the x86_64 of the emulator, with the
 # Android NDK the runner already carries, so a desktop change that breaks Android is seen
-# before it lands; runs dm-android's own tests on the runner itself; and packages the APK for
-# the emulator: libdm_android.so built by cargo-ndk, then the small Gradle project in
-# crates/dm-android/android (gpui-mobile's two Java classes, no Kotlin), kept as
+# before it lands; runs edm-android's own tests on the runner itself; and packages the APK for
+# the emulator: libedm_android.so built by cargo-ndk, then the small Gradle project in
+# crates/edm-android/android (gpui-mobile's two Java classes, no Kotlin), kept as
 # the run's artifact (docs/android.md). The emulator job then runs that APK on Android 10
 # (API 29) and Android 15 (API 35): started, its window drawn, a link shared to it downloaded
 # (row N13, scripts/android-emulator-check.sh). At a tag `android-v<version>` the release job
-# builds the release APK for all three processors, signs it with dm's key when the
+# builds the release APK for all three processors, signs it with EDM's key when the
 # repository has one, and attaches it to a draft release (row N14). Not `v*`, the
 # extension's tags (release.yml), nor `desktop-v*`, the desktop's (desktop.yml): each has its
 # own version.
@@ -63,21 +63,21 @@ jobs:
         run: |
           test -d "$ANDROID_NDK_LATEST_HOME"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
-          echo "DM_NDK_VERSION=$(sed -n 's/^Pkg.Revision *= *//p' "$ANDROID_NDK_LATEST_HOME/source.properties")" >> "$GITHUB_ENV"
+          echo "EDM_NDK_VERSION=$(sed -n 's/^Pkg.Revision *= *//p' "$ANDROID_NDK_LATEST_HOME/source.properties")" >> "$GITHUB_ENV"
       # Android 10 (API 29) and up (the maintainer, 2026-11-22; docs/decisions.md).
       - name: Check for the phone and the emulator
-        run: cargo ndk --platform 29 -t arm64-v8a -t x86_64 check -p dm-android --locked
+        run: cargo ndk --platform 29 -t arm64-v8a -t x86_64 check -p edm-android --locked
       # Clippy for the phone, warnings as errors (row N17). One lint allowed on Android alone:
       # `missing_const_for_thread_local` flags every `const { }` thread-local there, as std's
       # Android thread-locals (no `target_thread_local`) wrap the initialiser in a plain fn.
       - name: Clippy for the phone
-        run: cargo ndk --platform 29 -t arm64-v8a clippy -p dm-android --locked -- -D warnings -A clippy::missing_const_for_thread_local
-      - name: dm-android's tests, on the runner
-        run: cargo test -p dm-android --locked
+        run: cargo ndk --platform 29 -t arm64-v8a clippy -p edm-android --locked -- -D warnings -A clippy::missing_const_for_thread_local
+      - name: edm-android's tests, on the runner
+        run: cargo test -p edm-android --locked
       # The APK (row N14). First the library, for the emulator (x86_64), put where Gradle packs
-      # it (app/src/main/jniLibs/x86_64/libdm_android.so).
-      - name: libdm_android.so, for the emulator (x86_64)
-        run: cargo ndk --platform 29 -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
+      # it (app/src/main/jniLibs/x86_64/libedm_android.so).
+      - name: libedm_android.so, for the emulator (x86_64)
+        run: cargo ndk --platform 29 -t x86_64 -o crates/edm-android/android/app/src/main/jniLibs build -p edm-android --lib --release --locked
       # Android 15's platform (compileSdk 35) and its build tools, from the runner's own SDK.
       - name: Android 15's platform and build tools
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
@@ -96,19 +96,19 @@ jobs:
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gradle-8.14.3/bin" >> "$GITHUB_PATH"
       # A debug APK, signed with the debug key Gradle makes for the run: an APK to install on an
-      # emulator or a test phone, not a release (a release is signed with dm's own key, N14).
-      # dm.skipCargo: the library is built above, so Gradle's own cargoNdk task (Android
-      # Studio's) is skipped; dm.ndkVersion: Gradle strips with the NDK cargo-ndk used.
+      # emulator or a test phone, not a release (a release is signed with EDM's own key, N14).
+      # EDM.skipCargo: the library is built above, so Gradle's own cargoNdk task (Android
+      # Studio's) is skipped; EDM.ndkVersion: Gradle strips with the NDK cargo-ndk used.
       - name: The APK, for the emulator (x86_64)
-        working-directory: crates/dm-android/android
-        run: gradle --no-daemon assembleDebug -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION"
+        working-directory: crates/edm-android/android
+        run: gradle --no-daemon assembleDebug -Pdm.skipCargo=true "-Pdm.ndkVersion=$EDM_NDK_VERSION"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: dm-android-x86_64-apk
-          path: crates/dm-android/android/app/build/outputs/apk/debug/app-debug.apk
+          name: edm-android-x86_64-apk
+          path: crates/edm-android/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
-  # The debug APK on the emulator (row N13): Android 10, the oldest dm takes, and Android 15,
+  # The debug APK on the emulator (row N13): Android 10, the oldest EDM takes, and Android 15,
   # the one it is built against. The runner's own SDK tools and Google's system images,
   # fetched by sdkmanager (which checks each package's digest), so no action of anyone else's
   # starts the emulator; KVM is opened to the runner's user as GitHub's runners allow.
@@ -129,12 +129,12 @@ jobs:
             no_gpu: 1
     env:
       IMAGE: system-images;android-${{ matrix.api }};google_apis;x86_64
-      DM_NO_GPU: ${{ matrix.no_gpu || 0 }}
+      EDM_NO_GPU: ${{ matrix.no_gpu || 0 }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: dm-android-x86_64-apk
+          name: edm-android-x86_64-apk
           path: ${{ runner.temp }}/apk
       - name: KVM for the runner's user
         run: |
@@ -159,9 +159,9 @@ jobs:
           # the runner's own setting put it outside ~/.android/avd, where this looked.
           export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
           mkdir -p "$ANDROID_AVD_HOME"
-          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n dm -k "$IMAGE" --force
-          printf 'hw.ram=3072\nhw.lcd.density=420\nhw.lcd.width=1080\nhw.lcd.height=2340\n' >> "$ANDROID_AVD_HOME/dm.avd/config.ini"
-          nohup emulator -avd dm -no-window -no-audio -no-boot-anim -no-snapshot \
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n EDM -k "$IMAGE" --force
+          printf 'hw.ram=3072\nhw.lcd.density=420\nhw.lcd.width=1080\nhw.lcd.height=2340\n' >> "$ANDROID_AVD_HOME/EDM.avd/config.ini"
+          nohup emulator -avd EDM -no-window -no-audio -no-boot-anim -no-snapshot \
             -gpu swiftshader_indirect -camera-back none -camera-front none \
             > "$RUNNER_TEMP/emulator.log" 2>&1 &
           adb wait-for-device
@@ -172,9 +172,9 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           adb shell input keyevent 82
-      - name: dm started, drawn, a shared link downloaded
+      - name: EDM started, drawn, a shared link downloaded
         run: bash scripts/android-emulator-check.sh "$RUNNER_TEMP/apk/app-debug.apk" "$RUNNER_TEMP/seen"
-      - name: The emulator's own log, beside what dm left
+      - name: The emulator's own log, beside what EDM left
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/seen"
@@ -182,7 +182,7 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         if: always()
         with:
-          name: dm-android-emulator-api${{ matrix.api }}
+          name: edm-android-emulator-api${{ matrix.api }}
           path: ${{ runner.temp }}/seen
           if-no-files-found: warn
       - name: The emulator stopped
@@ -191,7 +191,7 @@ jobs:
 
   # The release APK at a tag `android-v<version>` (row N14): one APK for the ARM of phones
   # (arm64-v8a), older 32-bit ones (armeabi-v7a) and the x86_64 of emulators and Chromebooks,
-  # built only after the checks, the tests and the emulator passed. Signed with dm's own key
+  # built only after the checks, the tests and the emulator passed. Signed with EDM's own key
   # from the repository's secrets; without them it goes out unsigned, named so and said in a
   # notice, as R1's unsigned desktop builds are. A draft, looked at before anybody downloads
   # it, and never "latest": the desktop updater reads the latest release. Google Play needs a
@@ -208,10 +208,10 @@ jobs:
       id-token: write
       attestations: write
     env:
-      DM_ANDROID_KEYSTORE: ${{ secrets.DM_ANDROID_KEYSTORE }}
-      DM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.DM_ANDROID_KEYSTORE_PASSWORD }}
-      DM_ANDROID_KEY_ALIAS: ${{ secrets.DM_ANDROID_KEY_ALIAS }}
-      DM_ANDROID_KEY_PASSWORD: ${{ secrets.DM_ANDROID_KEY_PASSWORD }}
+      EDM_ANDROID_KEYSTORE: ${{ secrets.EDM_ANDROID_KEYSTORE }}
+      EDM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.EDM_ANDROID_KEYSTORE_PASSWORD }}
+      EDM_ANDROID_KEY_ALIAS: ${{ secrets.EDM_ANDROID_KEY_ALIAS }}
+      EDM_ANDROID_KEY_PASSWORD: ${{ secrets.EDM_ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -227,15 +227,15 @@ jobs:
           test -d "$ANDROID_NDK_LATEST_HOME"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
           grep Pkg.Revision "$ANDROID_NDK_LATEST_HOME/source.properties"
-          echo "DM_NDK_VERSION=$(sed -n 's/^Pkg.Revision *= *//p' "$ANDROID_NDK_LATEST_HOME/source.properties")" >> "$GITHUB_ENV"
+          echo "EDM_NDK_VERSION=$(sed -n 's/^Pkg.Revision *= *//p' "$ANDROID_NDK_LATEST_HOME/source.properties")" >> "$GITHUB_ENV"
       # The tag names the version the phone shows: the crate's and Gradle's versionName agree.
       - name: Check the tag matches the crate and the APK
         run: |
           tag="${GITHUB_REF_NAME#android-v}"
-          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/dm-android/Cargo.toml | head -1)
-          gradle=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' crates/dm-android/android/app/build.gradle.kts | head -1)
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/edm-android/Cargo.toml | head -1)
+          gradle=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' crates/edm-android/android/app/build.gradle.kts | head -1)
           if [ "$tag" != "$crate" ] || [ "$tag" != "$gradle" ]; then
-            echo "::error::tag android-v$tag does not match dm-android's Cargo.toml ($crate) and app/build.gradle.kts ($gradle)"
+            echo "::error::tag android-v$tag does not match edm-android's Cargo.toml ($crate) and app/build.gradle.kts ($gradle)"
             exit 1
           fi
           echo "VERSION=$tag" >> "$GITHUB_ENV"
@@ -245,10 +245,10 @@ jobs:
         run: |
           git fetch --quiet --depth=1 origin '+refs/tags/android-v*:refs/tags/android-v*'
           code() { sed -n 's/^ *versionCode = \([0-9]*\).*/\1/p' | head -1; }
-          now=$(code < crates/dm-android/android/app/build.gradle.kts)
+          now=$(code < crates/edm-android/android/app/build.gradle.kts)
           last=$(git tag --list 'android-v*' --sort=-version:refname | grep -vx "$GITHUB_REF_NAME" | head -1)
           if [ -z "$last" ]; then echo "no earlier release"; exit 0; fi
-          before=$(git show "${last}:crates/dm-android/android/app/build.gradle.kts" | code)
+          before=$(git show "${last}:crates/edm-android/android/app/build.gradle.kts" | code)
           echo "versionCode $now; $last had $before"
           if [ -z "$now" ] || [ -z "$before" ] || [ "$now" -le "$before" ]; then
             echo "::error::versionCode $now is not above $last's ($before): raise it in app/build.gradle.kts"
@@ -256,13 +256,13 @@ jobs:
           fi
       # The checkout's and cargo's folders named alike on every computer, so the library does
       # not depend on where it was built (docs/android.md, "F-Droid").
-      - name: libdm_android.so, for the three processors
+      - name: libedm_android.so, for the three processors
         run: |
-          export RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/dm --remap-path-prefix=$HOME/.cargo=/cargo"
-          cargo ndk --platform 29 -t arm64-v8a -t armeabi-v7a -t x86_64 -o crates/dm-android/android/app/src/main/jniLibs build -p dm-android --lib --release --locked
+          export RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/EDM --remap-path-prefix=$HOME/.cargo=/cargo"
+          cargo ndk --platform 29 -t arm64-v8a -t armeabi-v7a -t x86_64 -o crates/edm-android/android/app/src/main/jniLibs build -p edm-android --lib --release --locked
       # Each library with the system's protections, read from its headers (gaps row H13).
       - name: The libraries' protections
-        run: cargo xtask hardening-check crates/dm-android/android/app/src/main/jniLibs/*/libdm_android.so
+        run: cargo xtask hardening-check crates/edm-android/android/app/src/main/jniLibs/*/libedm_android.so
       - name: Android 15's platform and build tools
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "platforms;android-35" "build-tools;35.0.0" > /dev/null
@@ -278,55 +278,55 @@ jobs:
           echo "$GRADLE_SHA256  $RUNNER_TEMP/gradle.zip" | sha256sum -c -
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gradle-8.14.3/bin" >> "$GITHUB_PATH"
-      # dm's key, from the secrets, into a file only this run sees; the release signing of
+      # EDM's key, from the secrets, into a file only this run sees; the release signing of
       # app/build.gradle.kts reads its path and the passwords from the environment.
-      - name: dm's signing key
+      - name: EDM's signing key
         run: |
-          if [ -z "$DM_ANDROID_KEYSTORE" ] || [ -z "$DM_ANDROID_KEYSTORE_PASSWORD" ] \
-             || [ -z "$DM_ANDROID_KEY_ALIAS" ] || [ -z "$DM_ANDROID_KEY_PASSWORD" ]; then
-            echo "::notice::No DM_ANDROID_KEYSTORE secrets: the release APK goes out unsigned (dm-$VERSION-unsigned.apk), which Android installs only once it is signed"
+          if [ -z "$EDM_ANDROID_KEYSTORE" ] || [ -z "$EDM_ANDROID_KEYSTORE_PASSWORD" ] \
+             || [ -z "$EDM_ANDROID_KEY_ALIAS" ] || [ -z "$EDM_ANDROID_KEY_PASSWORD" ]; then
+            echo "::notice::No EDM_ANDROID_KEYSTORE secrets: the release APK goes out unsigned (edm-$VERSION-unsigned.apk), which Android installs only once it is signed"
             exit 0
           fi
           umask 077
           # Whitespace a pasted secret carries (line breaks, a CR, spaces) left out first: GNU
           # base64 refused it as "invalid input" (android-v0.10.1's first run).
-          if ! printf '%s' "$DM_ANDROID_KEYSTORE" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/dm.keystore"; then
-            echo "::error::DM_ANDROID_KEYSTORE is not base64: set it again with base64 < dm-android-release.keystore | gh secret set DM_ANDROID_KEYSTORE"
+          if ! printf '%s' "$EDM_ANDROID_KEYSTORE" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/EDM.keystore"; then
+            echo "::error::EDM_ANDROID_KEYSTORE is not base64: set it again with base64 < edm-android-release.keystore | gh secret set EDM_ANDROID_KEYSTORE"
             exit 1
           fi
-          echo "DM_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/dm.keystore" >> "$GITHUB_ENV"
+          echo "EDM_ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/EDM.keystore" >> "$GITHUB_ENV"
       - name: The release APK
-        working-directory: crates/dm-android/android
-        run: gradle --no-daemon assembleRelease -Pdm.skipCargo=true "-Pdm.ndkVersion=$DM_NDK_VERSION" "-Pdm.abis=arm64-v8a,armeabi-v7a,x86_64"
+        working-directory: crates/edm-android/android
+        run: gradle --no-daemon assembleRelease -Pdm.skipCargo=true "-Pdm.ndkVersion=$EDM_NDK_VERSION" "-Pdm.abis=arm64-v8a,armeabi-v7a,x86_64"
       # The release's merged manifest asks for and opens nothing the kept list does not say,
       # and is not debuggable (gaps row H17, tooling/xtask/src/android_manifest.rs).
       - name: The release manifest is the kept one
-        run: cargo xtask android-manifest crates/dm-android/android/app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml
+        run: cargo xtask android-manifest crates/edm-android/android/app/build/intermediates/merged_manifest/release/processReleaseMainManifest/AndroidManifest.xml
       # Signed, apksigner checks the signature and prints the key's digest, the one people
       # compare (docs/android.md). The APK's SHA-256 goes beside it.
       - name: Named, checked, its SHA-256
-        working-directory: crates/dm-android/android/app/build/outputs/apk/release
+        working-directory: crates/edm-android/android/app/build/outputs/apk/release
         run: |
-          rm -f "$RUNNER_TEMP/dm.keystore"
+          rm -f "$RUNNER_TEMP/EDM.keystore"
           mkdir -p "$GITHUB_WORKSPACE/dist"
           # One APK for each processor and a universal one (app/build.gradle.kts's splits):
-          # dm-<version>-arm64-v8a.apk (phones), …-armeabi-v7a, …-x86_64 and …-universal, each
+          # edm-<version>-arm64-v8a.apk (phones), …-armeabi-v7a, …-x86_64 and …-universal, each
           # "-unsigned" where the repository has no key.
           for apk in app-*-release*.apk; do
             abi="${apk#app-}"
             abi="${abi%%-release*}"
             case "$apk" in
-              *-unsigned.apk) name="dm-$VERSION-$abi-unsigned.apk" ;;
+              *-unsigned.apk) name="edm-$VERSION-$abi-unsigned.apk" ;;
               *)
                 apksigner verify --verbose --print-certs "$apk"
-                # dm's key and no other (gaps row H22): the digest the README gives people.
+                # EDM's key and no other (gaps row H22): the digest the README gives people.
                 digest="$(apksigner verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
                 if ! grep -q "$digest" "$GITHUB_WORKSPACE/README.md" || [ -z "$digest" ]; then
                   echo "::error::$apk is signed by a certificate whose SHA-256 ($digest) is not the README's"
                   exit 1
                 fi
-                echo "DM_CERT_SHA256=$digest" >> "$GITHUB_ENV"
-                name="dm-$VERSION-$abi.apk"
+                echo "EDM_CERT_SHA256=$digest" >> "$GITHUB_ENV"
+                name="edm-$VERSION-$abi.apk"
                 ;;
             esac
             cp "$apk" "$GITHUB_WORKSPACE/dist/$name"
@@ -353,14 +353,14 @@ jobs:
           draft: true
           make_latest: false
           body: |
-            dm for Android ${{ env.VERSION }}: one APK for arm64-v8a, armeabi-v7a and x86_64,
+            EDM for Android ${{ env.VERSION }}: one APK for arm64-v8a, armeabi-v7a and x86_64,
             Android 10 (API 29) and up. Check it with
-            `sha256sum -c dm-${{ env.VERSION }}.apk.sha256`, then open it on the phone and allow
+            `sha256sum -c edm-${{ env.VERSION }}.apk.sha256`, then open it on the phone and allow
             installing from this source.
 
-            Signed with dm's key, whose certificate's SHA-256 is
-            `${{ env.DM_CERT_SHA256 }}`: check it with `apksigner verify --print-certs` before
-            installing (the README's "Is this APK dm's own?").
+            Signed with EDM's key, whose certificate's SHA-256 is
+            `${{ env.EDM_CERT_SHA256 }}`: check it with `apksigner verify --print-certs` before
+            installing (the README's "Is this APK EDM's own?").
 
-            An APK named `-unsigned` is not signed with dm's key yet; Android will not install
+            An APK named `-unsigned` is not signed with EDM's key yet; Android will not install
             it as it is.

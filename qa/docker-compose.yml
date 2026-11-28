@@ -1,14 +1,14 @@
-# The QA stack: dm built from this checkout, against servers that misbehave
+# The QA stack: EDM built from this checkout, against servers that misbehave
 # on request, on a network with no way out (internal: true).
 #
 #   sh qa/run.sh            # build, run every scenario, write qa/reports/
 #
 # origin     every HTTP condition (qa/origin/origin.py), HTTP 8080, HTTPS 8443-8446
-# toxiproxy  latency, loss, bandwidth limits and resets between dm and origin
+# toxiproxy  latency, loss, bandwidth limits and resets between EDM and origin
 # mockvideo  pages and HLS streams for the video-page checks
-# app        dm (headless) and the scenarios in qa/tests; downloads on a 200 MB tmpfs
+# app        EDM (headless) and the scenarios in qa/tests; downloads on a 200 MB tmpfs
 # browser    Chromium with the unpacked extension, the hand-off checks
-name: dm-qa
+name: edm-qa
 
 networks:
   qa:
@@ -37,7 +37,7 @@ services:
 
   app:
     build: { context: .., dockerfile: qa/app/Dockerfile }
-    image: dm-qa-app
+    image: edm-qa-app
     networks: [qa]
     depends_on:
       origin: { condition: service_healthy }
@@ -57,7 +57,7 @@ services:
       - ./reports:/reports
 
   browser:
-    image: dm-qa-app
+    image: edm-qa-app
     networks: [qa]
     tmpfs:
       - /tmp:size=1g,uid=1000,mode=1777,exec

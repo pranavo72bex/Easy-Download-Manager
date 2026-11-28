@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Entry point for anyone — person or coding agent — about to change dm. Read
+Entry point for anyone — person or coding agent — about to change EDM. Read
 this, then `docs/gaps.md` (the ranked work list: take the top open item),
 then `docs/parity.md`, then `docs/decisions.md`.
 
@@ -10,45 +10,45 @@ then `docs/parity.md`, then `docs/decisions.md`.
 |---|---|
 | `docs/gaps.md` | The ranked work list: take the top open item |
 | `docs/feature-status.md` | Every feature, with the run that showed it and what is unchecked |
-| `docs/parity.md` | dm's behaviour checklist, with the test or run that proves each line |
-| `docs/ui-design.md` | dm's look as tokens; verify a visual change with `scripts/ui-shot.py` |
+| `docs/parity.md` | EDM's behaviour checklist, with the test or run that proves each line |
+| `docs/ui-design.md` | EDM's look as tokens; verify a visual change with `scripts/ui-shot.py` |
 | `docs/video-panel.md` | The browser's "Download video" panel, line by line with its tests |
 | `docs/decisions.md` | Decisions not obvious from the code, and why |
 | `docs/scorecard.md` | Generated counts: behaviours, zoo, fuzzing, budgets |
 | `docs/testing.md` | Every check, what it proves and how to run it, in Docker too |
-| `bench/README.md` | Reference A's frozen benchmark: the floor for dm's speed, memory and CPU on every system |
+| `bench/README.md` | Reference A's frozen benchmark: the floor for EDM's speed, memory and CPU on every system |
 
-The loop: write down what dm should do; build it so that it runs through a
+The loop: write down what EDM should do; build it so that it runs through a
 registry command; test it in the window, in the real binary, or in a real
 browser; look at a screenshot; then update the page it belongs to.
 
-## What dm is
+## What EDM is
 
 A free download manager for Windows, macOS and Linux, with a browser
 extension that hands it the browser's downloads.
 
 - The app is the product: the crates in `crates/`, one Cargo workspace at the
-  repository's root (`Cargo.toml`), with `tooling/xtask` beside them. `crates/dm-core` is the engine (probe, plan,
+  repository's root (`Cargo.toml`), with `tooling/xtask` beside them. `crates/edm-core` is the engine (probe, plan,
   ranged fetch, resume, assembly, queue, HLS, DASH, Metalink, BitTorrent,
   video-page handling), and on macOS the allocator the GPUI window runs with
-  (`memory`: large blocks go back to the system when freed). `crates/dm-js` is dm's own
+  (`memory`: large blocks go back to the system when freed). `crates/edm-js` is EDM's own
   JavaScript interpreter (YouTube's player checks, proxy scripts), of no dependencies;
-  dm-core runs its JavaScript there. `crates/dm-media` is dm's own media code (the MP4, Matroska
+  edm-core runs its JavaScript there. `crates/edm-media` is EDM's own media code (the MP4, Matroska
   and transport-stream writers, the MP3 and GIF encoders, the AAC and AV1 readers, subtitles):
-  files in, files out, no sockets and no async runtime; dm-core keeps its paths
-  (`dm_core::mp4mux`) and calls it off the runtime. `crates/dm-torrent` is the one crate that
-  names librqbit, BitTorrent's engine, behind dm's own session, torrent and stats types;
-  dm-core's `torrent.rs` drives it. `crates/dm-net` is how dm reaches a server: the HTTP client
+  files in, files out, no sockets and no async runtime; edm-core keeps its paths
+  (`edm_core::mp4mux`) and calls it off the runtime. `crates/edm-torrent` is the one crate that
+  names librqbit, BitTorrent's engine, behind EDM's own session, torrent and stats types;
+  edm-core's `torrent.rs` drives it. `crates/edm-net` is how EDM reaches a server: the HTTP client
   and its TLS, proxies and the proxy script, sign-ins, cookies, the speed ceiling, the stop flag
-  and `Error`, re-exported by dm-core under their old names, and dm's clock and calendar
-  (`dm_core::clock`: the local time from the system, the dates servers and people write, read
-  to chrono's old grammar; no date crate). `crates/dm-shell` is everything around the window that is not
+  and `Error`, re-exported by edm-core under their old names, and EDM's clock and calendar
+  (`edm_core::clock`: the local time from the system, the dates servers and people write, read
+  to chrono's old grammar; no date crate). `crates/edm-shell` is everything around the window that is not
   the window: settings, the native messaging host, the one-instance lock,
-  startup and the inbox, and the application layer (`dm_shell::app`: the
+  startup and the inbox, and the application layer (`edm_shell::app`: the
   queue's verbs, the commands, what happened between reads and the typed
   events, schedules, hand-offs, the control port's rules, and every request
   to a server that is not a download), so another window toolkit can drive
-  the same app (`docs/architecture/`). `crates/dm-desktop-base` is what the
+  the same app (`docs/architecture/`). `crates/edm-desktop-base` is what the
   desktop program does that is not drawing, with no window toolkit: `Desktop`
   (the application's `Platform`), the login item, the control port, MCP, the
   command line, the words (`i18n`, its catalogs in `assets/i18n`: a string added to the
@@ -57,8 +57,8 @@ extension that hands it the browser's downloads.
   i18n` counts them, `docs/guide/translating.md`) and
   numbers (`format`), and the system's services; its modules are in three folders,
   `platform/` (the system's services), `view/` (the dialogs' models and words) and `run/`
-  (the ways dm runs, one `modes::Mode` parsed from the command line), each reached from the
-  crate's root as before (`dm_desktop_base::rows`). `crates/dm-gpui` is the
+  (the ways EDM runs, one `modes::Mode` parsed from the command line), each reached from the
+  crate's root as before (`edm_desktop_base::rows`). `crates/edm-gpui` is the
   window people install on macOS, Windows and Linux, drawn in Rust with GPUI,
   no web view, plus the tray: one file per part of the window, in five
   folders (`window/`: `list.rs` the rows and their reads, `tick.rs` what each
@@ -67,42 +67,42 @@ extension that hands it the browser's downloads.
   one file per dialog such as `addurl.rs` and `details.rs`; `options.rs` with
   `options/pages.rs` and a file per page in `options/pages/`; `widgets/`; `platform/`: the system's window calls, the
   tray, drags and drops), and `port.rs` with `probe.rs` for the control port. The window is a library,
-  `dm_gpui::run_app(args, application)`, which `main.rs` calls with GPUI's platform for the computer and the
-  phone's `android_main` (`crates/dm-android`) with the phone's (gpui-android's `SharedPlatform`), after handing
-  `set_phone` its `phone::Phone` and setting dm's folders (`DM_HOME`, `TMPDIR`, `set_phone_folders`). On Android what only the phone can do
+  `edm_gpui::run_app(args, application)`, which `main.rs` calls with GPUI's platform for the computer and the
+  phone's `android_main` (`crates/edm-android`) with the phone's (gpui-android's `SharedPlatform`), after handing
+  `set_phone` its `phone::Phone` and setting EDM's folders (`EDM_HOME`, `TMPDIR`, `set_phone_folders`). On Android what only the phone can do
   (a notification, opening a file and showing its folder, the clipboard, the wake lock, a share's link,
-  publishing a finished file to `Download/dm` and the folders dm writes by path (N9), the connection
+  publishing a finished file to `Download/EDM` and the folders EDM writes by path (N9), the connection
   and battery for the phone's rules (N10), the schedule's alarm (N12))
-  goes through one seam, `dm_desktop_base::phone`: the app hands its `PhoneServices` to `set_phone` before
+  goes through one seam, `edm_desktop_base::phone`: the app hands its `PhoneServices` to `set_phone` before
   the window starts, and each `platform/` module's Android arm (and, for publishing, the engine through
-  `dm_core::folders::set_publisher`) asks through it; what a phone lacks (the
+  `edm_core::folders::set_publisher`) asks through it; what a phone lacks (the
   login item, the Trash, the tray, moving the window) is refused in words or does
-  nothing (gaps row N17); the file panels are GPUI's file prompt and dm's own folders (N9). dm's four
-  Java classes (`DmActivity`, `DmService`, `DmActionReceiver`, `DmBootReceiver`) only hand their
-  events to Rust (`android/natives.rs`). `cargo packager -p dm-gpui` there builds the installers,
+  nothing (gaps row N17); the file panels are GPUI's file prompt and EDM's own folders (N9). EDM's four
+  Java classes (`EdmActivity`, `EdmService`, `EdmActionReceiver`, `EdmBootReceiver`) only hand their
+  events to Rust (`android/natives.rs`). `cargo packager -p edm-gpui` there builds the installers,
   from `assets/app-icons/` and `assets/macos/Info.plist`; its `Cargo.toml`
-  holds dm's version. What is not code is in one folder, `assets/`
+  holds EDM's version. What is not code is in one folder, `assets/`
   (the window's `icons/`, `app-icons/`, `i18n/`, `rules/`, `macos/`), and
-  `crates/dm-assets` compiles in what the program reads of it. The older
-  egui window (`crates/dm-desktop`) was removed with its
+  `crates/edm-assets` compiles in what the program reads of it. The older
+  egui window (`crates/edm-desktop`) was removed with its
   fonts and vendored patches on 2026-11-13 (gaps row G9).
-  `crates/dm-safari` is the program of dm's Safari extension (macOS), in
-  `dm Safari Extension.appex` inside dm.app (`scripts/safari-extension.sh`):
-  it starts dm's own host for each message Safari sends it and links
-  nothing of dm's.
-  `crates/dm-protocol` is what the extension and the native host say to
+  `crates/edm-safari` is the program of EDM's Safari extension (macOS), in
+  `EDM Safari Extension.appex` inside EDM.app (`scripts/safari-extension.sh`):
+  it starts EDM's own host for each message Safari sends it and links
+  nothing of EDM's.
+  `crates/edm-protocol` is what the extension and the native host say to
   each other, and the rule for which downloads are caught — one crate used
   by both sides. A newer app must never stop an older extension: replies
-  are only added to, a new ability is a name in `dm_protocol::feature`
+  are only added to, a new ability is a name in `edm_protocol::feature`
   (not a protocol version), and the frames each released extension sends
-  are frozen in `dm-protocol/tests/wire/` (add one there for each
+  are frozen in `edm-protocol/tests/wire/` (add one there for each
   extension release; never edit one). The extension does the bare
   minimum: the app serves the right-click menu, judges each caught
   download by its rules as saved now, may send the words the browser
   says, and makes the panel's list of a player's streams
-  (`dm_protocol::media`); a new feature goes in the app, through those
+  (`edm_protocol::media`); a new feature goes in the app, through those
   mechanisms, not in the extension (`docs/how-it-works.md`).
-- `crates/dm-catcher/` is the browser extension, in Rust (crate `dm-catcher`),
+- `crates/edm-catcher/` is the browser extension, in Rust (crate `edm-catcher`),
   compiled to WebAssembly. It catches downloads and hands them to the app,
   and downloads nothing itself: with no app the browser keeps them.
   `extension/` holds what the browser loads around it: two manifests, the
@@ -113,7 +113,7 @@ extension that hands it the browser's downloads.
   and the popup (`pkg/background.js`, with the WebAssembly in it so Rust registers the listeners on the
   worker's first turn, `web/listen.rs`; `pkg/popup.js`): they have no JavaScript of their own.
   What the extension says (the popup, the four menu items, the panel, its name) is listed in
-  `crates/dm-catcher/src/words.rs` and said through the browser's own `i18n` from `extension/_locales`,
+  `crates/edm-catcher/src/words.rs` and said through the browser's own `i18n` from `extension/_locales`,
   one catalog per language the app speaks; a word added there needs an entry in every catalog,
   which `words/tests.rs` checks.
 - `scripts/` holds the checks that drive the built program, a browser or a
@@ -125,8 +125,8 @@ extension that hands it the browser's downloads.
 | File | What it says |
 |---|---|
 | `docs/parity.md` | Every behaviour, its status, and the test or run that proves it |
-| `crates/dm-gpui/src/window_tests/` (with `src/harness.rs`) | The GPUI window's every menu item, toolbar button and row-menu item clicked by its name and checked for what it does, through the control port's methods in GPUI's test platform; and whole by `scripts/human-qa.py` |
-| `docs/zoo.md` | Thirty-one server behaviours and what dm does with each (generated; floor only rises) |
+| `crates/edm-gpui/src/window_tests/` (with `src/harness.rs`) | The GPUI window's every menu item, toolbar button and row-menu item clicked by its name and checked for what it does, through the control port's methods in GPUI's test platform; and whole by `scripts/human-qa.py` |
+| `docs/zoo.md` | Thirty-one server behaviours and what EDM does with each (generated; floor only rises) |
 | `docs/scorecard.md` | The counts of all of the above, by area (generated) |
 | `docs/how-it-works.md` | How the app and the extension fit together, and how to build them |
 | `AGENTS.md` › Glossary | What the code's words mean (row, queue, range, part, piece, host), and the name to use |
@@ -144,7 +144,7 @@ The Makefile is the short way, as with the flutter tool (`make help` lists
 them all):
 
 ```sh
-make run [ARGS="…"]     # build what changed and start dm with its window
+make run [ARGS="…"]     # build what changed and start EDM with its window
 make build              # installers for every platform this machine can build, into build/
 make build-macos | build-linux | build-windows | build-extension   # one of them
 make devices            # which platforms this machine can build, and why not
@@ -162,30 +162,30 @@ cargo xtask check
 Underneath:
 
 ```sh
-cd crates/dm-catcher && cargo test                   # the extension's decisions, on the host
-cd crates/dm-catcher && cargo clippy --target wasm32-unknown-unknown -- -D warnings
+cd crates/edm-catcher && cargo test                   # the extension's decisions, on the host
+cd crates/edm-catcher && cargo clippy --target wasm32-unknown-unknown -- -D warnings
 sh scripts/package.sh                      # the WebAssembly, dist/chrome, dist/firefox, zips
 cargo test --workspace       # Rust unit + integration (real HTTP server)
 python3 scripts/contract-coverage.py       # extension-app contract, each file >= 95% of lines
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --check
-python3 scripts/app-check.py               # drives the built binary (DM_BINARY= for a packaged one)
+python3 scripts/app-check.py               # drives the built binary (EDM_BINARY= for a packaged one)
 python3 scripts/readme-shots.py           # the README's pictures, of the GPUI window (macOS)
-./target/debug/dm-gpui --control 0         # drive the running window, the one shipped: see dm-desktop-base control.rs
-./target/debug/dm-gpui --headless --control 0   # no window, for scripts and agents
-./target/debug/dm-gpui mcp                 # MCP tools for an AI client, relayed to a running dm
-./target/debug/dm-gpui list | status N | pause N | resume N | cancel N   # the command line, against a running dm
-cargo test -p dm-gpui window_tests   # the window, driven through the control port's methods
+./target/debug/edm-gpui --control 0         # drive the running window, the one shipped: see edm-desktop-base control.rs
+./target/debug/edm-gpui --headless --control 0   # no window, for scripts and agents
+./target/debug/edm-gpui mcp                 # MCP tools for an AI client, relayed to a running EDM
+./target/debug/edm-gpui list | status N | pause N | resume N | cancel N   # the command line, against a running EDM
+cargo test -p edm-gpui window_tests   # the window, driven through the control port's methods
 cargo xtask scorecard | layers | privacy   # the scorecard, the crates' layers, nothing phones home
-cargo test -p dm-core --test zoo -- --nocapture   # the server zoo; DM_RAISE_FLOOR=1 after a fix
-PROPTEST_CASES=200000 cargo test --release -p dm-core --test fuzz   # a deep fuzz hunt
+cargo test -p edm-core --test zoo -- --nocapture   # the server zoo; EDM_RAISE_FLOOR=1 after a fix
+PROPTEST_CASES=200000 cargo test --release -p edm-core --test fuzz   # a deep fuzz hunt
 sh scripts/linux-package.sh                # .deb and AppImage built, the .deb installed and driven
 sh scripts/linux-check.sh                  # app-check.py against the Linux binary, in a Debian container
 sh scripts/linux-gui-check.sh              # real mouse and keys on the window and tray, in a container
 sh scripts/linux-kde-close-check.sh        # closing the window under KDE's compositor (KWin), in a container
-python3 scripts/chrome-check.py            # Chrome for Testing, handing off to a real dm
+python3 scripts/chrome-check.py            # Chrome for Testing, handing off to a real EDM
 python3 scripts/firefox-check.py native    # a real Firefox, when one is installed
-node bench/bench.mjs && node bench/compare.mjs   # dm against reference A's frozen floor, every parameter (bench/README.md)
+node bench/bench.mjs && node bench/compare.mjs   # EDM against reference A's frozen floor, every parameter (bench/README.md)
 ```
 
 `cargo` lives in `~/.cargo/bin`, which a fresh shell may not have on `PATH`.
@@ -195,7 +195,7 @@ the frozen standard that reference A was measured against.
 
 ### On Windows (learnt the hard way, 2026-11-04)
 
-- Build outside `C:`: `CARGO_TARGET_DIR=D:/dm-target` for the workspace.
+- Build outside `C:`: `CARGO_TARGET_DIR=D:/edm-target` for the workspace.
 - `python3` can be the Microsoft Store's placeholder, which only prints how to
   install Python: `scripts/package.sh` finds a Python that runs; elsewhere call
   `python`.
@@ -210,7 +210,7 @@ the frozen standard that reference A was measured against.
   clippies, the crates' tests, `scripts/chrome-check.py`, then
   `scripts/human-qa.py` whole.
 - A browser check's first hand-over can be slow: Windows' virus scanner reads
-  each fresh copy of `dm-gpui.exe` the first time it runs. chrome-check
+  each fresh copy of `edm-gpui.exe` the first time it runs. chrome-check
   asks the host for a hello before its first click, and a failed check prints
   what the extension said since the check before.
 - `%RANDOM%` in a `.bat` is the same in every `cmd.exe` started in the same
@@ -218,13 +218,13 @@ the frozen standard that reference A was measured against.
   host shim makes a folder for each start's stderr, which only one can win,
   inside a parent made beforehand (two `mkdir`s also making the parent at once
   can both succeed).
-- A dm started from a Git Bash subshell with `&` ends with the subshell; start
+- An EDM started from a Git Bash subshell with `&` ends with the subshell; start
   one to look at with PowerShell's `Start-Process`.
 - Reference A's Edge extension is a Manifest V2 one, which Edge disables in a
   new or test profile: its panel can be watched only in a profile where it was
   already on (the maintainer's own Edge). The side-by-side harness lives
   outside the repository, since it names reference A.
-- Windows Firewall asks about dm (or a test program) when a torrent listens
+- Windows Firewall asks about EDM (or a test program) when a torrent listens
   for peers; Cancel is enough for a test, which only downloads.
 
 ## Rules for a change
@@ -234,14 +234,14 @@ the frozen standard that reference A was measured against.
    is `python3 scripts/human-qa.py` run whole in a visible window, which
    fails on any row failed or not checked.
 1. Reproduce first: a failing test against the local server in
-   `crates/dm-core/tests/common`, or a recorded run.
+   `crates/edm-core/tests/common`, or a recorded run.
 2. One defect per change. No drive-by refactors.
 3. Never report `Completed` for bytes that were not all received and
    finalised; never let a remote name escape the download folder.
 4. Tests use their own temporary directories. Nothing touches a real
    Downloads folder, browser profile or credential.
 5. No DRM, paywall, login or CAPTCHA circumvention, and no site-specific
-   extraction: YouTube pages are read by dm itself, other sites by the browser extension.
+   extraction: YouTube pages are read by EDM itself, other sites by the browser extension.
 6. Free means free: no paid service, no analytics, no crash reporting, no
    telemetry. `cargo xtask privacy` enforces it; do not weaken it.
 7. Shipped code does not `unwrap`, `expect` or `panic`; a new reader of
@@ -258,17 +258,17 @@ the frozen standard that reference A was measured against.
    by name, so a test's made-up address or string is not taken for shipped
    code.
 9. Where a person's files live (home, Downloads, `%LOCALAPPDATA%`, the XDG
-   folders, `~/Library/...`) is asked of `dm_core::folders` alone: `cargo
+   folders, `~/Library/...`) is asked of `edm_core::folders` alone: `cargo
    xtask layers` refuses the `dirs` crate, `"HOME"`, `"USERPROFILE"`,
    `"APPDATA"`, `"LOCALAPPDATA"`, `"XDG_CONFIG_HOME"`, `"XDG_DATA_HOME"`
    and the `Library` folders anywhere else in shipped code.
-10. What tests share is in `crates/dm-test-support`, named only in
+10. What tests share is in `crates/edm-test-support`, named only in
    `[dev-dependencies]`; a `#[path]` that reaches out of its crate's folder
    fails `cargo xtask layers`.
 11. Update `docs/parity.md` and `docs/gaps.md` with the exact
    command and result. Never record a run that did not happen.
-12. Shipped code logs with `dm_core::note!(error | warn | info, "…", values)` (dm-net's
-   `log.rs`; `crate::note!` inside dm-core, `dm_net::note!` in dm-net), which writes the
+12. Shipped code logs with `edm_core::note!(error | warn | info, "…", values)` (edm-net's
+   `log.rs`; `crate::note!` inside edm-core, `edm_net::note!` in edm-net), which writes the
    level and the words on standard error, never `eprintln!`. What a command-line mode
    answers the person (`--help`, a typo, `--register`) is printed by that mode itself. A
    wait, a timeout or a poll interval is a named `const` with a doc comment, not a
@@ -276,12 +276,12 @@ the frozen standard that reference A was measured against.
 
 ## Rules for performance and platform work
 
-These come from the maintainer's optimization spec of 2026-11-11. Where dm
+These come from the maintainer's optimization spec of 2026-11-11. Where EDM
 stands against each rule is in `docs/optimization-audit.md`, and what is
 still missing is in `docs/gaps.md`, rows 180 to 192.
 
-1. The engine never imports GPUI or any other window toolkit. `dm-core`,
-   `dm-shell`, `dm-desktop-base` and `dm-protocol` stay free of them, and
+1. The engine never imports GPUI or any other window toolkit. `edm-core`,
+   `edm-shell`, `edm-desktop-base` and `edm-protocol` stay free of them, and
    `cargo xtask layers` refuses a change that breaks this.
 2. Render functions and event handlers never block. This rules out the file
    system, the network, `Backend` calls that `block_on` the engine, a
@@ -295,7 +295,7 @@ still missing is in `docs/gaps.md`, rows 180 to 192.
    per download). Lifecycle events are the exception: they are kept and
    never dropped.
 5. Shared crates hold no platform behaviour without a reason. Platform code
-   sits behind `dm_shell::app::platform::Platform`, or in a module of its
+   sits behind `edm_shell::app::platform::Platform`, or in a module of its
    own whose small API is the same on every system.
 6. Before adding an abstraction, find the one that already does the job
    (`docs/architecture/MODULE_BOUNDARIES.md`) and weigh using it. Two of
@@ -313,7 +313,7 @@ still missing is in `docs/gaps.md`, rows 180 to 192.
    lists (`cargo xtask layers`); the list only shrinks
    (`cargo xtask doubles-baseline` shortens it).
 9. Every task spawned has an owner that can cancel it, and a plan for when
-   dm quits. A task that is simply dropped with the runtime does not count
+   EDM quits. A task that is simply dropped with the runtime does not count
    as stopped.
 10. Every optimization comes with its measurement before and after: the
     benchmark (`bench/`), `scripts/ui-bench.py`, `scripts/memory-check.py`
@@ -355,87 +355,87 @@ the one to use in new code. The names in the right-hand column are the ones in t
 
 | Word | What it is | In the code |
 |------|------------|-------------|
-| **download** | One file dm is fetching or has fetched, as a person thinks of it. | The word for the person: menus, docs, messages. |
-| **row** | The same thing as the list stores it: one download's address, state, progress, folder and options. | `dm_core::Entry` (`queue/mod.rs`, "One row"). Code says "row" for an `Entry`; prefer it in new code over "entry" or "item". |
-| **id** | A row's number, stable for as long as the list keeps the row. | `dm_core::Id` (`u64`). |
-| **the list** / **the queue** | Every row dm knows, and the runner that starts them. | `dm_core::DownloadList` (`queue.rs`, "A queue of downloads"): one per program, cheap to clone. |
+| **download** | One file EDM is fetching or has fetched, as a person thinks of it. | The word for the person: menus, docs, messages. |
+| **row** | The same thing as the list stores it: one download's address, state, progress, folder and options. | `edm_core::Entry` (`queue/mod.rs`, "One row"). Code says "row" for an `Entry`; prefer it in new code over "entry" or "item". |
+| **id** | A row's number, stable for as long as the list keeps the row. | `edm_core::Id` (`u64`). |
+| **the list** / **the queue** | Every row EDM knows, and the runner that starts them. | `edm_core::DownloadList` (`queue.rs`, "A queue of downloads"): one per program, cheap to clone. |
 | **a queue** (named) | A line rows wait in to be started later: "Main queue", "Recheck queue", or one a person makes. | A row's `queue: String` field; the Scheduler's queues. Not the `DownloadList`. |
-| **place** | An entry in the side panel: All, a kind, a person's category, Unfinished, Finished, a named queue. A filter over the one list. | `dm_shell::app::places::Place`. |
-| **state** | Where a row has got to: Queued, Running, Paused, Completed, Failed (with its reason), Cancelled. | `dm_core::State`. "Settled" means Completed, Failed or Cancelled. |
+| **place** | An entry in the side panel: All, a kind, a person's category, Unfinished, Finished, a named queue. A filter over the one list. | `edm_shell::app::places::Place`. |
+| **state** | Where a row has got to: Queued, Running, Paused, Completed, Failed (with its reason), Cancelled. | `edm_core::State`. "Settled" means Completed, Failed or Cancelled. |
 
 ### One download, inside the engine
 
 | Word | What it is | In the code |
 |------|------------|-------------|
-| **probe** | The first request: what the server says of the file (its size, name, whether it takes ranges). | `probe::Probe` (`dm-core/src/probe.rs`). |
+| **probe** | The first request: what the server says of the file (its size, name, whether it takes ranges). | `probe::Probe` (`edm-core/src/probe.rs`). |
 | **job** | The shared state of one download while it runs: its plan, ranges, files and connections. | `download::Job` (`download/mod.rs`, "Shared state for one download"). |
-| **range** / **segment** | One stretch of a file's bytes, both ends included, fetched by one connection at a time. A range can be split while it runs. | `dm_core::Segment` (`plan.rs`). "Range" is the word in comments and docs; `Segment` is the type. |
+| **range** / **segment** | One stretch of a file's bytes, both ends included, fetched by one connection at a time. A range can be split while it runs. | `edm_core::Segment` (`plan.rs`). "Range" is the word in comments and docs; `Segment` is the type. |
 | **ledger** | How much of a range is safely on disk, written after the bytes it speaks for. | `done-NNNN` files beside the plan. |
 | **seam** | Where one range ends and the next begins; its bytes are fetched again and compared. | `assemble::check_seams`. |
 | **staged file** | The file a ranged download writes every range into, at its own offset, before it is moved into place. | `Job::staged()`. |
 | **part** | A file of its own for one piece of a stream or FTP download, named only when whole; also a cut of a video (a **span**: "from 1:30 to 2:05"). | `part_path` (`part-NNNN`); `clip::Span` for the cut. |
-| **piece** | One request of a stream: an HLS segment, a DASH media piece, or a ranged slice of a one-file track. | `stream::Part` (HLS), `dm_core::dash::Piece` (DASH). |
-| **stream** | A video or sound served as a playlist of pieces (HLS, DASH) rather than one file. | `dm-core/src/stream.rs`, `dm_core::dash`. |
-| **control** | What lets a running download be paused or cancelled from outside. | `dm_core::Control`. |
-| **limiter** | The speed limit, shared by every connection it covers. | `dm_core::Limiter` (the engine's); `dm_gpui::limiter::Limiter` is the Speed limiter window. |
+| **piece** | One request of a stream: an HLS segment, a DASH media piece, or a ranged slice of a one-file track. | `stream::Part` (HLS), `edm_core::dash::Piece` (DASH). |
+| **stream** | A video or sound served as a playlist of pieces (HLS, DASH) rather than one file. | `edm-core/src/stream.rs`, `edm_core::dash`. |
+| **control** | What lets a running download be paused or cancelled from outside. | `edm_core::Control`. |
+| **limiter** | The speed limit, shared by every connection it covers. | `edm_core::Limiter` (the engine's); `edm_gpui::limiter::Limiter` is the Speed limiter window. |
 | **by range** | A ranged download whose folder is on another drive than its staging: each range goes in a file of its own (`range-NNNN`), joined into the finished file, where on one drive every range is written into the one staged file. | `Job::by_range`, `stage_by_range`, `range_path` (`download/files.rs`). |
 | **span** (of a range) | How many bytes of the file a range holds; a range's own file can hold more (an attempt that ended past where a split later cut it), which the join leaves out. | `Segment::span()`; `join_parts`' `spans`. |
 | **lead** / **overlap** | The few bytes before a range, fetched with it and compared with the end of the range before, to catch a server that sends the wrong place under the right label. | `Job::overlaps`, `LEAD_BYTES` (`assemble.rs`). |
 | **join** | Putting a finished download's parts or ranges together as the one file: a rename where it can, a copy where it must. | `assemble::join_parts`, `copy_parts_blocking`. |
-| **finish** | Everything after the last byte: checks, the name and folder it is given, the join, the digest, the staging folder emptied. | `assemble::finish`; its stages in `finish_trace` (`DM_FINISH_TRACE`). |
+| **finish** | Everything after the last byte: checks, the name and folder it is given, the join, the digest, the staging folder emptied. | `assemble::finish`; its stages in `finish_trace` (`EDM_FINISH_TRACE`). |
 | **heavy work** | Work that grows with a file's length and costs the computer, not the network (a digest, a join), run a few at a time. | `crate::heavy::run`. |
 | **turns** | How a download's connections ask a server that has gone away: one at a time, evenly, so it is asked about ten times a second, not hundreds. | `retry::Together`. |
-| **note** | A line a download puts on its row while it runs ("checked beside…"), in every language. | `Update::Note`, `dm_core::NOTES` (`download/mod.rs`). |
-| **digest** / **checksum** | A file's hash, typed in, given by the browser, named by the server's answer (`Repr-Digest`, `Digest`, `Content-MD5`) or found in a file beside it (a **sidecar**), checked once the file is whole. | `dm_core::Checksum` (`checksum.rs`, `from_headers`); `download/sidecar.rs`. |
+| **note** | A line a download puts on its row while it runs ("checked beside…"), in every language. | `Update::Note`, `edm_core::NOTES` (`download/mod.rs`). |
+| **digest** / **checksum** | A file's hash, typed in, given by the browser, named by the server's answer (`Repr-Digest`, `Digest`, `Content-MD5`) or found in a file beside it (a **sidecar**), checked once the file is whole. | `edm_core::Checksum` (`checksum.rs`, `from_headers`); `download/sidecar.rs`. |
 | **mirror** | Another place the same file can be fetched from (a Metalink lists them); its ranges are shared out between them where they agree. | `metalink::Metalink`, `download/mirrors.rs`. |
-| **second path** | A second network (a phone's connection, a second Wi-Fi) that every other connection of a ranged download goes out on. | `dm_core::second_path` (one file for each system). |
-| **live** | A stream with no end (RTMP, RTSP, MMS, or a live HLS or DASH playlist), recorded until its server or the person stops it. | `dm_core::live`, `download/dash_live.rs`. |
-| **torrent** / **swarm** | A BitTorrent download, and the peers it is fetched from. | `dm_core::torrent` (`Swarm`, `TorrentOptions`). |
-| **sign-in** | A site's cookies the browser handed over with one download, sent with that download alone; or a `cookies.txt` a person chose. | `cookies::SignIn`, `dm_core::cookies`. |
-| **category** / **kind** | What a finished file is (Video, Music, Documents, Compressed, Programs, or a person's own), which decides its folder. "Kind" is the side panel's word for the built-in ones. | `dm_core::Category`, `Categories`, `category::Custom`. |
-| **heap give-back** | At rest, the memory dm has freed handed back to the system (macOS and Linux). | `dm_core::heap::give_back`. |
+| **second path** | A second network (a phone's connection, a second Wi-Fi) that every other connection of a ranged download goes out on. | `edm_core::second_path` (one file for each system). |
+| **live** | A stream with no end (RTMP, RTSP, MMS, or a live HLS or DASH playlist), recorded until its server or the person stops it. | `edm_core::live`, `download/dash_live.rs`. |
+| **torrent** / **swarm** | A BitTorrent download, and the peers it is fetched from. | `edm_core::torrent` (`Swarm`, `TorrentOptions`). |
+| **sign-in** | A site's cookies the browser handed over with one download, sent with that download alone; or a `cookies.txt` a person chose. | `cookies::SignIn`, `edm_core::cookies`. |
+| **category** / **kind** | What a finished file is (Video, Music, Documents, Compressed, Programs, or a person's own), which decides its folder. "Kind" is the side panel's word for the built-in ones. | `edm_core::Category`, `Categories`, `category::Custom`. |
+| **heap give-back** | At rest, the memory EDM has freed handed back to the system (macOS and Linux). | `edm_core::heap::give_back`. |
 
 ### Around the engine
 
 | Word | What it is | In the code |
 |------|------------|-------------|
-| **backend** | What a window or `--headless` holds: the queue, the settings in force, and the problems no row carries. | `dm_shell::app::backend::Backend`. |
-| **session** | What one run of a window remembers that is not saved: When done, what was said, the watched folder's state. | `dm_shell::app::session::Session`. |
-| **presentation** | Whatever shows dm to a person: the GPUI window, or the loop of `--headless`. | `dm-gpui`, `dm-desktop-base/src/run/headless.rs`. |
-| **host** (browser's) | The small program a browser starts to hand a download to dm (native messaging). | `dm_shell::host`. |
-| **host** (address's) | The server's name in an address: `example.com`. | `dm_core::host_of`. |
-| **host** (JavaScript's) | Was the computer's JavaScript engine, run for YouTube's checks; dm now runs its own interpreter in process. | `dm-js`, `dm_core::javascript`. |
-| **reference A**, **reference B** | The download managers dm is measured against. Never named in code, comments or docs. | `bench/`, `docs/engine-local/` (git-ignored). |
+| **backend** | What a window or `--headless` holds: the queue, the settings in force, and the problems no row carries. | `edm_shell::app::backend::Backend`. |
+| **session** | What one run of a window remembers that is not saved: When done, what was said, the watched folder's state. | `edm_shell::app::session::Session`. |
+| **presentation** | Whatever shows EDM to a person: the GPUI window, or the loop of `--headless`. | `edm-gpui`, `edm-desktop-base/src/run/headless.rs`. |
+| **host** (browser's) | The small program a browser starts to hand a download to EDM (native messaging). | `edm_shell::host`. |
+| **host** (address's) | The server's name in an address: `example.com`. | `edm_core::host_of`. |
+| **host** (JavaScript's) | Was the computer's JavaScript engine, run for YouTube's checks; EDM now runs its own interpreter in process. | `edm-js`, `edm_core::javascript`. |
+| **reference A**, **reference B** | The download managers EDM is measured against. Never named in code, comments or docs. | `bench/`, `docs/engine-local/` (git-ignored). |
 
 ### Video pages
 
 | Word | What it is | In the code |
 |------|------------|-------------|
-| **reading** | What dm learns of a video page before it downloads it: its title, its streams, the quality chosen, as JSON the downloader reads. | `dm_core::youtube::read`, `videopage` (`fetch.rs`, `choices.rs`). |
+| **reading** | What EDM learns of a video page before it downloads it: its title, its streams, the quality chosen, as JSON the downloader reads. | `edm_core::youtube::read`, `videopage` (`fetch.rs`, `choices.rs`). |
 | **panel** | The browser's "Download video" list of a page's qualities. | `videopage::choices`; the extension's side. |
-| **player client** | Who dm says it is when it asks YouTube's player for a video's streams: its own TV client, or one the served rules name, asked in turn. | `youtube::PlayerClient`, `player_clients`. |
-| **player script** / **checks** | YouTube's JavaScript, and the `n` value and signature its addresses carry, which dm answers by running the part of the script that answers them. | `youtube/player.rs`, `youtube::solve`, `dm_core::javascript` (`dm-js`). |
-| **unsolved player** | A player script whose checks dm could not answer this run: noted by its id, and the window asks for fresh rules. | `youtube::unsolved_players`, `take_unsolved_player`. |
+| **player client** | Who EDM says it is when it asks YouTube's player for a video's streams: its own TV client, or one the served rules name, asked in turn. | `youtube::PlayerClient`, `player_clients`. |
+| **player script** / **checks** | YouTube's JavaScript, and the `n` value and signature its addresses carry, which EDM answers by running the part of the script that answers them. | `youtube/player.rs`, `youtube::solve`, `edm_core::javascript` (`edm-js`). |
+| **unsolved player** | A player script whose checks EDM could not answer this run: noted by its id, and the window asks for fresh rules. | `youtube::unsolved_players`, `take_unsolved_player`. |
 | **remux** / **mux** | Putting a picture and a sound (or a stream's pieces) into one file without re-encoding: MP4, Matroska/WebM, MPEG-TS. | `mp4mux`, `mkvmux`, `tsmux`. |
-| **clip** / **span** (of a video) | A cut of a video from one time to another. | `dm_core::clip` (`clip::Span`). |
+| **clip** / **span** (of a video) | A cut of a video from one time to another. | `edm_core::clip` (`clip::Span`). |
 
 ### The window, the browser and the rules
 
 | Word | What it is | In the code |
 |------|------------|-------------|
-| **settings** | What a person chose in Options, saved in dm's home. | `dm_shell::settings::Settings`. Not `dm_core::download::Options`, which is how one download is carried out, nor `dm_gpui::options::Options`, the Options window. |
-| **home** | dm's own folder: the settings, the list, the inbox, served rules. | `dm_shell::settings::home()`. |
-| **inbox** | The folder the browser's host drops a handed-over download in, for the window to take up. | `dm_shell::host::inbox`. |
-| **hand-off** | A download the browser hands to dm, and where it goes: a waiting row, the same click dropped, added, or asked about. | `dm_shell::app::handoff`, `Session::next_handed`. |
-| **hello** | The first thing the extension and the app say to each other: versions, settings, the served rules. | `dm_protocol::Hello`, `Request`, `Reply`. |
-| **served rules** / **site rules** | `rules.json`: the sites' rules and YouTube's clients the app hands the extension and the engine, newer ones fetched with the update check, so a site's fix needs no new release. | `dm_protocol::Rules`, `dm_shell::host::served`, `update::fetch_rules`. |
-| **update check** | The weekly look for a newer dm (and newer rules), where a person allows it. | `dm_shell::app::update` (`check`, `weekly`, `fresh_rules`). |
-| **watched folder** | A folder dm looks in for saved links, each added and then moved into `done`. | `dm_shell::app::watch` (`Watched`). |
-| **control port** | JSON lines over 127.0.0.1 that let a test or an AI assistant drive the window; off unless asked for. | `dm_desktop_base::control`, `dm_shell::app::control_api`. |
-| **schedule** / **Scheduler** | When a queue may run, and the window that edits it. | `dm_core::Schedule` (`schedule.rs`); `dm_desktop_base::scheduler`. |
+| **settings** | What a person chose in Options, saved in EDM's home. | `edm_shell::settings::Settings`. Not `edm_core::download::Options`, which is how one download is carried out, nor `edm_gpui::options::Options`, the Options window. |
+| **home** | EDM's own folder: the settings, the list, the inbox, served rules. | `edm_shell::settings::home()`. |
+| **inbox** | The folder the browser's host drops a handed-over download in, for the window to take up. | `edm_shell::host::inbox`. |
+| **hand-off** | A download the browser hands to EDM, and where it goes: a waiting row, the same click dropped, added, or asked about. | `edm_shell::app::handoff`, `Session::next_handed`. |
+| **hello** | The first thing the extension and the app say to each other: versions, settings, the served rules. | `edm_protocol::Hello`, `Request`, `Reply`. |
+| **served rules** / **site rules** | `rules.json`: the sites' rules and YouTube's clients the app hands the extension and the engine, newer ones fetched with the update check, so a site's fix needs no new release. | `edm_protocol::Rules`, `edm_shell::host::served`, `update::fetch_rules`. |
+| **update check** | The weekly look for a newer EDM (and newer rules), where a person allows it. | `edm_shell::app::update` (`check`, `weekly`, `fresh_rules`). |
+| **watched folder** | A folder EDM looks in for saved links, each added and then moved into `done`. | `edm_shell::app::watch` (`Watched`). |
+| **control port** | JSON lines over 127.0.0.1 that let a test or an AI assistant drive the window; off unless asked for. | `edm_desktop_base::control`, `edm_shell::app::control_api`. |
+| **schedule** / **Scheduler** | When a queue may run, and the window that edits it. | `edm_core::Schedule` (`schedule.rs`); `edm_desktop_base::scheduler`. |
 | **quota** / **download limits** | No more than so many megabytes every so many hours. | `quota::Allowance`, `Meter`. |
-| **secret store** | Where passwords and sign-ins are kept: the system's (Credential Manager, Keychain, Secret Service), under a key. | `dm_core::secretstore`. |
-| **backup** | File › Back up dm…'s one `.dmbackup` file of the settings and the list, the sign-ins sealed with a passphrase; File › Restore… puts it back. | `dm_shell::backup`, `dm_core::secretstore::passphrase`, `DownloadList::adopt`; `dm_gpui::dialogs::backup`. |
-| **Mark of the Web** | Where a file came from, written beside it on Windows so SmartScreen treats it as downloaded. | `dm_core::motw`. |
+| **secret store** | Where passwords and sign-ins are kept: the system's (Credential Manager, Keychain, Secret Service), under a key. | `edm_core::secretstore`. |
+| **backup** | File › Back up EDM…'s one `.dmbackup` file of the settings and the list, the sign-ins sealed with a passphrase; File › Restore… puts it back. | `edm_shell::backup`, `edm_core::secretstore::passphrase`, `DownloadList::adopt`; `edm_gpui::dialogs::backup`. |
+| **Mark of the Web** | Where a file came from, written beside it on Windows so SmartScreen treats it as downloaded. | `edm_core::motw`. |
 | **contract row** | One line of `docs/behaviour-contract.md`: what a person does and what then happens, fixed until the maintainer approves a change. | `docs/behaviour-contract.md`; checked by `scripts/human-qa.py`. |
 | **gaps row** | One line of the work list, by its number or letter and number (175, Y3, A21). | `docs/gaps.md`. |

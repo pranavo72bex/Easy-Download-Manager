@@ -1,7 +1,7 @@
-# dm's window, scene options-folders (linux, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene options-folders (linux, 1280x720, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "Tasks" 48 7 90 29.5
 "File" 106 7 140 29.5
 "Downloads" 156 7 232 29.5
@@ -23,7 +23,7 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add dm to your browser:" 236 99.5 430 122
+"Add EDM to your browser:" 236 99.5 430 122
 "Microsoft Edge" 453 99.5 571 122
 "Firefox" 609 99.5 668 122
 "Chrome and others" 706 99.5 849 122
@@ -52,7 +52,7 @@
 "Folders" 220 16 860 47.5
 "Download folder, Folders by category, Unpack when done" 220 49.5 860 69
 "Download folder" 220 87 860 109.5
-"/tmp/dm-golden/Downloads" 220 115.5 763 149.5
+"/tmp/edm-golden/Downloads" 220 115.5 763 149.5
 "Browse…" 786 121 845 143.5
 "Folder for unfinished downloads" 220 159.5 860 182
 "Browse…" 786 193.5 845 216

@@ -1,4 +1,4 @@
-# Releasing dm
+# Releasing EDM
 
 What has to be true before anyone can install this, and what only a person
 holding an account or a certificate can do.
@@ -12,7 +12,7 @@ bought, and no amount of code substitutes for one.
 | | State |
 |---|---|
 | Installers build | Verified — a `.dmg` and a `.app` were produced on macOS, and the Arch package was built in Arch's own container |
-| Update check | `latest.json` is written by the release job, with each installer's SHA-256; the release job signs it with the project's Ed25519 key (`latest.json.sig` beside it), and dm believes it only with that signature (the public key is built into `dm-shell/src/app/update.rs`), says when a newer version is out, and checks the installer it downloads against the manifest's digest. Until the maintainer makes the key (step 3 below) dm carries a placeholder and the release job's signing step fails. It does not install anything yet (gaps row F6) |
+| Update check | `latest.json` is written by the release job, with each installer's SHA-256; the release job signs it with the project's Ed25519 key (`latest.json.sig` beside it), and EDM believes it only with that signature (the public key is built into `edm-shell/src/app/update.rs`), says when a newer version is out, and checks the installer it downloads against the manifest's digest. Until the maintainer makes the key (step 3 below) EDM carries a placeholder and the release job's signing step fails. It does not install anything yet (gaps row F6) |
 | macOS is notarised | Needs an Apple Developer ID — $99/year |
 | What is in a release, and that it is the release | Each release carries `crates.txt` (every crate and version the app and the extension are built from) and `SHA256SUMS` with `SHA256SUMS.sig` (the digest of every file, signed by the same key as `latest.json`); `cargo xtask verify-release` checks a download (below, gaps row W21). Not yet run at a tag. A second build compared byte for byte has not been made: what is and is not reproducible is said under "Building the same bytes" |
 | Windows is signed | Not yet. A paid Authenticode certificate would do it; the free route is SignPath Foundation's (the README's Code signing policy is what it asks release pages to carry), and until then SmartScreen warns on first launch |
@@ -35,20 +35,20 @@ gh secret set APPLE_TEAM_ID
 ```
 
 The identity, `Developer ID Application: NAME (TEAMID)`, goes in
-`crates/dm-gpui/Cargo.toml` (the window macOS ships) as `packager.macos.signingIdentity`.
+`crates/edm-gpui/Cargo.toml` (the window macOS ships) as `packager.macos.signingIdentity`.
 Without these the build still succeeds — it just produces something
 Gatekeeper distrusts.
 
 ### 2. Windows
 
 Authenticode signing is configured under `packager.windows` in
-`crates/dm-gpui/Cargo.toml` (the window Windows ships; a certificate
+`crates/edm-gpui/Cargo.toml` (the window Windows ships; a certificate
 thumbprint or a sign command). Without it, SmartScreen warns until enough people install it
 anyway.
 
 ### 3. The update-signing key (once, before the next `desktop-v` tag)
 
-dm believes a release's `latest.json` only when `latest.json.sig` beside it
+EDM believes a release's `latest.json` only when `latest.json.sig` beside it
 is the signature of the project's Ed25519 key (gaps row F6). The key is free
 and made here; nobody but the maintainer holds its private half.
 
@@ -59,25 +59,25 @@ cargo xtask update-key
 It prints two lines:
 
 - the **public key**: paste it as `SIGNING_KEY` in
-  `crates/dm-shell/src/app/update.rs`, replacing the placeholder,
+  `crates/edm-shell/src/app/update.rs`, replacing the placeholder,
   and commit that;
 - the **private key**: set it as the repository secret, and keep a copy
   offline (a password manager). Never commit it or paste it anywhere else.
 
 ```sh
-gh secret set DM_UPDATE_SIGNING_KEY       # paste the private line
+gh secret set EDM_UPDATE_SIGNING_KEY       # paste the private line
 ```
 
 The `release` job runs `cargo xtask sign-manifest ../installers/latest.json`
 with that secret; the signer refuses a key whose public half is not the one
-dm carries, so a missing secret, the placeholder or a mismatched pair fails
+EDM carries, so a missing secret, the placeholder or a mismatched pair fails
 the job before anything is drafted. To sign a manifest by hand:
 
 ```sh
-DM_UPDATE_SIGNING_KEY='…' cargo xtask sign-manifest path/latest.json   # writes path/latest.json.sig
+EDM_UPDATE_SIGNING_KEY='…' cargo xtask sign-manifest path/latest.json   # writes path/latest.json.sig
 ```
 
-A dm built with one key refuses every manifest signed by another. Losing
+An EDM built with one key refuses every manifest signed by another. Losing
 the private key, or replacing it, means the dms already installed can no
 longer believe an update: they would have to be updated from the releases
 page by hand. Keep the copy.
@@ -86,19 +86,19 @@ page by hand. Keep the copy.
 
 ```sh
 # The version appears in these places and they must agree.
-$EDITOR crates/dm-gpui/Cargo.toml      # version (and dm-core's, dm-shell's,
-                                               # dm-desktop-base's: a test holds them equal)
+$EDITOR crates/edm-gpui/Cargo.toml      # version (and edm-core's, edm-shell's,
+                                               # edm-desktop-base's: a test holds them equal)
 $EDITOR packaging/PKGBUILD             # pkgver
 
 cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings
-(cd crates/dm-catcher && cargo test) && sh scripts/package.sh && python3 scripts/chrome-check.py
+(cd crates/edm-catcher && cargo test) && sh scripts/package.sh && python3 scripts/chrome-check.py
 
-git commit -am "dm 0.2.0"
+git commit -am "EDM 0.2.0"
 git tag desktop-v0.2.0
 git push origin main --tags
 ```
 
-The tag is what runs the `bundle` job. It builds a `.dmg` (its dm.app with the
+The tag is what runs the `bundle` job. It builds a `.dmg` (its EDM.app with the
 Safari extension, `scripts/safari-extension.sh --dmg`), a Windows
 installer, a `.deb` and an `.AppImage`, writes `latest.json`, signs it
 (`latest.json.sig`, step 3 above), writes the crate list (`crates.txt`) and
@@ -119,10 +119,10 @@ To build installers without releasing anything, run the workflow by hand
 
 Every release carries, beside its installers (gaps row W21):
 
-- `crates.txt`: every crate and version the app (`dm-gpui`) and the browser
-  extension (`dm-catcher`) are built from, every system's together, each with
+- `crates.txt`: every crate and version the app (`edm-gpui`) and the browser
+  extension (`edm-catcher`) are built from, every system's together, each with
   where it comes from: crates.io and the SHA-256 `Cargo.lock` pins for
-  it, a git repository, a copy vendored in `vendor/`, or dm's own
+  it, a git repository, a copy vendored in `vendor/`, or EDM's own
   folder. Written by `cargo xtask crates-list <file>` from the lock file
   (`cargo tree` without dev-dependencies, for every target), so what a test
   alone uses is not in it.
@@ -132,7 +132,7 @@ Every release carries, beside its installers (gaps row W21):
 - `SHA256SUMS.sig`: the Ed25519 signature of `SHA256SUMS`, base64, by the
   project's key, the one that signs `latest.json` (step 3 above). The release
   job makes both with `cargo xtask sign-release ../installers`, which refuses a
-  key that is not the one dm carries, then checks them with
+  key that is not the one EDM carries, then checks them with
   `verify-release` before anything is drafted.
 
 To check what you downloaded, put the files in one folder (all of them, or
@@ -140,11 +140,11 @@ yours with `SHA256SUMS` and `SHA256SUMS.sig`) and, from a checkout of the
 release's tag:
 
 ```sh
-cargo xtask verify-release ~/Downloads/dm-0.10.0
+cargo xtask verify-release ~/Downloads/edm-0.10.0
 ```
 
-It checks the signature against the public key dm carries
-(`SIGNING_KEY` in `crates/dm-shell/src/app/update.rs`), then each file
+It checks the signature against the public key EDM carries
+(`SIGNING_KEY` in `crates/edm-shell/src/app/update.rs`), then each file
 present against its line, and `latest.json.sig` against `latest.json` when
 both are there. A changed file, a changed line or another key fails it; files
 the list names that are not in the folder are said and left unchecked.
@@ -154,16 +154,16 @@ Without Rust, the digests alone (this does not check who wrote them):
 ```sh
 sha256sum -c --ignore-missing SHA256SUMS                     # Linux
 shasum -a 256 -c --ignore-missing SHA256SUMS                 # macOS
-Get-FileHash dm_0.10.0_x64-setup.exe -Algorithm SHA256       # Windows PowerShell: compare by eye
+Get-FileHash edm_0.10.0_x64-setup.exe -Algorithm SHA256       # Windows PowerShell: compare by eye
 ```
 
 and the signature with OpenSSL 3, `KEY` being `SIGNING_KEY` from that file:
 
 ```sh
 KEY='…'
-{ printf '302a300506032b6570032100' | xxd -r -p; printf '%s' "$KEY" | base64 -d; } > dm-key.der
+{ printf '302a300506032b6570032100' | xxd -r -p; printf '%s' "$KEY" | base64 -d; } > edm-key.der
 base64 -d SHA256SUMS.sig > SHA256SUMS.sig.bin
-openssl pkeyutl -verify -pubin -keyform DER -inkey dm-key.der -rawin   -in SHA256SUMS -sigfile SHA256SUMS.sig.bin           # "Signature Verified Successfully"
+openssl pkeyutl -verify -pubin -keyform DER -inkey edm-key.der -rawin   -in SHA256SUMS -sigfile SHA256SUMS.sig.bin           # "Signature Verified Successfully"
 ```
 
 (the hex is the fixed DER prefix of an Ed25519 public key; the 32 bytes of
@@ -177,7 +177,7 @@ Firefox file, `android.yml`'s APKs) records a build attestation for every file i
 run that made it, and keeps it with the repository. To check one, with the GitHub CLI:
 
 ```sh
-gh attestation verify dm-0.10.4-arm64-v8a.apk --repo pranavo72bex/Easy-Download-Manager
+gh attestation verify edm-0.10.4-arm64-v8a.apk --repo pranavo72bex/Easy-Download-Manager
 ```
 
 It fails for a file no release job of this repository built. Together with `crates.txt`
@@ -209,7 +209,7 @@ What fixes a build, and how to repeat the release job's:
 
 ```sh
 git checkout desktop-v0.10.0
-CARGO_BUILD_RUSTFLAGS="$(sh ../scripts/release-flags.sh)"   cargo build --release --locked -p dm-gpui --target x86_64-unknown-linux-gnu
+CARGO_BUILD_RUSTFLAGS="$(sh ../scripts/release-flags.sh)"   cargo build --release --locked -p edm-gpui --target x86_64-unknown-linux-gnu
 ```
 
 and for the extension, `sh scripts/package.sh` (the same profile, flags,
@@ -221,9 +221,9 @@ bit-for-bit. What is known:
 
 - The installers and zips will not match as files: `.deb`, AppImage, `.dmg`,
   NSIS and zip archives record the time they were made. Compare the program
-  inside instead: `dm-gpui.exe` in the Windows portable zip, `usr/bin/dm-gpui`
-  in the `.deb` (`dpkg-deb -x`), `dm.app/Contents/MacOS/dm-gpui` in the
-  `.dmg`, `dm_catcher_bg.wasm` in the extension's zips.
+  inside instead: `edm-gpui.exe` in the Windows portable zip, `usr/bin/edm-gpui`
+  in the `.deb` (`dpkg-deb -x`), `EDM.app/Contents/MacOS/edm-gpui` in the
+  `.dmg`, `edm_catcher_bg.wasm` in the extension's zips.
 - Windows: the build machine's paths stay in the binary (the remapping flags
   do not reach it, above), and the MSVC linker may write the time into the
   program's header unless told not to (`/Brepro`); expect a Windows build to
@@ -259,7 +259,7 @@ new tag's digest once the tag is pushed.
 ## Package managers
 
 The release job writes them for each `desktop-v*` tag and puts them on the
-release page as `dm_<version>_package-managers.zip` (the `packaging/managers/`
+release page as `edm_<version>_package-managers.zip` (the `packaging/managers/`
 folder, from that release's `latest.json`). To write them again by hand, once the
 release is published (not a draft: the manifests point at its files):
 
@@ -273,8 +273,8 @@ Scoop's `current` folder), the three winget files (the setup.exe) and a Flatpak
 manifest (the .deb repackaged, both arches). Each carries the digests
 `latest.json` gives. Submitting them:
 
-- Homebrew: a tap of your own (`pranavo72bex/homebrew-dm`, `Casks/`). The main
-  cask list refuses apps Gatekeeper refuses, and dm's dmg is unsigned. Check
+- Homebrew: a tap of your own (`pranavo72bex/homebrew-EDM`, `Casks/`). The main
+  cask list refuses apps Gatekeeper refuses, and EDM's dmg is unsigned. Check
   first with `brew audit --cask --online` from that tap.
 - Scoop: a pull request to `ScoopInstaller/Extras` (`bucket/`).
 - winget: a pull request to `microsoft/winget-pkgs`
@@ -286,11 +286,11 @@ manifest (the .deb repackaged, both arches). Each carries the digests
 
 ## The browser extension
 
-The zips are built by `sh scripts/package.sh`, which compiles `crates/dm-catcher/` to
+The zips are built by `sh scripts/package.sh`, which compiles `crates/edm-catcher/` to
 WebAssembly with the wasm-bindgen CLI matching `Cargo.lock`. The
 Chrome zip carries the manifest `key` that fixes the unpacked id; remove it
 before a Web Store upload (the store assigns its own id, which is then
-registered with `dm-desktop --register <id>`). Chrome's needs uploading to the
+registered with `edm-desktop --register <id>`). Chrome's needs uploading to the
 Web Store.
 
 Microsoft Edge Add-ons: each `v*` tag's Release run ends with an `edge`
@@ -305,7 +305,7 @@ secrets `EDGE_CLIENT_ID` and `EDGE_API_KEY` (Partner Center › Microsoft
 Edge › Publish API) and `EDGE_PRODUCT_ID` (the listing's Product ID, a GUID
 on its Overview page). The version must be above the listing's. A copy
 installed from the store has the store's own id (the listing's CRX ID):
-until dm knows it, people run `dm-desktop --register <that id>`.
+until EDM knows it, people run `edm-desktop --register <that id>`.
 
 A `v*` tag (`git tag v3.3.0 && git push origin v3.3.0`) builds both store zips, opens a
 **draft** GitHub release with them, as the app's tag does (publish it once looked at), and
@@ -317,14 +317,14 @@ review, given the AMO API key as the secrets `AMO_JWT_ISSUER` and
 `AMO_JWT_SECRET` (Developer Hub › Manage API Keys). The add-on must first
 exist as a listed submission in the Developer Hub. Mozilla accepts each
 version once, so bump `extension/manifest.json`,
-`extension/manifest.firefox.json` and `crates/dm-catcher/Cargo.toml` together (the
+`extension/manifest.firefox.json` and `crates/edm-catcher/Cargo.toml` together (the
 release checks all three agree with the tag). 3.0.0 went to the deleted
 unlisted add-on and 3.0.1 to the listed one; 3.0.2 adds the `scripting`
 permission (to read links on a tab open before the extension was); 3.0.3
 sends a site's sign-in with "Download all/selected links" where the popup
 hands it over (no new permission); 3.0.4 reads the click keys from the
 app's rules: Alt leaves a download with the browser and Shift hands it to
-dm whatever its type or size, each changeable in Options › Browser.
+EDM whatever its type or size, each changeable in Options › Browser.
 
 ## Verifying a release actually works
 
@@ -332,24 +332,24 @@ The parts that are easy to get wrong, and how they were checked here:
 
 ```sh
 # The window's controls do what they claim, against a real queue.
-cargo test -p dm-gpui window_tests
+cargo test -p edm-gpui window_tests
 
 # The packaged app, driven: lock, hand-off, proxy, schedule, --hidden.
-DM_BINARY=target/release/bundle/dm.app/Contents/MacOS/dm-gpui python3 scripts/app-check.py
+EDM_BINARY=target/release/bundle/EDM.app/Contents/MacOS/edm-gpui python3 scripts/app-check.py
 sh scripts/linux-package.sh     # builds the .deb and AppImage, installs the .deb, drives it
 
 # The release's own Linux .deb and extension, downloaded from its draft and checked
 # against latest.json: the whole of human-qa.py in a Debian container (an X display,
-# Chromium in Edge's place); the macOS run is human-qa.py with DM_BINARY naming the
+# Chromium in Edge's place); the macOS run is human-qa.py with EDM_BINARY naming the
 # .dmg's app and dist/chrome holding the release's Chrome zip.
-DM_RELEASE=desktop-v0.2.0 sh scripts/linux-human-qa.sh
+EDM_RELEASE=desktop-v0.2.0 sh scripts/linux-human-qa.sh
 
 # The extension installs into a real Firefox and downloads a file.
 python3 scripts/firefox-check.py granted
 
 # The Arch package builds in Arch, with a container standing in for the runner.
 docker run --rm --platform linux/amd64 --security-opt seccomp=unconfined \
-  -v /tmp/dm-src:/src:ro archlinux:base-devel bash /arch-job.sh
+  -v /tmp/edm-src:/src:ro archlinux:base-devel bash /arch-job.sh
 ```
 
 On an Apple Silicon machine the Arch container runs under emulation, and
@@ -362,7 +362,7 @@ the CI runner, which is native amd64.
 Mozilla's listed review can take days. Meanwhile, **Actions › Firefox, signed
 for self-distribution › Run workflow** (`.github/workflows/firefox-signed.yml`)
 signs the Firefox build as unlisted — automatic, about two minutes — and
-attaches `dm-firefox-<version>.xpi` to the release named. It installs and stays
+attaches `edm-firefox-<version>.xpi` to the release named. It installs and stays
 installed in ordinary Firefox (the README's Firefox step). Each version signs
-once, listed or not: bump both manifests and `crates/dm-catcher/Cargo.toml` first.
+once, listed or not: bump both manifests and `crates/edm-catcher/Cargo.toml` first.
 3.0.5 was signed this way on 2026-10-19 and attached to `desktop-v0.2.0`.

@@ -1,26 +1,26 @@
 # The desktop window
 
-dm has one window, drawn with GPUI by `crates/dm-gpui` on macOS, Windows, Linux and (under 600
+EDM has one window, drawn with GPUI by `crates/edm-gpui` on macOS, Windows, Linux and (under 600
 points wide) Android. A change to it is a change on every system.
 
 ## Read first, in this order (the first wins)
 
 1. `docs/behaviour-contract.md`: what a person does and what then happens. A bot never changes
    or removes a row; a new feature adds a row at the end.
-2. `docs/ui-design.md`: dm's own rules (one filled button per dialog, three uses of the
+2. `docs/ui-design.md`: EDM's own rules (one filled button per dialog, three uses of the
    accent, three ranks of text, a state is a mark and a word, labels in one column, the word
    rules).
-3. `.claude/skills/dm-design/SKILL.md`: maps the `better-*` skills in `.claude/skills/` onto
+3. `.claude/skills/edm-design/SKILL.md`: maps the `better-*` skills in `.claude/skills/` onto
    GPUI and says which rule wins where they disagree. Then the `better-*` skill the job needs
    (layout, typography, colours, accessibility, writing, motion, UI).
 4. [ui-ux.md](ui-ux.md) for anything those leave open.
 
 ## Where things are
 
-- `crates/dm-gpui/src/window/`: the main window (list, toolbar, side panel, status bar).
-- `crates/dm-gpui/src/dialogs/`: each dialog, one module (a module with children is `foo.rs`
+- `crates/edm-gpui/src/window/`: the main window (list, toolbar, side panel, status bar).
+- `crates/edm-gpui/src/dialogs/`: each dialog, one module (a module with children is `foo.rs`
   beside `foo/`, never `foo/mod.rs`).
-- `crates/dm-gpui/src/window_tests/` with `src/harness.rs`: the window driven by name through
+- `crates/edm-gpui/src/window_tests/` with `src/harness.rs`: the window driven by name through
   the control port, in GPUI's test platform. Every menu item, button and row menu is clicked
   here and checked for what it does.
 - `assets/i18n/`: the words. English is `assets/i18n/template/catalog.json`; a string added
@@ -31,8 +31,8 @@ points wide) Android. A change to it is a change on every system.
 
 ## How to test
 
-- `cargo nextest run -p dm-gpui -E 'test(~WORDS)'` for the tests you touched;
-  `cargo test -p dm-gpui window_tests` for the whole window.
+- `cargo nextest run -p edm-gpui -E 'test(~WORDS)'` for the tests you touched;
+  `cargo test -p edm-gpui window_tests` for the whole window.
 - A layout change: the sweep tests (`window_tests/layout/`) run each dialog at four widths,
   two text sizes and in German and Hebrew (right to left). Words must fit inside their
   box in all of them.
@@ -50,4 +50,4 @@ points wide) Android. A change to it is a change on every system.
 
 ## Lessons
 
-- 2026-11-25: Changing native window sizes in dm-gpui::widgets::native requires updating the pinned expectations in widgets::native::tests::window_sizes_are_as_they_were.
+- 2026-11-25: Changing native window sizes in edm-gpui::widgets::native requires updating the pinned expectations in widgets::native::tests::window_sizes_are_as_they_were.

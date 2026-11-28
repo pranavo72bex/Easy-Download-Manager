@@ -1,0 +1,27 @@
+[package]
+name = "edm-protocol"
+version = "0.10.3"
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (deny.toml).
+publish = false
+description = "What the browser extension and the desktop app say to each other, written once for both"
+
+# Used by the native host in edm-shell and by the extension, which is built
+# for wasm32-unknown-unknown — so nothing here may need an operating system:
+# no files, no clocks, no threads. serde and nothing else.
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+# The logins and secrets tests use (gaps row X10).
+edm-test-support.workspace = true
+proptest.workspace = true
+# Only to check that the key in extension/manifest.json still yields the id
+# named here, the way Chrome derives it.
+sha2.workspace = true
+
+[lints]
+workspace = true

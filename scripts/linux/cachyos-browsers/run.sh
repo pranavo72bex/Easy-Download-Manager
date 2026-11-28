@@ -1,12 +1,12 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # The extension hand-off on CachyOS in Brave, Google Chrome, Microsoft Edge
 # (scripts/chrome-check.py) and Firefox (scripts/firefox-check.py native),
-# with dm and the extension built from this checkout. Needs docker and a
+# with EDM and the extension built from this checkout. Needs docker and a
 # network. Reports go to qa/reports/cachyos-<browser>.txt.
 #
 #   sh scripts/linux/cachyos-browsers/run.sh
@@ -15,7 +15,7 @@ set -u
 root=$(cd "$(dirname "$0")/../../.." && pwd)
 cd "$root"
 mkdir -p qa/reports
-docker build --platform linux/amd64 -t dm-cachyos-browsers -f scripts/linux/cachyos-browsers/Dockerfile . || exit 1
+docker build --platform linux/amd64 -t edm-cachyos-browsers -f scripts/linux/cachyos-browsers/Dockerfile . || exit 1
 status=0
 for b in ${BROWSERS:-brave chrome edge firefox}; do
   case "$b" in
@@ -26,7 +26,7 @@ for b in ${BROWSERS:-brave chrome edge firefox}; do
     *) echo "unknown browser $b"; exit 2 ;;
   esac
   echo "######## $b"
-  docker run --rm --platform linux/amd64 --shm-size=1g dm-cachyos-browsers sh -c "$cmd" >"qa/reports/cachyos-$b.txt" 2>&1
+  docker run --rm --platform linux/amd64 --shm-size=1g edm-cachyos-browsers sh -c "$cmd" >"qa/reports/cachyos-$b.txt" 2>&1
   rc=$?
   grep -cE "^  PASS" "qa/reports/cachyos-$b.txt" | sed 's/^/  passed: /'
   grep -E "^  FAIL" "qa/reports/cachyos-$b.txt" | head -20

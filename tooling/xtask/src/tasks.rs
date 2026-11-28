@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask build`, `test` and `qa` (and `package`, `package.rs`): one command for each, the
@@ -8,7 +8,7 @@
 //! Before them macOS and Linux had the Makefile, written for `uname`, and Windows had cargo and
 //! PowerShell typed by hand; the Makefile's `test` and `qa` and its installers call these now.
 //!
-//! - `build`: the window dm ships, built for release (`cargo build --release -p dm-gpui`, with
+//! - `build`: the window EDM ships, built for release (`cargo build --release -p edm-gpui`, with
 //!   `scripts/release-flags.sh`'s flags on macOS and Linux), and the extension
 //!   (`sh scripts/package.sh`: the WebAssembly, `dist/chrome`, `dist/firefox` and their zips).
 //!   On Windows `sh` is Git for Windows' when it is not on `PATH`. Anything after `build` goes to
@@ -17,10 +17,10 @@
 //!   nextest and then the doctests, or `cargo test` where nextest is not installed. Every test
 //!   runs (`--no-fail-fast`); anything after `test` goes to the test runner (`--profile ci`).
 //! - `qa`: the behaviour contract, whole, in a visible window: the debug build human-qa.py drives
-//!   (none where `DM_BINARY` names one), the extension where `dist/chrome` has none, then
+//!   (none where `EDM_BINARY` names one), the extension where `dist/chrome` has none, then
 //!   `python3 scripts/human-qa.py` as the contract says (`python -X utf8`, `PYTHONUTF8=1`, on
 //!   Windows). Anything after `qa` goes to human-qa.py. On Windows it is started from PowerShell
-//!   or cmd, never Git Bash, where dm's window is pictured black (refused there); on Linux it needs
+//!   or cmd, never Git Bash, where EDM's window is pictured black (refused there); on Linux it needs
 //!   a display (`sh scripts/linux-human-qa.sh` runs it in a container that has one).
 //!
 //! A program that fails ends xtask with that program's exit code.
@@ -28,13 +28,13 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
-/// The window dm ships, on every system.
-const WINDOW: &str = "dm-gpui";
+/// The window EDM ships, on every system.
+const WINDOW: &str = "edm-gpui";
 
 /// What `cargo xtask` says when no job, or an unknown one, is named.
 pub(crate) const USAGE: &str = "\
 usage: cargo xtask <job>, from the repository's root or desktop/
-  build [cargo options]       dm-gpui for release and the extension (dist/)
+  build [cargo options]       edm-gpui for release and the extension (dist/)
   test [runner options]       the workspace's tests, as CI runs them
   package [packager options]  this system's installers (the .rpm too on Linux alone)
   qa [human-qa options]       scripts/human-qa.py, whole, in sight (Windows: PowerShell or cmd)
@@ -126,12 +126,12 @@ fn qa_env(os: &str) -> Vec<(String, String)> {
 fn qa_refusal(os: &str, msystem: Option<&str>, display: bool) -> Option<String> {
     match os {
         "windows" if msystem.is_some_and(|m| !m.is_empty()) => Some(
-            "cargo xtask qa: started from Git Bash, where dm's window is pictured solid black: \
+            "cargo xtask qa: started from Git Bash, where EDM's window is pictured solid black: \
              start it from PowerShell or cmd"
                 .to_string(),
         ),
         "linux" if !display => Some(
-            "cargo xtask qa: no display (DISPLAY or WAYLAND_DISPLAY): human-qa.py shows dm's \
+            "cargo xtask qa: no display (DISPLAY or WAYLAND_DISPLAY): human-qa.py shows EDM's \
              window; sh scripts/linux-human-qa.sh runs it in a container that has one"
                 .to_string(),
         ),
@@ -151,7 +151,7 @@ fn binary_name(os: &str) -> String {
 /* ------------------------------------------------------------- running */
 
 /// `path` without Windows' verbatim prefix (`\\?\`), which `canonicalize` puts on a drive's path
-/// and which Git for Windows' `sh`, and some programs given it as a folder or in `DM_BINARY`, do
+/// and which Git for Windows' `sh`, and some programs given it as a folder or in `EDM_BINARY`, do
 /// not read.
 pub(crate) fn plain(path: &Path) -> PathBuf {
     let text = path.to_string_lossy();
@@ -320,13 +320,13 @@ pub(crate) fn qa(root: &Path, extra: &[String]) -> Result<String, String> {
         return Err(why);
     }
     let mut env = cargo_env(root);
-    if std::env::var_os("DM_BINARY").is_some() {
-        println!("(DM_BINARY names the build human-qa.py drives: none is made)");
+    if std::env::var_os("EDM_BINARY").is_some() {
+        println!("(EDM_BINARY names the build human-qa.py drives: none is made)");
     } else {
         run(root, &qa_build_line(), &env)?;
         let binary = target_dir(root).join("debug").join(binary_name(os));
         env.push((
-            "DM_BINARY".to_string(),
+            "EDM_BINARY".to_string(),
             binary.to_string_lossy().into_owned(),
         ));
     }
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn build_makes_the_shipped_window_for_release_and_the_extension() {
         let [app, extension] = build_lines(&words(&["--target", "x86_64-apple-darwin"]));
-        let wanted = ["cargo", "build", "--release", "-p", "dm-gpui"];
+        let wanted = ["cargo", "build", "--release", "-p", "edm-gpui"];
         assert_eq!(app[..5], words(&wanted));
         assert_eq!(app[5..], words(&["--target", "x86_64-apple-darwin"]));
         assert_eq!(extension, words(&["sh", "scripts/package.sh"]));
@@ -405,7 +405,10 @@ mod tests {
             qa_env("windows"),
             [("PYTHONUTF8".to_string(), "1".to_string())]
         );
-        assert_eq!(qa_build_line(), words(&["cargo", "build", "-p", "dm-gpui"]));
+        assert_eq!(
+            qa_build_line(),
+            words(&["cargo", "build", "-p", "edm-gpui"])
+        );
     }
 
     #[test]
@@ -420,16 +423,16 @@ mod tests {
 
     #[test]
     fn a_drives_path_loses_the_verbatim_prefix_and_a_shares_keeps_it() {
-        assert_eq!(plain(Path::new(r"\\?\D:\dm")), Path::new(r"D:\dm"));
+        assert_eq!(plain(Path::new(r"\\?\D:\EDM")), Path::new(r"D:\EDM"));
         assert_eq!(plain(Path::new("/repo")), Path::new("/repo"));
-        let share = Path::new(r"\\?\UNC\host\dm");
+        let share = Path::new(r"\\?\UNC\host\EDM");
         assert_eq!(plain(share), share);
     }
 
     #[test]
     fn the_program_is_named_as_each_system_names_it() {
-        assert_eq!(binary_name("windows"), "dm-gpui.exe");
-        assert_eq!(binary_name("macos"), "dm-gpui");
-        assert_eq!(binary_name("linux"), "dm-gpui");
+        assert_eq!(binary_name("windows"), "edm-gpui.exe");
+        assert_eq!(binary_name("macos"), "edm-gpui");
+        assert_eq!(binary_name("linux"), "edm-gpui");
     }
 }

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # The bots' safety net, for bug-report.yml: `bash scripts/ai-revert.sh SHA WHAT URL` ($GH_TOKEN,
@@ -39,7 +39,7 @@ task=$(grep -oE '^task: [a-z]+' <<<"$message" | cut -d' ' -f2 | head -n1 || true
 if [ -n "$issue" ]; then
     gh issue reopen "$issue" || true
     gh issue edit "$issue" --add-label "bot:reverted,bot:queue,bot-task:${task:-bug}" --remove-label bot:merged || true
-    gh issue comment "$issue" --body "$(printf '<!-- dm-bot -->\nThe bot'"'"'s change was reverted: after it was merged, %s on main ([run](%s)). Queued to be tried again.\n\n— dm'"'"'s bot' "$what" "$url")" || true
+    gh issue comment "$issue" --body "$(printf '<!-- edm-bot -->\nThe bot'"'"'s change was reverted: after it was merged, %s on main ([run](%s)). Queued to be tried again.\n\n— EDM'"'"'s bot' "$what" "$url")" || true
 fi
 gh workflow run ai-worker.yml || true
 echo "Reverted $sha."

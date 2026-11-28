@@ -2051,274 +2051,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dm-android"
-version = "0.10.3"
-dependencies = [
- "android-activity",
- "base64 0.22.1",
- "dm-core",
- "dm-desktop-base",
- "dm-gpui",
- "dm-shell",
- "gpui-android",
- "gpui-pre",
- "jni",
- "libc",
- "tempfile",
-]
-
-[[package]]
-name = "dm-assets"
-version = "0.10.3"
-
-[[package]]
-name = "dm-catcher"
-version = "3.5.0"
-dependencies = [
- "dm-protocol",
- "dm-test-support",
- "futures-channel",
- "futures-util",
- "js-sys",
- "proptest",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "dm-core"
-version = "0.10.3"
-dependencies = [
- "aes 0.9.4",
- "axum",
- "base64 0.22.1",
- "bytes",
- "cbc 0.2.1",
- "chacha20poly1305",
- "crc32fast",
- "criterion",
- "dirs 7.0.0",
- "dm-media",
- "dm-net",
- "dm-test-support",
- "dm-torrent",
- "flate2",
- "futures-util",
- "getrandom 0.4.3",
- "hyper",
- "hyper-util",
- "libc",
- "librqbit",
- "md-5 0.11.0",
- "memory-stats",
- "percent-encoding",
- "proptest",
- "quick-xml 0.42.0",
- "rand 0.8.8",
- "rcgen",
- "reqwest",
- "retina",
- "serde",
- "serde_json",
- "sha1",
- "sha2 0.11.1",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-rustls",
- "tokio-socks",
- "tokio-util",
- "url",
- "windows-sys 0.61.2",
- "zip",
-]
-
-[[package]]
-name = "dm-desktop-base"
-version = "0.10.3"
-dependencies = [
- "async-channel",
- "auto-launch",
- "dm-assets",
- "dm-core",
- "dm-protocol",
- "dm-shell",
- "getrandom 0.4.3",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
- "proptest",
- "raw-window-handle",
- "serde",
- "serde_json",
- "sys-locale",
- "tempfile",
- "tokio",
- "trash",
- "url",
- "windows 0.62.2",
- "windows-sys 0.61.2",
- "zbus",
-]
-
-[[package]]
-name = "dm-gpui"
-version = "0.10.3"
-dependencies = [
- "arboard",
- "async-channel",
- "axum",
- "block2 0.6.2",
- "dm-assets",
- "dm-core",
- "dm-desktop-base",
- "dm-protocol",
- "dm-shell",
- "dm-test-support",
- "embed-resource",
- "futures-lite",
- "futures-util",
- "gpui-base",
- "gpui-component",
- "gpui-pre",
- "gpui-pre-platform",
- "notify-rust",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "objc2-foundation 0.3.2",
- "png 0.18.1",
- "proptest",
- "raw-window-handle",
- "rfd",
- "serde_json",
- "tempfile",
- "tokio",
- "tray-icon",
- "windows-sys 0.61.2",
- "x11rb",
- "zip",
-]
-
-[[package]]
-name = "dm-js"
-version = "0.10.3"
-
-[[package]]
-name = "dm-media"
-version = "0.10.3"
-dependencies = [
- "aes 0.9.4",
- "cbc 0.2.1",
- "libc",
- "proptest",
- "rav1d",
- "serde",
- "serde_json",
- "symphonia-bundle-mp3",
- "symphonia-codec-aac",
- "symphonia-core",
- "tempfile",
- "windows 0.62.2",
-]
-
-[[package]]
-name = "dm-net"
-version = "0.10.3"
-dependencies = [
- "axum",
- "base64 0.22.1",
- "brotli-decompressor",
- "bytes",
- "dm-js",
- "dm-test-support",
- "flate2",
- "futures-util",
- "getrandom 0.4.3",
- "libc",
- "md-5 0.11.0",
- "md4",
- "percent-encoding",
- "rcgen",
- "reqwest",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-rustls",
- "url",
- "webpki-roots",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "dm-protocol"
-version = "0.10.3"
-dependencies = [
- "dm-test-support",
- "proptest",
- "serde",
- "serde_json",
- "sha2 0.11.1",
-]
-
-[[package]]
-name = "dm-safari"
-version = "0.10.3"
-dependencies = [
- "libc",
- "objc2 0.6.5",
-]
-
-[[package]]
-name = "dm-shell"
-version = "0.10.3"
-dependencies = [
- "axum",
- "base64 0.22.1",
- "criterion",
- "dm-assets",
- "dm-core",
- "dm-protocol",
- "dm-test-support",
- "futures-util",
- "libc",
- "proptest",
- "ring",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "tempfile",
- "tokio",
- "url",
- "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "dm-test-support"
-version = "0.10.3"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "dm-torrent"
-version = "0.10.3"
-dependencies = [
- "bytes",
- "librqbit",
- "librqbit-peer-protocol",
- "tempfile",
- "tokio",
- "tokio-util",
- "url",
-]
-
-[[package]]
 name = "document-features"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2374,6 +2106,274 @@ name = "dyn-clone"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
+
+[[package]]
+name = "edm-android"
+version = "0.10.3"
+dependencies = [
+ "android-activity",
+ "base64 0.22.1",
+ "edm-core",
+ "edm-desktop-base",
+ "edm-gpui",
+ "edm-shell",
+ "gpui-android",
+ "gpui-pre",
+ "jni",
+ "libc",
+ "tempfile",
+]
+
+[[package]]
+name = "edm-assets"
+version = "0.10.3"
+
+[[package]]
+name = "edm-catcher"
+version = "3.5.0"
+dependencies = [
+ "edm-protocol",
+ "edm-test-support",
+ "futures-channel",
+ "futures-util",
+ "js-sys",
+ "proptest",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "edm-core"
+version = "0.10.3"
+dependencies = [
+ "aes 0.9.4",
+ "axum",
+ "base64 0.22.1",
+ "bytes",
+ "cbc 0.2.1",
+ "chacha20poly1305",
+ "crc32fast",
+ "criterion",
+ "dirs 7.0.0",
+ "edm-media",
+ "edm-net",
+ "edm-test-support",
+ "edm-torrent",
+ "flate2",
+ "futures-util",
+ "getrandom 0.4.3",
+ "hyper",
+ "hyper-util",
+ "libc",
+ "librqbit",
+ "md-5 0.11.0",
+ "memory-stats",
+ "percent-encoding",
+ "proptest",
+ "quick-xml 0.42.0",
+ "rand 0.8.8",
+ "rcgen",
+ "reqwest",
+ "retina",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2 0.11.1",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "tokio-socks",
+ "tokio-util",
+ "url",
+ "windows-sys 0.61.2",
+ "zip",
+]
+
+[[package]]
+name = "edm-desktop-base"
+version = "0.10.3"
+dependencies = [
+ "async-channel",
+ "auto-launch",
+ "edm-assets",
+ "edm-core",
+ "edm-protocol",
+ "edm-shell",
+ "getrandom 0.4.3",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "proptest",
+ "raw-window-handle",
+ "serde",
+ "serde_json",
+ "sys-locale",
+ "tempfile",
+ "tokio",
+ "trash",
+ "url",
+ "windows 0.62.2",
+ "windows-sys 0.61.2",
+ "zbus",
+]
+
+[[package]]
+name = "edm-gpui"
+version = "0.10.3"
+dependencies = [
+ "arboard",
+ "async-channel",
+ "axum",
+ "block2 0.6.2",
+ "edm-assets",
+ "edm-core",
+ "edm-desktop-base",
+ "edm-protocol",
+ "edm-shell",
+ "edm-test-support",
+ "embed-resource",
+ "futures-lite",
+ "futures-util",
+ "gpui-base",
+ "gpui-component",
+ "gpui-pre",
+ "gpui-pre-platform",
+ "notify-rust",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "png 0.18.1",
+ "proptest",
+ "raw-window-handle",
+ "rfd",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tray-icon",
+ "windows-sys 0.61.2",
+ "x11rb",
+ "zip",
+]
+
+[[package]]
+name = "edm-js"
+version = "0.10.3"
+
+[[package]]
+name = "edm-media"
+version = "0.10.3"
+dependencies = [
+ "aes 0.9.4",
+ "cbc 0.2.1",
+ "libc",
+ "proptest",
+ "rav1d",
+ "serde",
+ "serde_json",
+ "symphonia-bundle-mp3",
+ "symphonia-codec-aac",
+ "symphonia-core",
+ "tempfile",
+ "windows 0.62.2",
+]
+
+[[package]]
+name = "edm-net"
+version = "0.10.3"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "brotli-decompressor",
+ "bytes",
+ "edm-js",
+ "edm-test-support",
+ "flate2",
+ "futures-util",
+ "getrandom 0.4.3",
+ "libc",
+ "md-5 0.11.0",
+ "md4",
+ "percent-encoding",
+ "rcgen",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "url",
+ "webpki-roots",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "edm-protocol"
+version = "0.10.3"
+dependencies = [
+ "edm-test-support",
+ "proptest",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+]
+
+[[package]]
+name = "edm-safari"
+version = "0.10.3"
+dependencies = [
+ "libc",
+ "objc2 0.6.5",
+]
+
+[[package]]
+name = "edm-shell"
+version = "0.10.3"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "criterion",
+ "edm-assets",
+ "edm-core",
+ "edm-protocol",
+ "edm-test-support",
+ "futures-util",
+ "libc",
+ "proptest",
+ "ring",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
+ "tokio",
+ "url",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "edm-test-support"
+version = "0.10.3"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "edm-torrent"
+version = "0.10.3"
+dependencies = [
+ "bytes",
+ "librqbit",
+ "librqbit-peer-protocol",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "url",
+]
 
 [[package]]
 name = "either"
@@ -10907,7 +10907,7 @@ name = "xtask"
 version = "0.10.3"
 dependencies = [
  "base64 0.22.1",
- "dm-test-support",
+ "edm-test-support",
  "ring",
  "serde_json",
  "toml 1.1.6+spec-1.1.0",

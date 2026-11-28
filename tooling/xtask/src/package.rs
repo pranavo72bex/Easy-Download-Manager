@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask package`: this system's installers, from any folder of the checkout, the
@@ -23,8 +23,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// The package made: the window dm ships.
-const PACKAGE: &str = "dm-gpui";
+/// The package made: the window EDM ships.
+const PACKAGE: &str = "edm-gpui";
 
 /// The formats made where none are asked for: what CI and the Makefile make on each system.
 fn default_formats(os: &str) -> &'static str {
@@ -198,7 +198,7 @@ mod tests {
                     "packager",
                     "--release",
                     "-p",
-                    "dm-gpui",
+                    "edm-gpui",
                     "--formats",
                     formats
                 ])
@@ -234,14 +234,14 @@ mod tests {
 
     #[test]
     fn with_a_target_dir_the_packages_go_beside_the_build() {
-        let args = arguments("windows", &[], Some(Path::new("D:/dm-target")));
+        let args = arguments("windows", &[], Some(Path::new("D:/edm-target")));
         let at = args
             .iter()
             .position(|a| a == "--out-dir")
             .expect("--out-dir");
         assert_eq!(
             PathBuf::from(&args[at + 1]),
-            Path::new("D:/dm-target").join("release").join("bundle")
+            Path::new("D:/edm-target").join("release").join("bundle")
         );
     }
 
@@ -256,7 +256,7 @@ mod tests {
             .get("package")
             .and_then(|p| p.get("metadata"))
             .and_then(|m| m.get("packager"))
-            .expect("[package.metadata.packager] in dm-gpui's Cargo.toml");
+            .expect("[package.metadata.packager] in edm-gpui's Cargo.toml");
         assert!(packager.get("beforePackagingCommand").is_some());
     }
 

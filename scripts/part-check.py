@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The browser panel's "Part" line on real streaming pages (gaps row 45, contract row B59).
@@ -9,7 +9,7 @@
     python3 scripts/part-check.py [hls] [dash]
 
 Like sites-check.py it goes to public pages, so it is not in CI. It reuses chrome-check.py's
-setup (a visible browser with dm's extension and the app behind it; DM_BINARY on Windows), with
+setup (a visible browser with EDM's extension and the app behind it; EDM_BINARY on Windows), with
 the app's Download details on, as a new install has it, and its control port open, so the check
 presses Start now there as a person does. For each page it plays the stream, opens the panel's
 list, types a part (0:02 to 0:06) on its Part line, picks the stream's line, checks Download
@@ -66,7 +66,7 @@ PAGES = {
         "ok": lambda seconds: SPAN - 1.0 <= seconds <= SPAN + 2.5,
     },
     # A plain MP4 file in a <video>: the panel hands the file itself, with no list, and the part
-    # is set in Download details; dm cuts it from the file's own sample tables.
+    # is set in Download details; EDM cuts it from the file's own sample tables.
     "mp4": {
         "url": "https://www.w3.org/2010/05/video/mediaevents.html",
         "line": "mp4",
@@ -80,7 +80,7 @@ RECT = """(() => { const v = [...document.querySelectorAll('video')]
 PLAY = """(() => { const v = [...document.querySelectorAll('video')]
     .sort((a, b) => b.clientWidth - a.clientWidth)[0];
   if (v) { v.muted = true; v.play().catch(() => {}); } return 1; })()"""
-SET_PART = """(() => { const r = document.querySelector('dm-panel')?.shadowRoot;
+SET_PART = """(() => { const r = document.querySelector('edm-panel')?.shadowRoot;
   const a = r?.querySelector('.part .from'), b = r?.querySelector('.part .to');
   if (!a || !b) return 'none'; a.value = %s; b.value = %s; return a.value + '-' + b.value; })()"""
 
@@ -92,12 +92,12 @@ def streams_in(state):
 
 
 class Control:
-    """dm's control port, as a script reaches it: Download details is answered there."""
+    """EDM's control port, as a script reaches it: Download details is answered there."""
 
     def __init__(self, home):
         port = cc.wait_for(lambda: (home / "control.port").exists() and (home / "control.port").read_text(encoding="utf-8").strip(), 60)
         if not port:
-            raise RuntimeError("dm opened no control port (was it running before its settings were changed?)")
+            raise RuntimeError("EDM opened no control port (was it running before its settings were changed?)")
         self.conn = socket.create_connection(("127.0.0.1", int(port)), timeout=30)
         self.replies = self.conn.makefile("r", encoding="utf-8")
         self.call("auth", token=(home / "control.token").read_text(encoding="utf-8").strip())
@@ -116,7 +116,7 @@ def part_of(name, page, base, engine_dl, engine_home, worker):
     tab.call("Runtime.enable")
     cc.wait_for(lambda: tab.evaluate("document.readyState") == "complete", 40)
     cc.check(f"{name}: the page script loads",
-             cc.wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 20))
+             cc.wait_for(lambda: tab.evaluate("!!document.querySelector('edm-panel')"), 20))
     rect = cc.wait_for(lambda: (tab.evaluate(RECT) or {}).get("w", 0) > 150 and tab.evaluate(RECT), 40)
     if not cc.check(f"{name}: a player is on the page", bool(rect), tab.evaluate("document.title")):
         return
@@ -141,7 +141,7 @@ def part_of(name, page, base, engine_dl, engine_home, worker):
     if page["line"] != "mp4":
         page_url = tab.evaluate("location.href")
         ask = ("chrome.tabs.query({}).then(ts => { const t = ts.find(t => t.url === %s); return t"
-               " ? dmReady.then(m => m.on_page_message({type: 'dm.formats', src: '', frame: %s},"
+               " ? dmReady.then(m => m.on_page_message({type: 'EDM.formats', src: '', frame: %s},"
                " {id: chrome.runtime.id, tab: {id: t.id, url: %s}, url: %s})).then(r => (r.choices || []).length)"
                " : 0; })") % ((json.dumps(page_url),) * 4)
         heard = cc.wait_for(lambda: worker.evaluate(ask), 30)
@@ -150,7 +150,7 @@ def part_of(name, page, base, engine_dl, engine_home, worker):
     cc.click_panel(tab, rect)
     # Two streams or more: the list, with its Part line above them. One: handed at once, and the
     # part is set in Download details, which opens for it (as a new install has it).
-    outcome = cc.wait_for(lambda: (lambda st: (st.get("title") == "Sent to dm" or streams_in(st)) and st)(
+    outcome = cc.wait_for(lambda: (lambda st: (st.get("title") == "Sent to EDM" or streams_in(st)) and st)(
         cc.panel(tab) or {}), 60) or {}
     streams = streams_in(outcome)
     print(f"  {name} the panel: {outcome.get('title')!r}, lines {outcome.get('lines')}", flush=True)
@@ -163,14 +163,14 @@ def part_of(name, page, base, engine_dl, engine_home, worker):
         if not cc.check(f"{name}: the stream's line is on screen", 0 <= y < high - 4, f"line at y={y:.0f}, window {high}"):
             return
         cc.click_at(tab, x, y)
-        sent = cc.wait_for(lambda: (cc.panel(tab) or {}).get("title") == "Sent to dm" and cc.panel(tab), 20)
+        sent = cc.wait_for(lambda: (cc.panel(tab) or {}).get("title") == "Sent to EDM" and cc.panel(tab), 20)
         cc.check(f"{name}: its line is taken by the app", bool(sent), str(cc.panel(tab)))
         control = Control(engine_home)
         words = cc.wait_for(lambda: (lambda w: "Start now" in w and w)(control.dialog_texts()), 30) or control.dialog_texts()
         cc.check(f"{name}: Download details opens with the part on and its ends",
                  "Only a part of the video" in words and PART[0] in words and PART[1] in words, str(words[:30]))
     else:
-        cc.check(f"{name}: its one stream is handed at once", outcome.get("title") == "Sent to dm", str(outcome))
+        cc.check(f"{name}: its one stream is handed at once", outcome.get("title") == "Sent to EDM", str(outcome))
         control = Control(engine_home)
         words = cc.wait_for(lambda: (lambda w: "Start now" in w and w)(control.dialog_texts()), 30) or control.dialog_texts()
         if not cc.check(f"{name}: Download details opens and offers a part", "Only a part of the video" in words,
@@ -189,7 +189,7 @@ def part_of(name, page, base, engine_dl, engine_home, worker):
     control.call("ui.click", text="Start now")
     landed = cc.wait_for(lambda: [p for p in engine_dl.rglob("*") if p.is_file() and p not in before
                                   and p.suffix.lower() in (".mp4", ".ts", ".mkv", ".webm")], 240) or []
-    if not cc.check(f"{name}: the part lands in dm's folder", bool(landed), str(sorted(engine_dl.rglob("*"))[-5:])):
+    if not cc.check(f"{name}: the part lands in EDM's folder", bool(landed), str(sorted(engine_dl.rglob("*"))[-5:])):
         return
     info = media_check.inspect(str(landed[0]))
     seconds = float(info.get("duration") or 0)
@@ -212,6 +212,6 @@ def parts(base, origin, engine_dl, engine_home, worker):
         part_of(name, PAGES[name], base, engine_dl, engine_home, worker)
 
 
-os.environ["DM_SKIP_LOCAL"] = "1"
+os.environ["EDM_SKIP_LOCAL"] = "1"
 cc.panel_checks = parts
 cc.main()

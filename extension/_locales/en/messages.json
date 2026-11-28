@@ -1,30 +1,30 @@
 {
   "extName": {
-    "message": "dm — Download Manager",
+    "message": "EDM — Download Manager",
     "description": "The extension's name."
   },
   "extDescription": {
-    "message": "Hands downloads and videos to the dm app, which downloads them. With no app, the browser keeps them.",
+    "message": "Hands downloads and videos to the EDM app, which downloads them. With no app, the browser keeps them.",
     "description": "The extension's description; the stores take 132 characters at most."
   },
   "menuLink": {
-    "message": "Download link with dm",
+    "message": "Download link with EDM",
     "description": "The menu item on a link."
   },
   "menuMedia": {
-    "message": "Download media with dm",
+    "message": "Download media with EDM",
     "description": "The menu item on a video or audio element."
   },
   "menuAllLinks": {
-    "message": "Download all links with dm",
+    "message": "Download all links with EDM",
     "description": "The menu item on a page."
   },
   "menuSelectedLinks": {
-    "message": "Download selected links with dm",
+    "message": "Download selected links with EDM",
     "description": "The menu item on a selection."
   },
   "popupLooking": {
-    "message": "Looking for the dm app…",
+    "message": "Looking for the EDM app…",
     "description": "The status line while the app is asked how it is."
   },
   "popupCatch": {
@@ -100,27 +100,27 @@
     "description": "The sign-in switch on a page that is not a site."
   },
   "popupOpen": {
-    "message": "Open dm",
+    "message": "Open EDM",
     "description": "The button that brings the app up."
   },
   "popupGetApp": {
-    "message": "Get the dm app",
+    "message": "Get the EDM app",
     "description": "The link to the app's download page, with no app to open."
   },
   "popupNoAnswer": {
-    "message": "The dm app did not answer",
+    "message": "The EDM app did not answer",
     "description": "The status line when the app gave no answer and nothing said why."
   },
   "popupOpening": {
-    "message": "Opening dm…",
-    "description": "While Open dm is asked."
+    "message": "Opening EDM…",
+    "description": "While Open EDM is asked."
   },
   "popupIsOpen": {
-    "message": "dm is open",
-    "description": "Open dm worked."
+    "message": "EDM is open",
+    "description": "Open EDM worked."
   },
   "popupConnected": {
-    "message": "Connected to dm $VERSION$",
+    "message": "Connected to EDM $VERSION$",
     "description": "The status line for an app that answered.",
     "placeholders": {
       "version": {
@@ -129,7 +129,7 @@
     }
   },
   "popupConnectedOld": {
-    "message": "Connected to dm $VERSION$ · update the dm app: until then the browser keeps its downloads",
+    "message": "Connected to EDM $VERSION$ · update the EDM app: until then the browser keeps its downloads",
     "description": "The status line for an app too old to judge pages.",
     "placeholders": {
       "version": {
@@ -159,16 +159,16 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm isn't connected to this browser yet.",
-    "description": "The status line when the browser finds no dm to talk to."
+    "message": "EDM isn't connected to this browser yet.",
+    "description": "The status line when the browser finds no EDM to talk to."
   },
   "popupStepGet": {
-    "message": "1. No dm app on this computer yet? Get it, install it and open it once.",
-    "description": "The first step when the browser finds no dm: getting the app."
+    "message": "1. No EDM app on this computer yet? Get it, install it and open it once.",
+    "description": "The first step when the browser finds no EDM: getting the app."
   },
   "popupStepOpen": {
-    "message": "2. Already installed? Open dm (if it's already open, open it again). This popup connects by itself.",
-    "description": "The second step when the browser finds no dm: opening the app, after which the popup connects by itself."
+    "message": "2. Already installed? Open EDM (if it's already open, open it again). This popup connects by itself.",
+    "description": "The second step when the browser finds no EDM: opening the app, after which the popup connects by itself."
   },
   "popupAdvanced": {
     "message": "Advanced: $COMMAND$",
@@ -177,7 +177,7 @@
         "content": "$1"
       }
     },
-    "description": "Below the two steps, folded away: the command that registers dm with this browser."
+    "description": "Below the two steps, folded away: the command that registers EDM with this browser."
   },
   "popupMore": {
     "message": "and $COUNT$ more",
@@ -202,7 +202,7 @@
   },
   "popupStop": {
     "message": "Stop",
-    "description": "A button beside a download the popup lists as running: stops it, as dm's Stop download does."
+    "description": "A button beside a download the popup lists as running: stops it, as EDM's Stop download does."
   },
   "popupRecent": {
     "message": "Recent",
@@ -226,11 +226,11 @@
   },
   "popupClearFinished": {
     "message": "Clear finished",
-    "description": "A button over the popup's recent downloads: takes the finished ones off dm's list, as dm's Delete Completed does; their files stay."
+    "description": "A button over the popup's recent downloads: takes the finished ones off EDM's list, as EDM's Delete Completed does; their files stay."
   },
   "popupNotAnswering": {
-    "message": "dm did not answer ($REASON$). Open dm (if it's already open, open it again); this popup tries again by itself. If it still does not answer: $COMMAND$",
-    "description": "The status line when dm is there and did not answer.",
+    "message": "EDM did not answer ($REASON$). Open EDM (if it's already open, open it again); this popup tries again by itself. If it still does not answer: $COMMAND$",
+    "description": "The status line when EDM is there and did not answer.",
     "placeholders": {
       "reason": {
         "content": "$1"
@@ -253,15 +253,15 @@
     "description": "The bar over a copy-protected player."
   },
   "panelProtectedSaid": {
-    "message": "This video is copy-protected, so only the site's own player can play it. dm does not download protected video.",
+    "message": "This video is copy-protected, so only the site's own player can play it. EDM does not download protected video.",
     "description": "What a click on a copy-protected player's bar says."
   },
   "panelThroughApp": {
-    "message": "this page, through the dm app",
+    "message": "this page, through the EDM app",
     "description": "Where a player page's video comes from, on hover."
   },
   "panelHelp": {
-    "message": "dm downloads this video with the dm app, where you choose its name and folder. A link clicked with the keep key held (Alt unless changed in dm's Options) stays in the browser.",
+    "message": "EDM downloads this video with the EDM app, where you choose its name and folder. A link clicked with the keep key held (Alt unless changed in EDM's Options) stays in the browser.",
     "description": "What ? says."
   },
   "panelDrag": {
@@ -298,27 +298,27 @@
     "description": "The bar while the app reads the video's qualities."
   },
   "panelReadingSaid": {
-    "message": "dm is reading this page's video qualities; this can take up to half a minute.",
+    "message": "EDM is reading this page's video qualities; this can take up to half a minute.",
     "description": "The line under it, so a wait is not taken for a hang."
   },
   "panelTimedOut": {
-    "message": "dm did not answer in time. Try again, or right-click the video and choose Download media with dm.",
+    "message": "EDM did not answer in time. Try again, or right-click the video and choose Download media with EDM.",
     "description": "The app gave no list of qualities in time."
   },
   "panelSending": {
-    "message": "Sending to dm…",
+    "message": "Sending to EDM…",
     "description": "The bar while the choice is handed to the app."
   },
   "panelNotTaken": {
-    "message": "dm could not take it",
+    "message": "EDM could not take it",
     "description": "The bar when the app refused it."
   },
   "panelUpdated": {
-    "message": "dm was updated: reload this page to use it",
+    "message": "EDM was updated: reload this page to use it",
     "description": "The page's script is older than the extension it talks to."
   },
   "panelSent": {
-    "message": "Sent to dm",
+    "message": "Sent to EDM",
     "description": "The bar when the app took it."
   },
   "panelInBrowser": {
@@ -358,23 +358,23 @@
     }
   },
   "panelAppReading": {
-    "message": "the dm app is reading this page for its video",
+    "message": "the EDM app is reading this page for its video",
     "description": "The background's answer for a page handed to the app to read."
   },
   "panelAppHas": {
-    "message": "the dm app has it",
+    "message": "the EDM app has it",
     "description": "The background's answer for a hand-off the app asks about first."
   },
   "panelAppDownloading": {
-    "message": "the dm app is downloading it",
+    "message": "the EDM app is downloading it",
     "description": "The background's answer for a hand-off the app started."
   },
   "panelNoAnswer": {
-    "message": "dm did not answer",
+    "message": "EDM did not answer",
     "description": "The plain panel: the app gave no answer to the list of qualities."
   },
   "panelFailed": {
-    "message": "dm did not answer. Try again, or right-click the video and choose Download media with dm.",
+    "message": "EDM did not answer. Try again, or right-click the video and choose Download media with EDM.",
     "description": "The plain panel: asking for the list failed."
   },
   "panelHls": {
@@ -386,7 +386,7 @@
     "description": "The plain panel's line for a choice that names nothing."
   },
   "toastSentMany": {
-    "message": "Sent $COUNT$ downloads to dm",
+    "message": "Sent $COUNT$ downloads to EDM",
     "description": "The one toast for several downloads handed to the app together.",
     "placeholders": {
       "count": {

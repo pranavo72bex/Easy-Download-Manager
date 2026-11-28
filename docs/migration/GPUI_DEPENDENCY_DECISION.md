@@ -6,9 +6,9 @@ it was read. A fact this research could not check is marked **UNVERIFIED**.
 Nothing in this document changes a `Cargo.toml`. The first build of the GPUI
 shell confirms or overturns it.
 
-## 1. What dm needs from a GPUI dependency
+## 1. What EDM needs from a GPUI dependency
 
-These requirements come from dm's present window (`crates/dm-desktop`)
+These requirements come from EDM's present window (`crates/edm-desktop`)
 and its behaviour contract:
 
 - **A screen reader reaches every dialog in that dialog's own window.**
@@ -16,7 +16,7 @@ and its behaviour contract:
   `scripts/human-qa.py` checks that VoiceOver gets OK and Cancel inside Add
   URL's own window. `docs/parity.md` ("Every control has a name a screen reader
   says") checks AT-SPI on Linux, and `scripts/windows-a11y-check.py` checks UI
-  Automation on Windows. To get this from egui, dm had to patch eframe so that
+  Automation on Windows. To get this from egui, EDM had to patch eframe so that
   each window has its own AccessKit adapter (`docs/decisions.md`, 2026-11-08,
   gaps row 160).
 - **Dialogs are real windows.** Each opens over the middle of the main window
@@ -26,22 +26,22 @@ and its behaviour contract:
 - **Text inputs** that support IME, plus menus, context menus, tooltips, check
   boxes, radio buttons, toggles and tabs.
 - **System integration:** a tray icon, file choosers, the clipboard, files
-  dropped in, and finished files dragged out to other apps. dm does part of
+  dropped in, and finished files dragged out to other apps. EDM does part of
   drag-out itself (`xdnd.rs` on X11, `drops.rs`), using raw window handles.
 - **Tests:** tests drive the window through its accessibility tree and compare
   offscreen snapshots (`egui_kittest` with `wgpu` and `snapshot`). Linux QA runs
   on Xvfb in Docker (`linux-human-qa.sh`).
 
-### dm's toolchain and size today (repo, 2026-11-09)
+### EDM's toolchain and size today (repo, 2026-11-09)
 
 | Fact | Value | Where |
 |---|---|---|
-| Window stack | eframe/egui 0.37, features `default_fonts, glow, persistence, wayland, x11, accesskit, clipboard`. winit 0.30, egui-winit and eframe are patched copies in `vendor`. | `crates/dm-desktop/Cargo.toml`, `Cargo.toml` |
+| Window stack | eframe/egui 0.37, features `default_fonts, glow, persistence, wayland, x11, accesskit, clipboard`. winit 0.30, egui-winit and eframe are patched copies in `vendor`. | `crates/edm-desktop/Cargo.toml`, `Cargo.toml` |
 | Other window crates | `tray-icon 0.26` (`ksni`), `rfd 0.17`, `arboard 3`, `raw-window-handle 0.6`, `unicode-bidi 0.3`, `egui_extras 0.37` (table) | same |
 | AccessKit in the lock file | `accesskit 0.25.1`, `accesskit_macos 0.27.1` (through egui) | `Cargo.lock` |
 | Toolchain | No `rust-toolchain` file. CI uses `dtolnay/rust-toolchain` on `stable`. This machine has rustc 1.98.1. Current stable is 1.99.1 (channel manifest dated 2026-10-15). | `.github/workflows/*.yml`, `rustc --version`, https://static.rust-lang.org/dist/channel-rust-stable.toml (2026-11-09) |
 | Release profile | `opt-level = "z"`, `lto = true`, `codegen-units = 1`, `strip = true`. `egui` and `epaint` are built at `opt-level = 3`. No `panic = "abort"`. | `Cargo.toml` |
-| Licence | GPL-3.0-or-later | `crates/dm-desktop/Cargo.toml` |
+| Licence | GPL-3.0-or-later | `crates/edm-desktop/Cargo.toml` |
 | 0.9.0 package sizes | .dmg (aarch64) 9.7 MB; .deb amd64 13.3 MB and arm64 12.4 MB; AppImage x86_64 13.2 MB; Windows setup .exe 9.9 MB; portable .zip 11.8 MB; .rpm x86_64 13.6 MB | `gh release view desktop-v0.9.0` (2026-11-09) |
 
 ## 2. Distributions available on 2026-11-09
@@ -180,7 +180,7 @@ and its behaviour contract:
   2026-11-09).
 - **Licence.** `LICENSE.md` and crates.io both say Apache-2.0. The website says
   "MIT OR Apache-2.0". **UNVERIFIED** which is meant. Either is compatible
-  with dm's licence.
+  with EDM's licence.
 - **Ecosystem.** `gpui_ce_components` 0.3.0 (2026-11-05) is a fork of the
   component library in §2.5 (https://github.com/gpui-ce/gpui-component,
   20 stars, last push 2026-10-27).
@@ -218,20 +218,20 @@ and its behaviour contract:
   2026-11-09).
 - **Dialogs draw inside the window.** `open_dialog` and `open_sheet` draw an
   overlay inside the current window's `Root`
-  (`crates/component/src/window_ext.rs`, 2026-11-09). dm's dialogs must still
+  (`crates/component/src/window_ext.rs`, 2026-11-09). EDM's dialogs must still
   be GPUI windows of their own (B42), with the library's controls inside them.
 - **Features.** No default features. The required dependencies include
   `lsp-types`, `markdown`, `notify`, `ropey`, `rust-i18n`, `schemars` and
   `similar`. Tree-sitter and syntect are optional (crates.io, 2026-11-09).
   These count against binary size.
-- **Is it needed for dm?** Yes, for the text input and the table:
+- **Is it needed for EDM?** Yes, for the text input and the table:
   - Upstream GPUI has no ready-made text input with IME. It has only the
     `InputHandler` platform trait that an input must implement
     (`crates/gpui/src/platform.rs`, 2026-11-09).
   - Upstream has no table with sortable, resizable columns. It has only
     `uniform_list` and `list`.
 
-  Writing both on dm's own would be the largest single cost of the
+  Writing both on EDM's own would be the largest single cost of the
   migration. Menus and tooltips are smaller jobs, but they come with the same
   dependency.
 
@@ -248,7 +248,7 @@ and its behaviour contract:
 | MSRV | none declared | Zed pins 1.98.1 | none declared; build with ≥ 1.98.1 | 1.95 |
 | Who publishes | Zed | Zed | one person (`huacnlee`) | community org |
 | Licence | Apache-2.0 | Apache-2.0 | Apache-2.0 | Apache-2.0 (site says MIT OR Apache-2.0) |
-| Fit for dm | **no** (no screen readers) | possible, but every widget is ours | **best** | fallback |
+| Fit for EDM | **no** (no screen readers) | possible, but every widget is ours | **best** | fallback |
 
 ## 3. Recommendation (proposed)
 
@@ -290,13 +290,13 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
   (https://crates.io/api/v1/crates/gpui-tray/0.3.0, 2026-11-09).
 - **MSRV and toolchain:** at least Rust **1.98.1**, the version Zed pins and
   this machine has. CI's `stable` (1.99.1) also works. `gpui-pre` declares no
-  MSRV, so the Phase 2 shell should decide whether dm adds a
+  MSRV, so the Phase 2 shell should decide whether EDM adds a
   `rust-toolchain.toml` pinned to 1.98.1.
 
 ### 3.2 Why this choice and not the others
 
 - Only `gpui-pre` and gpui-ce come from a registry and include AccessKit.
-  Registry crates suit dm's `cargo packager` releases and the PKGBUILD, which
+  Registry crates suit EDM's `cargo packager` releases and the PKGBUILD, which
   builds from a tarball. Upstream git would bring the Zed monorepo and a git
   `wgpu` into every build.
 - `gpui-pre` sits one day behind Zed main, while gpui-ce is about two months
@@ -318,18 +318,18 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
 - Every crate recommended here is **Apache-2.0**. That includes `gpui-pre*`,
   `gpui-component`, `gpui-tray` and `accesskit`. (Apache-2.0 is in crates.io's
   metadata for each, read 2026-11-09. accesskit's licence is
-  "MIT OR Apache-2.0" (**UNVERIFIED** on that page). It is already in dm's
+  "MIT OR Apache-2.0" (**UNVERIFIED** on that page). It is already in EDM's
   tree.)
 - The FSF lists Apache-2.0 as compatible with GPLv3: code under it may be
   combined into a GPLv3 work
   (https://www.gnu.org/licenses/license-list.html#apache2, from knowledge of
   that page; **UNVERIFIED** today).
-- dm must ship Apache-2.0's licence text and any NOTICE files of these crates
-  with its packages. dm already has a `NOTICE` file to extend.
+- EDM must ship Apache-2.0's licence text and any NOTICE files of these crates
+  with its packages. EDM already has a `NOTICE` file to extend.
 - Zed's repository as a whole is mixed-licence (GitHub reports
   `NOASSERTION`), but `crates/gpui` carries `LICENSE-APACHE`
   (https://github.com/zed-industries/zed/tree/main/crates/gpui, 2026-11-09).
-- GPUI Kit's CC BY 4.0 applies only to its docs, which dm does not ship.
+- GPUI Kit's CC BY 4.0 applies only to its docs, which EDM does not ship.
 
 ### 3.4 Upgrade procedure
 
@@ -350,7 +350,7 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
 5. **Measure size.** Record the release sizes of the .dmg, .deb and setup .exe
    against the table in §1.
 6. **Record the result.** Update this document's pin table and add a line to
-   `docs/decisions.md`. Upgrade on purpose, not weekly: only for a fix dm
+   `docs/decisions.md`. Upgrade on purpose, not weekly: only for a fix EDM
    needs, or every few months.
 
 ## 4. Capability findings
@@ -368,7 +368,7 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
   - Zed's issue "Windows: Screen reader accessibility missing completely" is
     still open (https://github.com/zed-industries/zed/issues/41138,
     2026-11-09).
-- **Work for dm.** Only elements with an `id` **and** a role are reported to
+- **Work for EDM.** Only elements with an `id` **and** a role are reported to
   assistive technology
   (https://github.com/zed-industries/zed/blob/main/crates/gpui/src/_accessibility.rs,
   2026-11-09). egui names its widgets by itself, but in GPUI every custom
@@ -389,7 +389,7 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
   is closed" (`crates/gpui/src/platform.rs`, 2026-11-09). This matches B42.
 - **On X11 a window's requested position is ignored** (issue #64447, open since
   2026-09-18). A `PopUp` window there can never take focus (issue #65493, open
-  since 2026-10-12). B42 requires a dialog to open "over the middle of the dm
+  since 2026-10-12). B42 requires a dialog to open "over the middle of the EDM
   window".
 
 ### 4.3 System integration
@@ -398,18 +398,18 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
   unmerged on 2025-12-12 (https://github.com/zed-industries/zed/pull/44047).
 - **File dialogs:** `prompt_for_paths` and `prompt_for_new_path` exist. On
   Linux they go through the XDG portal (`ashpd` with `file_chooser`), so they
-  fail where no portal runs, such as minimal Docker or Xvfb. dm can keep
+  fail where no portal runs, such as minimal Docker or Xvfb. EDM can keep
   `rfd 0.17`.
-- **Clipboard:** `read_from_clipboard` and `write_to_clipboard` exist. dm can
+- **Clipboard:** `read_from_clipboard` and `write_to_clipboard` exist. EDM can
   keep `arboard`.
 - **Other:** `reveal_path`, `open_with_system`, `on_open_urls` and
-  `register_url_scheme` exist (dm uses magnet links), as do `set_menus`, which
+  `register_url_scheme` exist (EDM uses magnet links), as do `set_menus`, which
   is the macOS menu bar, and `set_dock_menu` (`platform.rs`, 2026-11-09).
 - **Drag in:** external file drops (`ExternalPaths`) are a GPUI feature.
   **UNVERIFIED** on each OS in this research.
 - **Drag out:** `start_external_drag` defaults to `false`. Code search finds
   implementations only in `gpui_macos` and the Wayland backend (2026-11-09).
-  dm's own X11 and Windows drag-out code would have to keep working through a
+  EDM's own X11 and Windows drag-out code would have to keep working through a
   raw window handle. **UNVERIFIED** that GPUI windows expose
   `HasWindowHandle`.
 
@@ -459,11 +459,11 @@ gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12", features =
 
 **UNVERIFIED.** No authoritative figure for a minimal GPUI build was found.
 Secondary sources give 2 to 15 MB, without the build settings (search on
-2026-11-09). Three things will push dm's size up:
+2026-11-09). Three things will push EDM's size up:
 
 - `gpui-component`'s required dependencies (§2.5);
 - `gpui-pre-http-client`;
-- GPUI Kit's advice to build `gpui-pre` at `opt-level = 3`. dm found that a
+- GPUI Kit's advice to build `gpui-pre` at `opt-level = 3`. EDM found that a
   whole-program opt-level 3 gave a 27 MB binary (`Cargo.toml`
   comment).
 
@@ -488,7 +488,7 @@ Each item is pass or fail on a build of the pins in §3.1:
 2. **Dialog placement on X11.** A dialog opens over the middle of the main
    window under Xvfb and on GNOME/X11 (issue #64447). It must be modal
    (`Dialog`) and movable outside the main window on all three OSes.
-3. **Software rendering.** The shell draws under Xvfb in dm's Docker images
+3. **Software rendering.** The shell draws under Xvfb in EDM's Docker images
    with Mesa only (llvmpipe/lavapipe), and on a Windows VM without a GPU.
    Otherwise `linux-human-qa.sh` and the Windows checks cannot run.
 4. **Size.** Release .dmg, .deb and setup .exe stay near today's 10 to 13 MB
@@ -496,17 +496,17 @@ Each item is pass or fail on a build of the pins in §3.1:
    `opt-level = 3`.
 5. **Tray and login launch.** `tray-icon 0.26` (`ksni` on Linux) works next to
    GPUI's run loop on all three OSes, or `gpui-tray`'s `gpui-kit` backend does.
-   dm's hidden login launch must still create the window only when it is
+   EDM's hidden login launch must still create the window only when it is
    first shown.
 6. **Drag and drop.** Dropping files and URLs in works. Dragging finished
    files out works on macOS, Windows, X11 and Wayland, using GPUI's
-   `start_external_drag` where it exists and dm's own code elsewhere.
+   `start_external_drag` where it exists and EDM's own code elsewhere.
 7. **Text input.** IME works in `gpui-component`'s `Input` (CJK on macOS,
    Windows, Fcitx/IBus on X11 and Wayland). Arabic and Hebrew text reads in
    reading order and reaches the screen reader as stored.
 8. **The download table.** It sorts, resizes columns, and keeps its CPU share
    with 5000 rows and 20 active downloads (today 3.3 % busy, 128 MB).
-9. **Async runtime.** dm's tokio runtime sits next to GPUI's executors
+9. **Async runtime.** EDM's tokio runtime sits next to GPUI's executors
    (`gpui_tokio` exists upstream; check its `gpui-pre` equivalent).
 10. **Tests.** A `HeadlessAppContext` or GPUI Kit UI test drives a dialog
     through its AccessKit tree in CI on all three OSes.

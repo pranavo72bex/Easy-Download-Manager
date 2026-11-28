@@ -1,13 +1,13 @@
 # Options
 
-Options holds dm's settings. On macOS open it from **dm › Settings…** or ⌘,
+Options holds EDM's settings. On macOS open it from **EDM › Settings…** or ⌘,
 (comma), as every Mac program's settings; on Windows and Linux from
 **Downloads › Options**, the toolbar's **Options** button, or Ctrl+, (comma). It has six pages, listed at
 its left (on a phone, a list of their own):
 
 - [General](options-general.md): language, looks, starting, sounds, pop-ups
   and the list.
-- [Browser](options-browser.md): which downloads dm takes from your browser,
+- [Browser](options-browser.md): which downloads EDM takes from your browser,
   and who opens magnet links and `.torrent` files.
 - [Folders](options-folders.md): where downloads are saved, and sorting
   them by kind.
@@ -33,7 +33,7 @@ it says "No setting says “…”."
   while Options was open (in a menu, say) keeps that change.
 - **Cancel** closes Options and keeps nothing.
 - **Restore defaults** puts the settings of the page you are on back to how
-  dm first had them. The Sign-ins page has no defaults to go back to, so it
+  EDM first had them. The Sign-ins page has no defaults to go back to, so it
   has no such button.
 - A field that takes a number keeps the number it had if you type something
   else, and says "Numbers only: the one before was kept" under it.
@@ -48,8 +48,8 @@ OK refuses, and says why on the page that holds the problem, when:
 - a category you made or renamed cannot be a folder's name. Leave out
   `/ \ : * ? " < > |`, names like CON, and a dot or space at the end.
 
-While a program was driving dm's window a moment before (the command line or
+While a program was driving EDM's window a moment before (the command line or
 an AI assistant, see **Options › General**), OK does not change the command
 run when a download finishes, the program run when the scheduled downloads
 are done, the proxy script, or the download folders: those are yours to set.
-dm says which one was kept and asks you to set it again.
+EDM says which one was kept and asks you to set it again.

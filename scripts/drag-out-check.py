@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""A finished file dragged out of dm's window lands in Finder (macOS only).
+"""A finished file dragged out of EDM's window lands in Finder (macOS only).
 
     python3 scripts/drag-out-check.py
 
-Runs the built dm (`dm-gpui`; DM_BINARY names another) on a throwaway home, downloads a
+Runs the built EDM (`edm-gpui`; EDM_BINARY names another) on a throwaway home, downloads a
 file from a loopback server, opens an empty folder in Finder, then drags the row with the real
-mouse (CGEvent, through a small Swift helper) from dm's window into that
+mouse (CGEvent, through a small Swift helper) from EDM's window into that
 Finder window, and checks the file was copied there byte for byte. Needs
 the terminal to be allowed to control the computer (System Settings ›
 Privacy & Security › Accessibility); without it the events go nowhere and
@@ -36,7 +36,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug/edm-gpui")
 # The window draws its own title bar on macOS, inside its content, so a
 # row's place counts from the window's top.
 TITLE_BAR = 0
@@ -51,7 +51,7 @@ if args[1] == "bounds" {
     let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
     // Titles need Screen Recording; without them, the frontmost normal
     // window of that application where a title is asked for, else its
-    // largest (dm's own, not the Download complete window beside it).
+    // largest (EDM's own, not the Download complete window beside it).
     var best: [String: Any]? = nil
     var bestArea = -1.0
     for w in list {
@@ -109,7 +109,7 @@ def main():
     if sys.platform != "darwin":
         print("macOS only")
         return 0
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-drag-"))
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-drag-"))
     helper = work / "drag"
     (work / "drag.swift").write_text(SWIFT, encoding="utf-8")
     subprocess.run(["swiftc", "-O", "-o", str(helper), str(work / "drag.swift")], check=True)
@@ -120,7 +120,7 @@ def main():
     home.mkdir()
     # Its own download folder: never the person's.
     (home / "settings.json").write_text(json.dumps({"download_dir": str(work / "out")}), encoding="utf-8")
-    env = {**os.environ, "DM_HOME": str(home)}
+    env = {**os.environ, "EDM_HOME": str(home)}
     app = subprocess.Popen([str(BINARY), "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     ok = False
@@ -149,15 +149,15 @@ def main():
 
         subprocess.run(["open", str(target)], check=True)
         time.sleep(1.5)
-        # Beside dm's window, on the same display.
+        # Beside EDM's window, on the same display.
         bounds = lambda *who: subprocess.run([str(helper), "bounds", *who], capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split()
-        dm = bounds(BINARY.name) or bounds("dm")
+        edm = bounds(BINARY.name) or bounds("EDM")
         finder = bounds("Finder", target.name)
-        print("  dm window:", dm, " Finder window:", finder)
-        if not dm or not finder:
+        print("  EDM window:", edm, " Finder window:", finder)
+        if not edm or not finder:
             print("FAIL  could not find both windows")
             return 1
-        dx, dy, dw, dh = map(float, dm)
+        dx, dy, dw, dh = map(float, edm)
         fx0, fy0 = int(dx + dw + 20), int(dy)
         moved = subprocess.run(["osascript", "-e",
                                 f'tell application "Finder" to set bounds of front window to {{{fx0}, {fy0}, {fx0 + 500}, {fy0 + 400}}}'],
@@ -179,7 +179,7 @@ def main():
         ok = landed.exists() and landed.read_bytes() == PAYLOAD
         said = call("ui.inspect")["result"]["said"]
         print(("  ok  " if ok else "FAIL  ") + "the dragged file landed in the Finder folder, byte for byte"
-              + ("" if ok else f" (folder holds {[p.name for p in target.iterdir()]}; dm said {said!r})"))
+              + ("" if ok else f" (folder holds {[p.name for p in target.iterdir()]}; EDM said {said!r})"))
         if not ok:
             print("      if nothing moved: allow this terminal under Privacy & Security › Accessibility")
         conn.close()

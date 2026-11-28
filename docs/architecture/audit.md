@@ -14,23 +14,23 @@ proposed here may change a row.
 
 ### Crates and their edges
 
-| Crate | Responsibility | dm-* deps (Cargo.toml) | Held by `cargo xtask layers` |
+| Crate | Responsibility | edm-* deps (Cargo.toml) | Held by `cargo xtask layers` |
 |---|---|---|---|
-| `dm-protocol` | The wire format between the extension and the native host, plus the catch rules (`lib.rs`, `rules.rs`) | none | no GUI, no sockets (`xtask/src/main.rs:322`) |
-| `dm-core` | The engine and the queue: probe, plan, ranged/HLS/DASH/FTP/torrent/live fetch, muxers, persistence | none | no GUI (`xtask/src/main.rs:324`) |
-| `dm-shell` | Everything around the window: settings, native host and inbox, startup, single-instance lock, lists and crawler, registration, dial-up | dm-core, dm-protocol | no GUI (`xtask/src/main.rs:326`) |
-| `dm-desktop` | The egui window, tray, login item, notifications, control protocol, MCP, CLI | dm-core, dm-protocol, dm-shell | may use GUI (`xtask/src/main.rs:327`) |
-| `dm-catcher` (`crates/dm-catcher/`) | The extension (WebAssembly) | dm-protocol | no GUI, no sockets (`xtask/src/main.rs:329`) |
+| `edm-protocol` | The wire format between the extension and the native host, plus the catch rules (`lib.rs`, `rules.rs`) | none | no GUI, no sockets (`xtask/src/main.rs:322`) |
+| `edm-core` | The engine and the queue: probe, plan, ranged/HLS/DASH/FTP/torrent/live fetch, muxers, persistence | none | no GUI (`xtask/src/main.rs:324`) |
+| `edm-shell` | Everything around the window: settings, native host and inbox, startup, single-instance lock, lists and crawler, registration, dial-up | edm-core, edm-protocol | no GUI (`xtask/src/main.rs:326`) |
+| `edm-desktop` | The egui window, tray, login item, notifications, control protocol, MCP, CLI | edm-core, edm-protocol, edm-shell | may use GUI (`xtask/src/main.rs:327`) |
+| `edm-catcher` (`crates/edm-catcher/`) | The extension (WebAssembly) | edm-protocol | no GUI, no sockets (`xtask/src/main.rs:329`) |
 
 `layers()` checks only the edges between crates and the GUI and socket
 crates each one may use (GUI list at `xtask/src/main.rs:286-295`). It refuses
 any crate it does not know (`:330-332`), so a new crate needs a line there.
 It also holds every source file to 2,500 lines (`:382`). Nothing checks the
-modules *inside* dm-desktop. The design intent is already written down in
-`dm-shell/src/lib.rs:6-13`: "It knows nothing about any window toolkit, so
+modules *inside* edm-desktop. The design intent is already written down in
+`edm-shell/src/lib.rs:6-13`: "It knows nothing about any window toolkit, so
 the window can be replaced without any of this being written twice."
 
-### dm-core (51.5 k lines)
+### edm-core (51.5 k lines)
 
 - `queue/`: the rows (`Entry`, `State`, `Id`: `queue/mod.rs:59-260`) and the
   `Queue` handle (`mod.rs:532`). Its parts:
@@ -54,7 +54,7 @@ the window can be replaced without any of this being written twice."
 - `schedule.rs`, `quota.rs`, `category.rs`, `naming.rs`, `extract.rs`,
   `zipinfo.rs` and `tools.rs` cover policy and files.
 
-### dm-shell (12.9 k lines)
+### edm-shell (12.9 k lines)
 
 - `settings.rs` (+`settings/secrets.rs`): `Settings` and its load, save,
   refusals, site rules and logins.
@@ -71,7 +71,7 @@ the window can be replaced without any of this being written twice."
 - `register.rs`: browser registration. `instance.rs`: the one-copy lock.
   `dialup.rs`: dial-up and VPN. `firewall.rs`: the firewall rule.
 
-### dm-desktop (39 k lines)
+### edm-desktop (39 k lines)
 
 | Module | One line |
 |---|---|
@@ -82,17 +82,17 @@ the window can be replaced without any of this being written twice."
 | `commands.rs` | The `Command` registry: 63 variants, `Command::ALL` at `:158` |
 | `control.rs` | Control-protocol listener (TCP, token, `Request` at `:36`, `listen` at `:155`). **No egui** |
 | `mcp.rs`, `cli.rs` | Separate-process *clients* of the control protocol (`mcp.rs:12-15`, method map `:222-232`). **No egui** |
-| `app/` | `DmApp`: the window's state *and* the application logic (see section 3) |
-| `dialogs/` | One file per dialog. `Dialogs` state at `dialogs/mod.rs:887`. Functions take `app: &mut DmApp` |
+| `app/` | `EdmApp`: the window's state *and* the application logic (see section 3) |
+| `dialogs/` | One file per dialog. `Dialogs` state at `dialogs/mod.rs:887`. Functions take `app: &mut EdmApp` |
 | `table*`, `format*`, `theme*`, `icons.rs`, `i18n*`, `bidi.rs`, `a11y_tree.rs`, `accent.rs`, `contrast.rs`, `motion.rs` | Presentation |
 | `update.rs` | The weekly update check: a reqwest fetch that wakes an `egui::Context` (`:281-323`) |
 
-These are the module edges inside dm-desktop:
+These are the module edges inside edm-desktop:
 
 ```
-main ──> app::DmApp ──> backend::Backend ──> dm_core::Queue, dm_shell::{shell,lists,Settings}
+main ──> app::EdmApp ──> backend::Backend ──> edm_core::Queue, edm_shell::{shell,lists,Settings}
               │  ▲              └──> power::{WhenDone,Report}  (Platform::power)
-              │  └── dialogs::*, table::*   (take &mut DmApp; DmApp owns Dialogs: a cycle)
+              │  └── dialogs::*, table::*   (take &mut EdmApp; EdmApp owns Dialogs: a cycle)
               ├──> commands::Command, i18n, format, theme, update
               └──> control::Request (mpsc) <── control::listen (threads) <── TCP <── mcp.rs / cli.rs / scripts
 ```
@@ -101,17 +101,17 @@ main ──> app::DmApp ──> backend::Backend ──> dm_core::Queue, dm_shel
 
 | State | Owner | Mutated by | Reaches the window by |
 |---|---|---|---|
-| Rows (`Entry`, `State`, `Progress`) | `dm_core::Queue`: `Inner.slots: Mutex<HashMap<Id,Slot>>` + `order` (`queue/mod.rs:445-448`), `Slot.entry: Arc<Entry>` (`:365-368`) | Only `Queue` methods (`actions.rs`, `edit.rs`, `queues.rs`), the runner's progress intake (`runner.rs:360-392`) and the inbox task (`shell.rs:1084-1104`) | `Backend::list_shared` (`backend.rs:177`) → `Queue::list_shared` (`query.rs:49-56`): one `Arc` clone per row under both locks; held as `DmApp::rows` (`app/mod.rs:302-304`) |
+| Rows (`Entry`, `State`, `Progress`) | `edm_core::Queue`: `Inner.slots: Mutex<HashMap<Id,Slot>>` + `order` (`queue/mod.rs:445-448`), `Slot.entry: Arc<Entry>` (`:365-368`) | Only `Queue` methods (`actions.rs`, `edit.rs`, `queues.rs`), the runner's progress intake (`runner.rs:360-392`) and the inbox task (`shell.rs:1084-1104`) | `Backend::list_shared` (`backend.rs:177`) → `Queue::list_shared` (`query.rs:49-56`): one `Arc` clone per row under both locks; held as `EdmApp::rows` (`app/mod.rs:302-304`) |
 | Change signal | `Queue.inner.changed`, **one subscriber** (`queue/settings.rs:9-13`), fired by `save()` and `note()` (`persist.rs:164`, `:362`) but not by progress (`runner.rs:372-391`) | main.rs sets the global `QUEUE_CHANGED` and asks for a repaint in 250 ms (`main.rs:425-430`) | `refresh_plan` (`app/mod.rs:69-79`) in `logic()` (`app/sync.rs:542-550`) |
 | Per-run extras (retry counts, swarms, quota held) | `Slot.retrying` and `Slot.swarm` (`queue/mod.rs:383-385`), the quota meter | engine | Copied each refresh into **thread-locals** of the window crate (`app/sync.rs:39-42` → `app/rows.rs:93-150`) |
-| Derived row state (kind, haystack, visible order, counts, queue names) | `DmApp` caches keyed by `rows_gen` (`app/mod.rs:519-541`, `app/places.rs:77-200`, `app/mod.rs:745-758`) | `refresh`, `place_rows` | direct |
-| "What changed" memory (`last_state`, `notified`, `failed_told`, `ask_seen`, `own`, `dry`, schedule `Watch`es) | `DmApp` (`app/mod.rs:307`, `:389`, `:427-429`, `:434`, `:440`, `:476`, `:504`) | `refresh()` | none: events are derived by diffing |
-| Settings | Authoritative: `Backend.settings: Arc<Mutex<Settings>>` (`backend.rs:121`). Mirror: `DmApp.applied` (`app/mod.rs:393`). On disk: `Settings::save` | `Backend::set_settings` (`backend.rs:378-417`): refusal, clamp, `shell::check`, login item, `shell::apply` to the queue, store, save. Wrapped by `DmApp::apply_settings` (`app/sync.rs:679-722`), which adds the script guard, `i18n::set`, `place_rows` and the clipboard watch. Called from 20+ places (menus, dialogs, schedule, searches) | `applied` replaced on success, re-read on failure |
-| Engine-wide globals | `dm_core::set_identify_as_dm`, `set_second_path`, `cookies::use_file`, `tools::allow_fetching` (`shell.rs:557-590`), `shell::TO_WINDOW` (`shell.rs:135-145`) | `shell::apply` | n/a |
+| Derived row state (kind, haystack, visible order, counts, queue names) | `EdmApp` caches keyed by `rows_gen` (`app/mod.rs:519-541`, `app/places.rs:77-200`, `app/mod.rs:745-758`) | `refresh`, `place_rows` | direct |
+| "What changed" memory (`last_state`, `notified`, `failed_told`, `ask_seen`, `own`, `dry`, schedule `Watch`es) | `EdmApp` (`app/mod.rs:307`, `:389`, `:427-429`, `:434`, `:440`, `:476`, `:504`) | `refresh()` | none: events are derived by diffing |
+| Settings | Authoritative: `Backend.settings: Arc<Mutex<Settings>>` (`backend.rs:121`). Mirror: `EdmApp.applied` (`app/mod.rs:393`). On disk: `Settings::save` | `Backend::set_settings` (`backend.rs:378-417`): refusal, clamp, `shell::check`, login item, `shell::apply` to the queue, store, save. Wrapped by `EdmApp::apply_settings` (`app/sync.rs:679-722`), which adds the script guard, `i18n::set`, `place_rows` and the clipboard watch. Called from 20+ places (menus, dialogs, schedule, searches) | `applied` replaced on success, re-read on failure |
+| Engine-wide globals | `edm_core::set_identify_as_dm`, `set_second_path`, `cookies::use_file`, `tools::allow_fetching` (`shell.rs:557-590`), `shell::TO_WINDOW` (`shell.rs:135-145`) | `shell::apply` | n/a |
 | Queue schedule (hold and start) | `Queue.inner.schedule`, `queue_schedules` and `starts` (`queue/mod.rs:482-498`); the loop is `shell::watch_rules`, every 2 s (`shell.rs:595-617`) | `shell::apply` | n/a |
-| Schedule *hooks* (arm When done, retry failed rows, run a program, hang up, slow-hours limit, clear a spent `once_at`) | `DmApp::schedule_hooks` (`app/scheduled.rs:182-247`), state in `scheduled::Watch` (`:22-134`) | run after every `refresh()` (`app/sync.rs:115`) | in-window |
-| Other timers: When done countdown, Delete file after, saved searches, watched folder, clipboard, weekly update | `DmApp` (`app/sync.rs:517-540`, `:739`; `app/search.rs:72`; `app/watch.rs:24`; `app/clipboard.rs:24`; `app/sync.rs:645`) | `logic()` each wake | in-window |
-| Hand-offs that need a question | `Backend.handed: Arc<Mutex<VecDeque<host::Request>>>` (`backend.rs:128`), filled by the inbox task (`main.rs:442-465`) | `DmApp::take_handed` (`app/sync.rs:290-397`) | in-window |
+| Schedule *hooks* (arm When done, retry failed rows, run a program, hang up, slow-hours limit, clear a spent `once_at`) | `EdmApp::schedule_hooks` (`app/scheduled.rs:182-247`), state in `scheduled::Watch` (`:22-134`) | run after every `refresh()` (`app/sync.rs:115`) | in-window |
+| Other timers: When done countdown, Delete file after, saved searches, watched folder, clipboard, weekly update | `EdmApp` (`app/sync.rs:517-540`, `:739`; `app/search.rs:72`; `app/watch.rs:24`; `app/clipboard.rs:24`; `app/sync.rs:645`) | `logic()` each wake | in-window |
+| Hand-offs that need a question | `Backend.handed: Arc<Mutex<VecDeque<host::Request>>>` (`backend.rs:128`), filled by the inbox task (`main.rs:442-465`) | `EdmApp::take_handed` (`app/sync.rs:290-397`) | in-window |
 
 How often the window reads:
 - `REFRESH` is 250 ms while anything runs or waits (`app/mod.rs:57`,
@@ -122,11 +122,11 @@ How often the window reads:
 - **Every `Command`** ends in a full `refresh()` (`app/commands.rs:497`), and
   so do `remove_now` and others: 11 call sites.
 
-**Headless** mode runs the same `DmApp::logic` against a dummy
+**Headless** mode runs the same `EdmApp::logic` against a dummy
 `egui::Context`, every 50 ms (`main.rs:502-514`). Today the "application" is
-the egui crate's `DmApp`, even with no window.
+the egui crate's `EdmApp`, even with no window.
 
-## 3. Coupling inventory: application logic inside dm-desktop
+## 3. Coupling inventory: application logic inside edm-desktop
 
 Key to the "egui?" column. **none**: the code uses no egui types. **ctx**:
 it takes an `egui::Context` only to request repaints. **UI**: it draws
@@ -134,7 +134,7 @@ widgets or is drawn inline with them.
 
 | Where | What it does | egui? | Target layer |
 |---|---|---|---|
-| `backend.rs:115-752` | Every queue verb as a blocking call. Add admission (`admit` `:754`, site rule and login `:496-548`). `login_now` before resume and retry (`:231-243`). `wake` after starts. Export and import (`:670-751`) | none | application (dm-shell) |
+| `backend.rs:115-752` | Every queue verb as a blocking call. Add admission (`admit` `:754`, site rule and login `:496-548`). `login_now` before resume and retry (`:231-243`). `wake` after starts. Export and import (`:670-751`) | none | application (edm-shell) |
 | `backend.rs:21-105` | `Platform` trait (notify, open, reveal, trash, chime, power, choose file) | none | application *port*; impl stays in `platform.rs` (infrastructure, GUI libs) |
 | `power.rs:16-140` | `WhenDone`, `COUNTDOWN_SECS`, `Report`, `available()` | none (Windows FFI at `:256`, `:304`) | types to application; actions stay in OS integration |
 | `app/sync.rs:30-205` `refresh()` | Reads the snapshot. Detects finished, failed and started-elsewhere rows and addresses added again. Posts notifications and plays sounds (`:55-114`). Runs the on-complete program (`:78-89`). Opens progress and complete windows (`:116-163`) | none (writes `dialogs.*`) | split: change detection and the program to application; wording and dialogs to presentation |
@@ -181,12 +181,12 @@ is written three times: `dialogs/add.rs:160`, `app/control.rs:367-385` and
 - **`Backend`** (`backend.rs:115`) is already a UI-free application facade:
   it is `Clone`, owns the runtime handle, the queue, the settings and the
   platform, and every method returns plain data. Its only non-std,
-  non-dm-shell dependency is `crate::power` (`:43`, `:49`, `:72-76`). It can
-  move into dm-shell almost verbatim.
+  non-edm-shell dependency is `crate::power` (`:43`, `:49`, `:72-76`). It can
+  move into edm-shell almost verbatim.
 - **`Platform`** (`backend.rs:21`) is the port for OS effects. A second GUI
   supplies its own implementation. Test doubles exist (`backend.rs:815`,
   `app/scheduled.rs:497`).
-- **dm-shell** already provides:
+- **edm-shell** already provides:
   - `start` (`shell.rs:402`), `check`/`apply` (`:507`, `:552`), `wake`
     (`:623`) and `watch_rules` (`:595`);
   - `add`/`unusable`/`checksum` (`:697`, `:636`, `:741`);
@@ -196,7 +196,7 @@ is written three times: `dialogs/add.rs:160`, `app/control.rs:367-385` and
     `reveal_in_folder`;
   - `lists::{bare, to_list, from_list, crawl_with}`, `Settings::{with_login,
     with_site_rule, refusal, clamped, keep_programs_of}`.
-- **The `dm_core::Queue` API**: 79 public functions (`queue/*.rs`).
+- **The `edm_core::Queue` API**: 79 public functions (`queue/*.rs`).
   - Reads: `list`, `list_shared`, `get`, `retrying`, `swarms`, `queues`,
     `connections`, `resumable`, `problems`, `allowance_spent`.
   - Verbs: add, add_with, add_each, pause, resume, retry, cancel, remove,
@@ -228,7 +228,7 @@ is written three times: `dialogs/add.rs:160`, `app/control.rs:367-385` and
 | Method | Implemented | UI-independent? |
 |---|---|---|
 | `auth` | `control.rs` listener | yes |
-| `commands.list`, `command.run {id}` | `app/control.rs:88-118` → `DmApp::enabled/run` | no: commands open dialogs |
+| `commands.list`, `command.run {id}` | `app/control.rs:88-118` → `EdmApp::enabled/run` | no: commands open dialogs |
 | `queue.list` | `app/control.rs:205-223` | yes (reads the window's copy) |
 | `downloads.pause/resume/cancel {ids}` | `app/control.rs:226-280` (reads `Backend::row`) | yes |
 | `downloads.speed_limit {kb}` | `app/control.rs:283-298` | yes |
@@ -278,7 +278,7 @@ Per frame, even with no read:
 - the `moving` scan is n (`app/sync.rs:606-610`);
 - `theme::cover` looks at 3n strings (`app/ui.rs:89-99`; ASCII strings are
   skipped quickly);
-- `DmApp::row(id)` is a linear search (`app/mod.rs:766`).
+- `EdmApp::row(id)` is a linear search (`app/mod.rs:766`).
 
 **Copies of the row list per tick:** one pointer vector from the queue
 (`rows`), plus one pointer vector for the visible list when the generation
@@ -308,25 +308,25 @@ costs are elsewhere: `ui.inspect` (about 28 s, extrapolated), the "added
 again" scan when a batch arrives, and a full `refresh()` after every command
 or batch step.
 
-## 6. Domain model check (dm-core public types)
+## 6. Domain model check (edm-core public types)
 
 | Type | Leak | Evidence |
 |---|---|---|
 | `Queue::new(client: reqwest::Client, …)` | HTTP client in the constructor | `queue/mod.rs:559`; field `queue/mod.rs:504` |
-| `pub use reqwest` | Re-exported for callers. dm-shell and dm-desktop name `dm_core::reqwest::Client` | `lib.rs:151`; `dm-shell/src/lists.rs:510,556`; `dm-desktop/src/app/mod.rs:728`, `update.rs:240-291`, `dialogs/zip_list.rs:41` |
-| `dm_core::Error` | `Network(reqwest::Error)`, `Disk(std::io::Error)`, `from_response(reqwest::Response)` | `error.rs:79,88,126,167`. Rows do not carry it: `State::Failed(String)` (`queue/mod.rs:74`) |
+| `pub use reqwest` | Re-exported for callers. edm-shell and edm-desktop name `edm_core::reqwest::Client` | `lib.rs:151`; `edm-shell/src/lists.rs:510,556`; `edm-desktop/src/app/mod.rs:728`, `update.rs:240-291`, `dialogs/zip_list.rs:41` |
+| `edm_core::Error` | `Network(reqwest::Error)`, `Disk(std::io::Error)`, `from_response(reqwest::Response)` | `error.rs:79,88,126,167`. Rows do not carry it: `State::Failed(String)` (`queue/mod.rs:74`) |
 | `Entry` | Filesystem as `String`: `path`, `parts_dir`, `began_in`, `save_dir`, `replaces` (`queue/mod.rs:132,236,241,170,250`). Secrets on the row: `cookies`, `headers`, `post` (`:209-230`, `:260`). Redacting them is left to each reader (`app/control.rs:216-219`, `details.rs`) | `queue/mod.rs:102-261` |
 | `Entry` serde | One shape serves the queue file, the control protocol's JSON and the window | `queue/mod.rs:101`; `app/control.rs:209` |
 | `Queue::retrying()` | `std::time::Instant` (process-local, not serializable) | `queue/query.rs:24`; `backend.rs:188-193` |
 | `Queue::move_to`/`preview` | Return a `PathBuf` | `backend.rs:641-651` |
 | `download::Options` | `Control`, `Limiter`, `PathBuf` | `download/mod.rs:56-62`; re-export `lib.rs:173-176` |
-| `Swarm`, `TorrentFile` | dm's own structs, not librqbit's | `torrent.rs:37,240` |
+| `Swarm`, `TorrentFile` | EDM's own structs, not librqbit's | `torrent.rs:37,240` |
 | GUI types | **None**, enforced (`xtask/src/main.rs:324`) | n/a |
 | Events | No domain event type. `on_change` is a `Fn()` with no payload and a single subscriber | `queue/settings.rs:9-13` |
 
 The engine also keeps process-wide globals, which only matters to two hosts
 in one process: `set_identify_as_dm`, `set_second_path`, `cookies::use_file`,
-`tools::allow_fetching` (`dm-shell/src/shell.rs:557-590`) and torrent
+`tools::allow_fetching` (`edm-shell/src/shell.rs:557-590`) and torrent
 `SHARED` (`torrent.rs:129`). None of these block a second GUI, which would
 be a second binary.
 
@@ -335,22 +335,22 @@ be a second binary.
 ### Target, mapped onto the real crates (no new crate)
 
 ```
-dm-desktop (egui presentation + OS integration impl: platform.rs, tray, toast, drops, power actions)
-   │   DmApp = view state (selection, sort, place, dialogs, caches) + Session
+edm-desktop (egui presentation + OS integration impl: platform.rs, tray, toast, drops, power actions)
+   │   EdmApp = view state (selection, sort, place, dialogs, caches) + Session
    ▼
-dm-shell  (application layer)  new module dm_shell::app/
+edm-shell  (application layer)  new module edm_shell::app/
    │   Backend (moved), Platform trait (port), WhenDone/Report,
    │   Snapshot {rows, gen, retrying, swarms, limit_holds}, Changes (finished/failed/started/asks/dry),
    │   Session tick: schedule hooks, countdown, delete-due, searches, watched folder, hand-off routing,
    │   control_api: queue.list / downloads.* / batch dispatch
    │   + existing: settings, host, inbox, lists, register, instance (infrastructure glue)
    ▼
-dm-core   (domain + engine; unchanged at first)      dm-protocol (wire)
+edm-core   (domain + engine; unchanged at first)      edm-protocol (wire)
 ```
 
-A future GPUI crate would depend on dm-shell and dm-core only, implement
+A future GPUI crate would depend on edm-shell and edm-core only, implement
 `Platform`, own `Session`, and draw from `Snapshot`. Headless mode becomes
-`Session` with no egui. `layers()` needs no change, because dm-shell is
+`Session` with no egui. `layers()` needs no change, because edm-shell is
 already `no_gui`.
 
 ### Steps
@@ -361,23 +361,23 @@ and the full `human-qa.py` after each one, as CLAUDE.md requires.
 
 | # | Step | Moves | Existing lines touched |
 |---|---|---|---|
-| 1 | Move the power types | `WhenDone`, `COUNTDOWN_SECS`, `Report` → `dm_shell::app::power`. `power.rs` keeps `available()` and the actions, plus `pub use dm_shell::app::power::*` | ~50 (power.rs: no churn since 11-01) |
-| 2 | Move the `Platform` trait and `chooser_here` | → `dm_shell::app::platform`. `backend.rs` re-exports them | ~90 |
-| 3 | Move `Backend` | `backend.rs` body → `dm_shell::app::backend`. dm-desktop `backend.rs` becomes a `pub use` shim; its tests move with it | ~900 moved, shim 5. **Do it in one commit agreed with the parity branch** (backend.rs: 10 commits since 11-01) |
+| 1 | Move the power types | `WhenDone`, `COUNTDOWN_SECS`, `Report` → `edm_shell::app::power`. `power.rs` keeps `available()` and the actions, plus `pub use edm_shell::app::power::*` | ~50 (power.rs: no churn since 11-01) |
+| 2 | Move the `Platform` trait and `chooser_here` | → `edm_shell::app::platform`. `backend.rs` re-exports them | ~90 |
+| 3 | Move `Backend` | `backend.rs` body → `edm_shell::app::backend`. edm-desktop `backend.rs` becomes a `pub use` shim; its tests move with it | ~900 moved, shim 5. **Do it in one commit agreed with the parity branch** (backend.rs: 10 commits since 11-01) |
 | 4 | Snapshot | `Backend::snapshot() -> Snapshot` (rows via `list_shared`, `retrying`, `swarms`, `allowance_spent`, `problems`). `refresh()` calls it, which replaces 4 lines (`app/sync.rs:35-42`). The thread-locals are still fed from it | ~20 |
-| 5 | Change fan-out | `dm_shell::app::Changed` (an `AtomicBool` and a list of wakers) subscribed once to `Queue::on_change`. main.rs registers the egui waker; `QUEUE_CHANGED` becomes a re-export of the same flag | ~15 (main.rs:425-430, app/mod.rs:64) |
+| 5 | Change fan-out | `edm_shell::app::Changed` (an `AtomicBool` and a list of wakers) subscribed once to `Queue::on_change`. main.rs registers the egui waker; `QUEUE_CHANGED` becomes a re-export of the same flag | ~15 (main.rs:425-430, app/mod.rs:64) |
 | 6 | The resume-or-retry rule, once | `Backend::go_on(id) -> GoOn {Resumed, Retried, Held, Settled, NotStopped}`. The 5 call sites in section 3 each keep their own reaction to `Held` (a dialog, a sentence or a control error) | ~30, one line per call site |
-| 7 | Duplicate rule and admission, once | `worth_keeping`, `Dup`, `listed_addresses` and `bare` → `dm_shell::app::dupes`. The inbox and `start` adds go through one `admit_and_add` | ~40 |
-| 8 | UI-free control methods | `queue.list`, `downloads.*`, `downloads.add` validation and `batch` → `dm_shell::app::control_api::call(&Backend, &Settings, …) -> Option<Result>`. `DmApp::control_call` tries it before its `ui.*` and `command*` arms. The listener in `control.rs` can follow (sockets are allowed in dm-shell) | ~250 moved (app/control.rs: no churn since 11-01) |
+| 7 | Duplicate rule and admission, once | `worth_keeping`, `Dup`, `listed_addresses` and `bare` → `edm_shell::app::dupes`. The inbox and `start` adds go through one `admit_and_add` | ~40 |
+| 8 | UI-free control methods | `queue.list`, `downloads.*`, `downloads.add` validation and `batch` → `edm_shell::app::control_api::call(&Backend, &Settings, …) -> Option<Result>`. `EdmApp::control_call` tries it before its `ui.*` and `command*` arms. The listener in `control.rs` can follow (sockets are allowed in edm-shell) | ~250 moved (app/control.rs: no churn since 11-01) |
 | 9 | Change detection | Pure `Changes::since(last_state, rows, own, notify_ready)` → {finished, failed, expired, started_elsewhere, added_again}, plus `DryWatch` and the `Ask` diff (`watch_asks`). `refresh()` keeps the side effects in the same order, worded by the window | ~150 in sync.rs (12 commits since 11-01: small, separate commits) |
-| 10 | Schedule hooks | `scheduled::Watch`, `looked_after`, `work_left` and `end_of_window` → `dm_shell::app::schedule`, returning actions {SetLimit, Arm, Disarm, Retry(ids), RunProgram, HangUp}. The arming sentence stays in the window | ~200 |
-| 11 | `Session` timers, one per commit | `countdown_tick`, `delete_due_files`, `tick_searches`, `take_watched`, `check_clipboard`, `take_new_download`/`take_when_done`, `take_handed` routing → `Session::tick(now) -> Vec<Effect>`. `DmApp` owns the `Session` and applies the effects | ~100 each |
-| 12 | Settings coordination | The `keep_programs_of` script guard moves into `Backend::set_settings_from(origin)`. `DmApp::apply_settings` keeps `i18n::set`, `place_rows` and the clipboard watch | ~30 |
-| 13 | Headless without egui | `main.rs:502-514` loops on `Session::tick` and `control_api`. Before this lands, decide whether a headless `command.run` should still be answered through a dialog-free `DmApp`, because it is today | ~30 |
-| 15 | The command registry (done 2026-11-09) | `Command`, its names, labels and keys (`Chord`, `Key`) → `dm_shell::app::commands`; `enabled()`'s rules → `commands::applies` with `Looks` for what the window sees (retrying, file gone, plays); the row verbs, Start and Stop Queue, Delete Completed, When done, the speed limiter's new settings and the recheck → `commands::verb`, `when_done`, `limited`, `recheck`. `dm_desktop::commands` keeps `Shown` (title, egui shortcuts) and `pressed` | ~400 |
-| 16 | The rest of section 3's rows (done 2026-11-09) | `dm_shell::app::names` (`host`, `provisional`, `name_of`, `kind_of`, the planned folder, the free name a row will get); `import` (how much of a list is listed already, the rows it adds, the lines with no link); `files::extract_later` (a ZIP off the presentation's thread); `schedule::holds_waiting`; `links::Clipboard` (the watch's memory, `turn`, `look`, `dismiss_all`). The old paths re-export; the window keeps reading files and the clipboard, its questions and its words | ~350 |
-| 17 (done 2026-11-09) | The last coupling the spec names | The window's own fetches (the update check, a ZIP's files, a file's name and size, a page's links, a video's qualities, a playlist, a site crawl) and its direct use of the engine's queue (`allowance_spent`, a row removed, the crawl's options) → `dm_shell::app::{update, files, lookups, search}` and `Backend` (`client`, `allowance_spent`, `remove_later`); typed events (`events`) published by `Session::read`; the load measures of EVENT_FLOW.md | ~900 |
-| 14 (done 2026-11-09) | dm-core seams: `Entry::redacted()` added and used by `queue.list`; `pub use reqwest` kept (decisions.md, 2026-11-09) | `Queue::new` takes a client factory, or keep `pub use reqwest` (shell and window still name it). Add `Entry::redacted()` so readers cannot forget the secrets | small |
+| 10 | Schedule hooks | `scheduled::Watch`, `looked_after`, `work_left` and `end_of_window` → `edm_shell::app::schedule`, returning actions {SetLimit, Arm, Disarm, Retry(ids), RunProgram, HangUp}. The arming sentence stays in the window | ~200 |
+| 11 | `Session` timers, one per commit | `countdown_tick`, `delete_due_files`, `tick_searches`, `take_watched`, `check_clipboard`, `take_new_download`/`take_when_done`, `take_handed` routing → `Session::tick(now) -> Vec<Effect>`. `EdmApp` owns the `Session` and applies the effects | ~100 each |
+| 12 | Settings coordination | The `keep_programs_of` script guard moves into `Backend::set_settings_from(origin)`. `EdmApp::apply_settings` keeps `i18n::set`, `place_rows` and the clipboard watch | ~30 |
+| 13 | Headless without egui | `main.rs:502-514` loops on `Session::tick` and `control_api`. Before this lands, decide whether a headless `command.run` should still be answered through a dialog-free `EdmApp`, because it is today | ~30 |
+| 15 | The command registry (done 2026-11-09) | `Command`, its names, labels and keys (`Chord`, `Key`) → `edm_shell::app::commands`; `enabled()`'s rules → `commands::applies` with `Looks` for what the window sees (retrying, file gone, plays); the row verbs, Start and Stop Queue, Delete Completed, When done, the speed limiter's new settings and the recheck → `commands::verb`, `when_done`, `limited`, `recheck`. `edm_desktop::commands` keeps `Shown` (title, egui shortcuts) and `pressed` | ~400 |
+| 16 | The rest of section 3's rows (done 2026-11-09) | `edm_shell::app::names` (`host`, `provisional`, `name_of`, `kind_of`, the planned folder, the free name a row will get); `import` (how much of a list is listed already, the rows it adds, the lines with no link); `files::extract_later` (a ZIP off the presentation's thread); `schedule::holds_waiting`; `links::Clipboard` (the watch's memory, `turn`, `look`, `dismiss_all`). The old paths re-export; the window keeps reading files and the clipboard, its questions and its words | ~350 |
+| 17 (done 2026-11-09) | The last coupling the spec names | The window's own fetches (the update check, a ZIP's files, a file's name and size, a page's links, a video's qualities, a playlist, a site crawl) and its direct use of the engine's queue (`allowance_spent`, a row removed, the crawl's options) → `edm_shell::app::{update, files, lookups, search}` and `Backend` (`client`, `allowance_spent`, `remove_later`); typed events (`events`) published by `Session::read`; the load measures of EVENT_FLOW.md | ~900 |
+| 14 (done 2026-11-09) | edm-core seams: `Entry::redacted()` added and used by `queue.list`; `pub use reqwest` kept (decisions.md, 2026-11-09) | `Queue::new` takes a client factory, or keep `pub use reqwest` (shell and window still name it). Add `Entry::redacted()` so readers cannot forget the secrets | small |
 
 Steps 1, 2, 4, 5, 6 and 8 touch few or rarely-churned lines and can land
 first. Steps 3, 9 and 11 touch the most-churned files and should be
@@ -405,7 +405,7 @@ coordinated (see section 8).
 - **B26–B30** (hand-off routing, `route_to_window`, the 5-second dedupe)
   through step 11.
 - **B25** (baseline pictures): no window change is planned.
-- **B21 and B22** (persistence) are safe while `dm_core::Queue` is untouched.
+- **B21 and B22** (persistence) are safe while `edm_core::Queue` is untouched.
 
 **Concurrency hazards:**
 - `Backend` calls `runtime.block_on` (`backend.rs:166-168`). Calling it from
@@ -447,20 +447,20 @@ memory dropped from 312 to 128 MB when the copies went (decisions.md:297-316).
   Wayland hide (`main.rs:64-68`).
 - macOS: `dock.rs` (`main.rs:553-560`).
 
-dm-shell already has `windows-sys` and `libc`, so moving the types is safe.
-The OS actions stay in dm-desktop.
+edm-shell already has `windows-sys` and `libc`, so moving the types is safe.
+The OS actions stay in edm-desktop.
 
 **Conflicts with `parity-with-reference-a`.** The branch is at the same
 commit as this one today (`f9d071d`), but it moves fast: 210 commits since
 2026-11-01. Its most-touched files in that time:
-- in dm-desktop: `dialogs/state.rs` (17 commits), `dialogs/mod.rs` (16),
+- in edm-desktop: `dialogs/state.rs` (17 commits), `dialogs/mod.rs` (16),
   `options/tabs.rs` (12), `app/sync.rs` (12), `app/mod.rs` (12),
   `app/rows.rs` (11), `backend.rs` and `properties.rs` (10 each);
-- in dm-shell: `settings.rs` (21), `host.rs` (16), `shell.rs` (11).
+- in edm-shell: `settings.rs` (21), `host.rs` (16), `shell.rs` (11).
 
 `power.rs`, `control.rs`, `app/control.rs`, `mcp.rs` and `cli.rs` had none.
 To keep conflicts down:
-- add new files under `dm-shell/src/app/`;
+- add new files under `edm-shell/src/app/`;
 - leave `pub use` shims at the old paths;
 - change call sites one line at a time rather than move blocks out of
   `sync.rs`;
@@ -470,18 +470,18 @@ To keep conflicts down:
 
 ## Summary
 
-dm already has most of the separation a second GUI needs. dm-core has no GUI
-types. dm-shell is held to `no_gui` and says it exists so the window can be
-replaced. dm-desktop's `Backend` and `Platform` are an egui-free application
+EDM already has most of the separation a second GUI needs. edm-core has no GUI
+types. edm-shell is held to `no_gui` and says it exists so the window can be
+replaced. edm-desktop's `Backend` and `Platform` are an egui-free application
 facade and OS port, and the control protocol is a UI-independent command API
 that MCP and the CLI use. What keeps it from being reusable is that the
-application *behaviour* lives in dm-desktop's `DmApp`. Its `refresh()`
+application *behaviour* lives in edm-desktop's `EdmApp`. Its `refresh()`
 detects changes by diffing what it last read. The schedule hooks, When done,
 Delete file after, saved searches, the watched folder, hand-off routing,
 duplicate rules and settings coordination all run from the egui `logic()`
 tick, even headless, against a dummy `egui::Context`. They write their results
 straight into dialog state, and some rules are written in up to five places.
-The proposal: grow `dm_shell::app` into the application layer, with no new
+The proposal: grow `edm_shell::app` into the application layer, with no new
 crate. First move the pure types and `Backend` behind `pub use` shims. Then
 add a `Snapshot` and a change fan-out over the existing `Arc<Entry>` sharing
 and `on_change`. Then pull out the UI-free control methods and the shared

@@ -1,22 +1,22 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-# CachyOS with Brave and dm's released AppImage, to reproduce what a person
-# on that system saw: "dm could not get the video from this page".
+# CachyOS with Brave and EDM's released AppImage, to reproduce what a person
+# on that system saw: "EDM could not get the video from this page".
 #
 #   sh scripts/linux/cachyos-brave/run.sh
 #
 # CachyOS's own image (x86-64 only; on an Apple Silicon Mac it runs under
-# emulation), Brave as Brave publishes it, and dm's AppImage unpacked (its
+# emulation), Brave as Brave publishes it, and EDM's AppImage unpacked (its
 # runtime is a static executable that emulation cannot start; the program
 # inside is the same). Versions are build arguments: the release under test.
 ARG BRAVE=1.98.62
-ARG DM=0.8.3
+ARG EDM=0.8.3
 FROM --platform=linux/amd64 cachyos/cachyos:latest
 ARG BRAVE
-ARG DM
+ARG EDM
 
 # pacman's own sandbox and free-space check do not work under this emulation.
 RUN sed -i '/^CheckSpace/d; s/^\[options\]/[options]\nDisableSandbox/' /etc/pacman.conf \
@@ -33,12 +33,12 @@ RUN curl -fsSL -o /tmp/brave.zip https://github.com/brave/brave-browser/releases
  && chmod a+x /opt/brave.com/brave/brave /opt/brave.com/brave/chrome_crashpad_handler \
  && ln -s /opt/brave.com/brave/brave /usr/bin/brave-browser
 
-# dm 0.8.3, the AppImage that was released, unpacked: its squashfs starts after the
+# EDM 0.8.3, the AppImage that was released, unpacked: its squashfs starts after the
 # runtime's ELF (end of the section headers), and the runtime itself is a static
 # executable this emulation cannot start.
-# A build not yet released is handed in as local/dm.AppImage (see run.sh).
+# A build not yet released is handed in as local/EDM.AppImage (see run.sh).
 COPY local/ /opt/local/
-RUN if [ -f /opt/local/dm.AppImage ]; then cp /opt/local/dm.AppImage /opt/dm.AppImage; \
-    else curl -fsSL -o /opt/dm.AppImage https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v${DM}/dm_${DM}_x86_64.AppImage; fi \
- && python3 -c "import struct,subprocess; d=open('/opt/dm.AppImage','rb').read(64); shoff=struct.unpack_from('<Q',d,0x28)[0]; shentsize,shnum=struct.unpack_from('<HH',d,0x3A); subprocess.check_call(['unsquashfs','-f','-o',str(shoff+shentsize*shnum),'-d','/opt/dm','/opt/dm.AppImage'])" \
- && rm /opt/dm.AppImage && ls /opt/dm
+RUN if [ -f /opt/local/EDM.AppImage ]; then cp /opt/local/EDM.AppImage /opt/EDM.AppImage; \
+    else curl -fsSL -o /opt/EDM.AppImage https://github.com/pranavo72bex/Easy-Download-Manager/releases/download/desktop-v${EDM}/dm_${EDM}_x86_64.AppImage; fi \
+ && python3 -c "import struct,subprocess; d=open('/opt/EDM.AppImage','rb').read(64); shoff=struct.unpack_from('<Q',d,0x28)[0]; shentsize,shnum=struct.unpack_from('<HH',d,0x3A); subprocess.check_call(['unsquashfs','-f','-o',str(shoff+shentsize*shnum),'-d','/opt/EDM','/opt/EDM.AppImage'])" \
+ && rm /opt/EDM.AppImage && ls /opt/EDM

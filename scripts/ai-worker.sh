@@ -1,7 +1,7 @@
 #!/bin/bash
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # The bots' queue (.github/workflows/ai-worker.yml; $GH_TOKEN, $GH_REPO; DRY=1 says what
@@ -35,7 +35,7 @@ for l in bot-fix bot:queue bot:working bot:pr bot:merged bot:no-fix bot:green-si
     bot:not-reproduced bot:needs-votes bot:needs-info bot:needs-maintainer bot:reverted \
     bot:closed bot:automerge bot:round-1 bot:round-2 bot:improve bot:already-done \
     bot-task:ci bot-task:bug bot-task:feature bot-task:improve bot-task:revise; do
-    [ "$DRY" = 1 ] || gh label create "$l" --color ededed --description "dm's bot" 2>/dev/null || true
+    [ "$DRY" = 1 ] || gh label create "$l" --color ededed --description "EDM's bot" 2>/dev/null || true
 done
 
 # Kept alive.
@@ -61,7 +61,7 @@ for n in $(gh issue list --state open --label bot:working --json number --jq '.[
     run gh issue edit "$n" --remove-label bot:working --add-label bot:queue
 done
 
-# The site watch's reports (sites.yml): a video site dm no longer reads, a bug to fix.
+# The site watch's reports (sites.yml): a video site EDM no longer reads, a bug to fix.
 for n in $(gh issue list --state open --label site-watch --json number,labels \
     --jq '.[] | select([.labels[].name] | any(startswith("bot:")) | not) | .number'); do
     run gh issue edit "$n" --add-label bot:queue,bot-task:bug
@@ -92,7 +92,7 @@ gh issue list --state open --label bot:improve --limit 100 --json number,body \
         [ -n "$row" ] || continue
         if ! why=$(python3 -I scripts/ai-improve-pick.py --still "$row"); then
             echo "#$n: $why"
-            run gh issue comment "$n" --body "$(printf '<!-- dm-bot -->\nClosed: %s.\n\n— dm'"'"'s bot' "$why")"
+            run gh issue comment "$n" --body "$(printf '<!-- edm-bot -->\nClosed: %s.\n\n— EDM'"'"'s bot' "$why")"
             run gh issue close "$n" --reason "not planned"
         fi
     done
@@ -142,7 +142,7 @@ fi
 
 # Then the next row of docs/gaps.md (scripts/ai-improve-pick.py): three in flight at most, a new
 # one every six hours at most, no row tried in the last fortnight or still open.
-gh label create bot:improve --color 1d76db --description "dm's bot: a row of docs/gaps.md" 2>/dev/null || true
+gh label create bot:improve --color 1d76db --description "EDM's bot: a row of docs/gaps.md" 2>/dev/null || true
 open_count=$(gh issue list --state open --label bot:improve --json number --jq length)
 six_hours_ago=$(date -u -d '6 hours ago' +%FT%TZ 2>/dev/null || date -u -v-6H +%FT%TZ)
 fortnight_ago=$(date -u -d '14 days ago' +%FT%TZ 2>/dev/null || date -u -v-14d +%FT%TZ)

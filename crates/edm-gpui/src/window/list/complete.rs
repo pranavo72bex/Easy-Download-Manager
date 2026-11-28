@@ -1,0 +1,121 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! The downloads' progress windows, and "Download complete" when they finish.
+
+use gpui::Context;
+
+use super::Downloads;
+
+impl Downloads {
+    /// Whether a person closed the progress window of `id`.
+    pub(crate) fn progress_closed_has(&self, id: edm_core::Id) -> bool {
+        self.windows.progress_closed.contains(&id)
+    }
+
+    /// Closes the progress window of `id`, where one is open.
+    pub(super) fn close_progress(&mut self, id: edm_core::Id, cx: &mut Context<Self>) {
+        if let Some(handle) = self.windows.progress_windows.remove(&id) {
+            let _ = handle.update(cx, |_, window, _| window.remove_window());
+        }
+    }
+
+    /// Progress windows a person closed: forgotten, and not opened again by
+    /// themselves.
+    pub(crate) fn prune_progress(&mut self, cx: &mut Context<Self>) {
+        let open = cx.windows();
+        let gone: Vec<edm_core::Id> = self
+            .windows
+            .progress_windows
+            .iter()
+            .filter(|(_, handle)| !open.contains(handle))
+            .map(|(id, _)| *id)
+            .collect();
+        for id in gone {
+            self.windows.progress_windows.remove(&id);
+            self.windows.progress_closed.insert(id);
+        }
+        if self
+            .windows
+            .complete_window
+            .is_some_and(|w| !open.contains(&w))
+        {
+            self.windows.complete_window = None;
+            self.windows.complete.clear();
+        }
+    }
+
+    /// Downloads that finished: "Download complete" says so, where that is asked for, in the
+    /// progress window of one that has it open, else in a window listing the rest; a progress
+    /// window closes where it is not.
+    pub(crate) fn finished(&mut self, ids: &[edm_core::Id], cx: &mut Context<Self>) {
+        // A phone says a download finished in its notification, which opens the file; a
+        // window over the list besides it was one more thing to close.
+        let show = self.backend.settings().general.show_complete && !crate::platform::ON_A_PHONE;
+        for id in ids {
+            // Its progress window open: that window becomes Download complete itself, with
+            // Open and Open folder, rather than a second window opening over it (gaps row U11,
+            // B63).
+            if show && self.windows.progress_windows.contains_key(id) {
+                continue;
+            }
+            self.close_progress(*id, cx);
+            if show {
+                self.windows.complete.insert(*id);
+            }
+        }
+        // Not over "Exit EDM?" while it asks, with Open folder where Exit was about to be
+        // pressed: it opens once the question is answered (`ask_quit`).
+        if show
+            && !self.windows.complete.is_empty()
+            && self.windows.complete_window.is_none()
+            && !self.questions.exit_asked
+        {
+            let me = cx.entity().downgrade();
+            cx.defer(move |cx| {
+                let handle = crate::dialogs::complete::open(me.clone(), cx);
+                let _ = me.update(cx, |view, _| view.windows.complete_window = handle);
+            });
+        }
+    }
+
+    /// "Download complete" closed: a ticked "Don’t show this window again"
+    /// kept, and said.
+    pub fn complete_closed(&mut self, never: bool, cx: &mut Context<Self>) {
+        self.windows.complete.clear();
+        self.windows.complete_window = None;
+        if never {
+            let mut wanted = self.backend.settings();
+            wanted.general.show_complete = false;
+            match self.backend.set_settings(wanted) {
+                Ok(_) => self.say(
+                    edm_desktop_base::i18n::t(
+                        "This window won’t open again. Turn it on in Options › General.",
+                    )
+                    .into(),
+                ),
+                Err(e) => self.say(e),
+            }
+        }
+        cx.notify();
+    }
+
+    /// A file acted on in "Download complete": it leaves the list, and the
+    /// window with the last.
+    pub fn complete_done(&mut self, id: edm_core::Id, cx: &mut Context<Self>) {
+        self.windows.complete.remove(&id);
+        if self.windows.complete.is_empty() {
+            if let Some(handle) = self.windows.complete_window.take() {
+                // After the update that asked: its own button's click (Open,
+                // Open folder) is still being handled inside that window,
+                // which GPUI will not update again, and it stayed, empty.
+                cx.defer(move |cx| {
+                    let _ = handle.update(cx, |_, window, _| window.remove_window());
+                });
+            }
+        }
+        cx.notify();
+    }
+}

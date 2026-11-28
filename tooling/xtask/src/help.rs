@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask help-check`: every sentence a person can see that the help should explain has
@@ -8,14 +8,14 @@
 //! `docs/guide/`; a sentence has its entry where it is written there word for word, with `…`
 //! where the window puts a name or a number.
 //!
-//! The sentences are read from the source, so one added to dm is asked for at once:
+//! The sentences are read from the source, so one added to EDM is asked for at once:
 //!
-//! - each note a download may put on its row (`dm_core::NOTES`);
-//! - each failure the engine says: the `#[error("…")]` of `dm_net::Error` and of an archive's
-//!   `dm_core::extract::Error`, the plain words `network` and `file_error` put a failure in, and
+//! - each note a download may put on its row (`edm_core::NOTES`);
+//! - each failure the engine says: the `#[error("…")]` of `edm_net::Error` and of an archive's
+//!   `edm_core::extract::Error`, the plain words `network` and `file_error` put a failure in, and
 //!   every sentence a failure is raised with (`Error::Internal`, `Error::Connection`) in
-//!   `dm-core` and `dm-net`;
-//! - every label, explanation and note of Options' pages (`dm-gpui/src/options/pages.rs` and
+//!   `edm-core` and `edm-net`;
+//! - every label, explanation and note of Options' pages (`edm-gpui/src/options/pages.rs` and
 //!   the file of each page in `pages/`, the Dial Up / VPN section's among them).
 //!
 //! The sentence is matched without regard to case, spacing, line breaks, or Markdown's `*` and
@@ -28,20 +28,20 @@ use std::path::Path;
 const GUIDE: &str = "docs/user-guide.md";
 const PAGES: &str = "docs/guide";
 
-/// The file that holds `dm_core::NOTES`.
-const NOTES: &str = "crates/dm-core/src/download/notes.rs";
+/// The file that holds `edm_core::NOTES`.
+const NOTES: &str = "crates/edm-core/src/download/notes.rs";
 /// The files whose error types' `#[error("…")]` a person reads.
 const ERROR_TYPES: [&str; 2] = [
-    "crates/dm-net/src/error.rs",
-    "crates/dm-core/src/extract.rs",
+    "crates/edm-net/src/error.rs",
+    "crates/edm-core/src/extract.rs",
 ];
 /// The file whose functions put a failure in plain words, and those functions.
 const PLAIN_WORDS: (&str, [&str; 2]) = (
-    "crates/dm-net/src/error.rs",
+    "crates/edm-net/src/error.rs",
     ["fn network(", "fn file_error("],
 );
 /// The engine's folders, whose raised failures are read.
-const ENGINE: [&str; 2] = ["crates/dm-core/src", "crates/dm-net/src"];
+const ENGINE: [&str; 2] = ["crates/edm-core/src", "crates/edm-net/src"];
 /// What a failure is raised with, as the code before its sentence reads (spaces left out).
 const RAISED: [&str; 3] = [
     "Error::Internal(",
@@ -49,9 +49,9 @@ const RAISED: [&str; 3] = [
     "Error::Connection(format!(",
 ];
 /// Options' pages: the file of what they share, and the folder of a file each.
-const OPTIONS: &str = "crates/dm-gpui/src/options/pages.rs";
+const OPTIONS: &str = "crates/edm-gpui/src/options/pages.rs";
 /// The folder of Options' pages, a file each.
-const OPTIONS_PAGES: &str = "crates/dm-gpui/src/options/pages";
+const OPTIONS_PAGES: &str = "crates/edm-gpui/src/options/pages";
 
 /// A sentence a person can see, and where it is written.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

@@ -1,22 +1,22 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! What a release says about itself, so a person can check it (gaps row W21).
 //!
 //! - `cargo xtask crates-list <file>` writes every crate the release's programs are built
-//!   from: the app (`dm-gpui`) and the browser extension (`dm-catcher`), every system's
+//!   from: the app (`edm-gpui`) and the browser extension (`edm-catcher`), every system's
 //!   together, with the crates that build them (build scripts, macros) and without the ones
 //!   only tests use (`cargo tree` says which a build compiles, `cargo metadata` where each
 //!   comes from). Each with its version and where it comes from (crates.io with the
-//!   digest `Cargo.lock` pins, a git repository, a copy vendored here, or dm's own).
+//!   digest `Cargo.lock` pins, a git repository, a copy vendored here, or EDM's own).
 //! - `cargo xtask sign-release <dir>` writes `SHA256SUMS` (the SHA-256 of every file in the
 //!   release's folder, in `sha256sum`'s own format) and `SHA256SUMS.sig`, its signature by
-//!   the update manifest's key (F6, `update_key.rs`), refused unless that is the key dm
+//!   the update manifest's key (F6, `update_key.rs`), refused unless that is the key EDM
 //!   carries.
 //! - `cargo xtask verify-release <dir>` checks a downloaded release: the signature against
-//!   the key dm carries, then each file present against its digest.
+//!   the key EDM carries, then each file present against its digest.
 
 use crate::update_key;
 use serde_json::Value;
@@ -29,7 +29,7 @@ pub const SUMS: &str = "SHA256SUMS";
 pub const SUMS_SIG: &str = "SHA256SUMS.sig";
 
 /// The crates whose programs a release ships: the app's window and the browser extension.
-pub const SHIPPED: [&str; 2] = ["dm-gpui", "dm-catcher"];
+pub const SHIPPED: [&str; 2] = ["edm-gpui", "edm-catcher"];
 
 const CRATES_IO: [&str; 2] = [
     "registry+https://github.com/rust-lang/crates.io-index",
@@ -162,7 +162,7 @@ pub fn crates_list(metadata: &Value, tree: &str, lock: &str, rust: &str) -> Resu
                     .strip_prefix(&format!("{repository}/"))
                     .unwrap_or(name);
                 let what = if members.contains(&id) {
-                    "dm"
+                    "EDM"
                 } else {
                     "vendored"
                 };
@@ -189,12 +189,12 @@ pub fn crates_list(metadata: &Value, tree: &str, lock: &str, rust: &str) -> Resu
         .and_then(|p| p["version"].as_str())
         .unwrap_or("?");
     let mut out = format!(
-        "# dm {version}: every crate in the app ({}) and the browser extension ({}), every\n\
+        "# EDM {version}: every crate in the app ({}) and the browser extension ({}), every\n\
          # system's together, with the crates that build them (build scripts, macros); those\n\
          # only tests use, and the features only tests turn on, are left out. Made by\n\
          # `cargo xtask crates-list` from Cargo.lock (`cargo {}`);\n\
          # built with Rust {rust} (rust-toolchain.toml). Each line: name, version, where it is\n\
-         # from (crates.io and the SHA-256 Cargo.lock pins for it; git; vendored or dm's own,\n\
+         # from (crates.io and the SHA-256 Cargo.lock pins for it; git; vendored or EDM's own,\n\
          # with its folder in the repository).\n",
         SHIPPED[0],
         SHIPPED[1],
@@ -356,7 +356,7 @@ fn write_sums(
     ))
 }
 
-/// `cargo xtask sign-release <dir>`, with the key in `DM_UPDATE_SIGNING_KEY`.
+/// `cargo xtask sign-release <dir>`, with the key in `EDM_UPDATE_SIGNING_KEY`.
 pub fn sign_release(root: &Path, dir: Option<&str>) -> Result<String, String> {
     let dir = dir.ok_or("usage: cargo xtask sign-release <folder of the release's files>")?;
     write_sums(Path::new(dir), |text| update_key::sign_with_env(root, text))
@@ -452,7 +452,7 @@ pub fn verify(dir: &Path, key: &str) -> Result<String, String> {
     Ok(out)
 }
 
-/// `cargo xtask verify-release <dir>`: [`verify`] against the key this checkout of dm carries.
+/// `cargo xtask verify-release <dir>`: [`verify`] against the key this checkout of EDM carries.
 pub fn verify_release(root: &Path, dir: Option<&str>) -> Result<String, String> {
     let dir = dir.ok_or("usage: cargo xtask verify-release <folder of the release's files>")?;
     verify(Path::new(dir), &update_key::carried(root)?)

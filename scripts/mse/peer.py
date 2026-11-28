@@ -1,10 +1,10 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """A libtorrent peer that makes and takes only encrypted connections (MSE,
-RC4), for dm's tests (crates/dm-core/tests/mse_interop.rs):
+RC4), for EDM's tests (crates/edm-core/tests/mse_interop.rs):
 
     peer.py make <announce-url>     the torrent of /data/file.bin, as /data/t.torrent
     peer.py seed                    seeds /data/file.bin on port 6881

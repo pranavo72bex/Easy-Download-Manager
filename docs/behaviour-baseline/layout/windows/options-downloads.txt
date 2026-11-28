@@ -1,7 +1,7 @@
-# dm's window, scene options-downloads (windows, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene options-downloads (windows, 1280x720, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "Tasks" 48 7 90 29.5
 "File" 106 7 140 29.5
 "Downloads" 156 7 232 29.5
@@ -23,7 +23,7 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add dm to your browser:" 236 98.5 430 121
+"Add EDM to your browser:" 236 98.5 430 121
 "Microsoft Edge" 453 98.5 571 121
 "Firefox" 609 98.5 668 121
 "Chrome and others" 706 98.5 849 121
@@ -53,7 +53,7 @@
 "Connections per file, Queues with their own limit, Queues that start at a set time" 220 49.5 800 88.5
 "Connections per file" 220 109 698 131.5
 "1" 710 104.5 800 136.5
-"The most parts of a file dm fetches at once. It opens more only while they make it faster; some sites limit it." 220 138.5 700 177.5
+"The most parts of a file EDM fetches at once. It opens more only while they make it faster; some sites limit it." 220 138.5 700 177.5
 "Presets:" 220 189.5 278 209
 "Slow (2)" 294 189.5 352 209
 "Normal (8)" 378 189.5 450 209
@@ -67,7 +67,7 @@
 "Sound language" 220 327.5 625 350
 "The video’s own" 647 327.5 774 350
 "Where a video has its sound in several languages, this one is taken; where none speaks it, the video’s own." 220 357 700 396
-"Start the Main queue when dm opens" 220 412.5 760 435
+"Start the Main queue when EDM opens" 220 412.5 760 435
 "?" 35.5 468.5 44.5 491
 "Restore defaults" 79 468.5 214 491
 "OK" 599.5 468.5 616.5 491

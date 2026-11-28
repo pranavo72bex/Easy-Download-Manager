@@ -1,0 +1,46 @@
+[package]
+name = "edm-android"
+version = "0.10.3"
+authors = ["pranavo72bex"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (deny.toml).
+publish = false
+description = "EDM on Android, all in Rust: edm-gpui's own window on gpui-android, with the phone's services (notifications, opening a file, the clipboard, the wake lock, a share) reached through JNI (gaps rows N1, N3, N5, N6, N16)"
+
+[lib]
+name = "edm_android"
+path = "src/lib.rs"
+# `cdylib` is the `libedm_android.so` the APK carries (android/, docs/android.md), whose
+# `android_main` the activity starts; `lib` is for the host's checks and tests.
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+# A sealed secret's file: the Keystore's IV and ciphertext as text (`sealed.rs`, gaps row N11).
+base64.workspace = true
+edm-core.workspace = true
+# The seam the phone's services are handed to (`edm_desktop_base::phone`, gaps row N17).
+edm-desktop-base.workspace = true
+
+# On the phone: edm-gpui's window (the desktop's own, gaps row N17) on GPUI's Android platform
+# (EDM's copy of gpui-mobile's, gaps row N16), the NativeActivity glue it runs on, and JNI for
+# what only Android has (the shared link, notifications, the wake lock, the clipboard).
+[target.'cfg(target_os = "android")'.dependencies]
+android-activity.workspace = true
+edm-gpui.workspace = true
+# The running EDM's inbox, which a notification's Retry and Stop All are left in (gaps row N6).
+edm-shell.workspace = true
+gpui.workspace = true
+gpui-android.workspace = true
+jni.workspace = true
+# `_exit`, which ends the process without the C exit handlers (`engine::end_process`, N19).
+libc.workspace = true
+
+# The host's tests of the sealed secrets' files and of where a finished file goes (`sealed.rs`,
+# `storage.rs`) work in folders of their own.
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,7 +1,7 @@
-# dm's window, scene main-rows-840 (macos, 840x600, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene main-rows-840 (macos, 840x600, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 840x600]
+[main "EDM" 840x600]
 "Tasks" 118 8 157 29
 "File" 173 8 205 29
 "Downloads" 221 8 292 29
@@ -31,10 +31,10 @@
 "Main queue" 40 351.5 118 372.5
 "3" 176 353 183 371
 "Recheck queue" 40 379.5 142 400.5
-"Add dm to your browser:" 236 95.5 416 116.5
-"Microsoft Edge" 439 95.5 549 116.5
-"Firefox" 587 95.5 642 116.5
-"Chrome and others" 680 95.5 813 116.5
+"Add EDM to your browser:" 236 95.5 424 116.5
+"Microsoft Edge" 447 95.5 557 116.5
+"Firefox" 595 95.5 650 116.5
+"Chrome and others" 251 127.5 384 148.5
 "Not now" 758 127.5 813 148.5
 "File name" 212 161.5 272 179.5
 "Size" 437 161.5 464 179.5

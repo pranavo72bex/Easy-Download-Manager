@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Whether a bot's change leaves dm's window looking as it does on main (scripts/ai-merge.sh).
+"""Whether a bot's change leaves EDM's window looking as it does on main (scripts/ai-merge.sh).
 
     python3 scripts/ai-looks-gate.py BRANCH-PICTURES MAIN-PICTURES [MAIN-PICTURES...]
     python3 scripts/ai-looks-gate.py --self-test

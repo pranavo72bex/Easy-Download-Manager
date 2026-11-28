@@ -1,16 +1,16 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The update manifest's key and signature (gaps row F6).
 //!
-//! `cargo xtask update-key` makes a new Ed25519 pair: the public half is pasted into dm
-//! (`SIGNING_KEY` in `dm-shell/src/app/update.rs`), the private half becomes the repository
-//! secret `DM_UPDATE_SIGNING_KEY` and is never written into a tracked file.
+//! `cargo xtask update-key` makes a new Ed25519 pair: the public half is pasted into EDM
+//! (`SIGNING_KEY` in `edm-shell/src/app/update.rs`), the private half becomes the repository
+//! secret `EDM_UPDATE_SIGNING_KEY` and is never written into a tracked file.
 //! `cargo xtask sign-manifest <latest.json>` signs a manifest with the key in that variable,
-//! writing `latest.json.sig` beside it, and refuses a key that is not the one dm carries: a
-//! release signed by any other key is a release every dm would refuse.
+//! writing `latest.json.sig` beside it, and refuses a key that is not the one EDM carries: a
+//! release signed by any other key is a release every EDM would refuse.
 //! The same key signs a release's list of digests (`release.rs`, gaps row W21).
 
 use base64::Engine as _;
@@ -18,10 +18,10 @@ use ring::signature::{Ed25519KeyPair, KeyPair};
 use std::path::Path;
 
 /// The environment variable `sign-manifest` reads the private key from: base64 of its PKCS#8.
-pub const ENV: &str = "DM_UPDATE_SIGNING_KEY";
+pub const ENV: &str = "EDM_UPDATE_SIGNING_KEY";
 
-/// Where dm carries the public key, from the repository's root.
-pub const CARRIED_IN: &str = "crates/dm-shell/src/app/update.rs";
+/// Where EDM carries the public key, from the repository's root.
+pub const CARRIED_IN: &str = "crates/edm-shell/src/app/update.rs";
 
 fn b64() -> base64::engine::GeneralPurpose {
     base64::engine::general_purpose::STANDARD
@@ -68,13 +68,13 @@ pub fn sign(private: &str, carried: &str, manifest: &[u8]) -> Result<String, Str
     let public = b64().encode(pair.public_key().as_ref());
     if public != carried.trim() {
         return Err(format!(
-            "the key in {ENV} is not the one dm carries ({public} is not {carried}): paste the \
+            "the key in {ENV} is not the one EDM carries ({public} is not {carried}): paste the \
              public line of `cargo xtask update-key` as SIGNING_KEY in {CARRIED_IN}, or set the \
              secret to that key's private half"
         ));
     }
     let signature = b64().encode(pair.sign(manifest).as_ref());
-    // Checked as dm checks it, so a release is never published with a signature dm refuses.
+    // Checked as EDM checks it, so a release is never published with a signature EDM refuses.
     if !signed_by(&public, manifest, &signature) {
         return Err("the signature made does not check".to_string());
     }
@@ -82,7 +82,7 @@ pub fn sign(private: &str, carried: &str, manifest: &[u8]) -> Result<String, Str
 }
 
 /// Whether `signature` (base64) is `key`'s (base64, 32 bytes) Ed25519 signature of exactly
-/// `message`: the check dm makes (`dm-shell`'s `update::signed_by`), here for
+/// `message`: the check EDM makes (`edm-shell`'s `update::signed_by`), here for
 /// `verify-release` (gaps row W21).
 pub fn signed_by(key: &str, message: &[u8], signature: &str) -> bool {
     let (Ok(key), Ok(signature)) = (b64().decode(key.trim()), b64().decode(signature.trim()))
@@ -95,7 +95,7 @@ pub fn signed_by(key: &str, message: &[u8], signature: &str) -> bool {
             .is_ok()
 }
 
-/// The public key dm carries, read from its source under `root` (the repository).
+/// The public key EDM carries, read from its source under `root` (the repository).
 pub fn carried(root: &Path) -> Result<String, String> {
     let source =
         std::fs::read_to_string(root.join(CARRIED_IN)).map_err(|e| format!("{CARRIED_IN}: {e}"))?;
@@ -104,7 +104,7 @@ pub fn carried(root: &Path) -> Result<String, String> {
         .ok_or(format!("{CARRIED_IN} has no SIGNING_KEY"))
 }
 
-/// The signature of `message` by the key in [`ENV`], refused unless that key is the one dm
+/// The signature of `message` by the key in [`ENV`], refused unless that key is the one EDM
 /// carries: what `sign-manifest` and `sign-release` both sign with.
 pub fn sign_with_env(root: &Path, message: &[u8]) -> Result<String, String> {
     let private = std::env::var(ENV).map_err(|_| format!("{ENV} is not set"))?;
@@ -126,7 +126,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_manifest_is_signed_only_with_the_key_dm_carries() {
+    fn a_manifest_is_signed_only_with_the_key_edm_carries() {
         let (public, private) = new_pair().unwrap();
         let manifest = br#"{"version":"9.9.9"}"#;
         let signature = sign(&private, &public, manifest).unwrap();
@@ -142,13 +142,13 @@ mod tests {
         assert!(!signed_by("junk", manifest, &signature));
         let (other, _) = new_pair().unwrap();
         let refused = sign(&private, &other, manifest).unwrap_err();
-        assert!(refused.contains("not the one dm carries"), "{refused}");
+        assert!(refused.contains("not the one EDM carries"), "{refused}");
         assert!(sign("not base64!", &public, manifest).is_err());
         assert!(sign(&b64().encode([7u8; 40]), &public, manifest).is_err());
     }
 
     #[test]
-    fn the_key_dm_carries_is_read_from_its_source() {
+    fn the_key_edm_carries_is_read_from_its_source() {
         let source = std::fs::read_to_string(crate::root().join(CARRIED_IN)).unwrap();
         let key = carried_key(&source).expect("update.rs carries SIGNING_KEY");
         assert_eq!(b64().decode(key).unwrap().len(), 32);

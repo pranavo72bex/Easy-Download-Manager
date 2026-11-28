@@ -1,23 +1,23 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Where dm says it drew words, on screen: for the checks that press a real pointer
+"""Where EDM says it drew words, on screen: for the checks that press a real pointer
 (scripts/linux/gui.py, scripts/chromium-human.py).
 
-Each dialog of dm's is a window of its own (contract row B42). dm's control port says where
+Each dialog of EDM's is a window of its own (contract row B42). EDM's control port says where
 each dialog window is (`ui.windows`) and where each word was drawn inside its window
 (`ui.texts`); the two together are a point to aim the real pointer at. Only where to aim:
-the click is the pointer's, and what it did is judged from dm's state.
+the click is the pointer's, and what it did is judged from EDM's state.
 
 `call` is a control-port client: `call(method, **params)` gives the answer's result.
 """
 
 
 def dialog(call):
-    """The words drawn in dm's one open dialog and that window's inner rectangle on screen:
-    ([], None) where not exactly one dialog is open, or dm cannot be asked."""
+    """The words drawn in EDM's one open dialog and that window's inner rectangle on screen:
+    ([], None) where not exactly one dialog is open, or EDM cannot be asked."""
     if not call:
         return [], None
     try:
@@ -76,7 +76,7 @@ def value(texts, label):
 def field_point(texts, origin, label):
     """Where to click into the field `label` names: the hint or text drawn on the label's own
     row to its right, where there is one (a form's row); a folder's box, just left of the
-    Browse… under a long label; else just below the label, where dm's `field` puts the box."""
+    Browse… under a long label; else just below the label, where EDM's `field` puts the box."""
     found = label_of(texts, label)
     if not found:
         return None
@@ -97,13 +97,13 @@ def field_point(texts, origin, label):
 
 
 def dialog_point(call, words, contains=False):
-    """Where `words` are drawn in dm's open dialog, on screen, or None."""
+    """Where `words` are drawn in EDM's open dialog, on screen, or None."""
     texts, inner = dialog(call)
     return point(texts, inner, words, contains) if inner else None
 
 
 def main_point(call, origin, words):
-    """Where `words` are drawn in dm's main window, whose content's corner is at `origin`."""
+    """Where `words` are drawn in EDM's main window, whose content's corner is at `origin`."""
     if not (call and origin):
         return None
     try:

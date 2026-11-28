@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""The video website compatibility test plan, run against the real dm.
+"""The video website compatibility test plan, run against the real EDM.
 
     python scripts/video-sites-check.py                        # engine, public-url, public-panel
     python scripts/video-sites-check.py --phases engine        # one or more phases, comma-separated
@@ -23,15 +23,15 @@ deleted at the end (the report is kept):
                 big for the disk (refused before anything is written) and a
                 file past 4 GiB. Every byte that lands is compared with what
                 was served.
-  public-url    Real public sites through dm's own Add URL (the control port's
-                `downloads.add`), headless: YouTube (dm's own reader: best, a
+  public-url    Real public sites through EDM's own Add URL (the control port's
+                `downloads.add`), headless: YouTube (EDM's own reader: best, a
                 height, a picture-and-sound pair, sound alone), Internet
                 Archive (each format's MD5 from the item's metadata), Wikimedia
                 Commons (the original's SHA-1 from the API, and a transcode),
                 NASA's library, Test-Videos.co.uk, an HLS and a DASH test
                 stream, a pause and resume of a stream, and refusals (a video
                 that does not exist, one that needs a sign-in).
-  public-panel  The video sites dm reaches through its browser panel
+  public-panel  The video sites EDM reaches through its browser panel
                 (scripts/sites-check.py): YouTube, Vimeo, Dailymotion, Rumble,
                 Reddit, TikTok, Twitch (a past broadcast and a clip),
                 Bilibili and PeerTube, in Microsoft Edge with a new profile
@@ -41,9 +41,9 @@ deleted at the end (the report is kept):
                 sign-in page and waits while the tester signs in BY HAND with
                 an account of their own. The script never creates accounts,
                 never types, reads or keeps a password, and its profile is the
-                tester's to keep (DM_AUTH_PROFILES) or is deleted with the run.
+                tester's to keep (EDM_AUTH_PROFILES) or is deleted with the run.
 
-dm is given no cookies file and no login in the public phases, and each row's
+EDM is given no cookies file and no login in the public phases, and each row's
 `signed_in` (whether the row holds any cookies) is read back to prove it.
 A site that shows a login wall, a bot check or an error page to a signed-out
 visitor is BLOCKED, never retried signed in and counted as a public pass.
@@ -53,17 +53,17 @@ written with the plan's evidence fields to report.md and report.json in the
 report folder, with the release gate worked out from them.
 
 Environment:
-  DM_BINARY          dm-gpui to test (default: $CARGO_TARGET_DIR/debug, then target/debug)
-  DM_VIDEO_WORK      folder for the run's throwaway files (default: the system's temp)
-  DM_VIDEO_REPORT    where the report goes (default: <work>/report, kept after the run)
-  DM_TEST_LARGE_GB   size of ENG-08's file, in GiB (default 4.5; 0 skips it)
-  DM_TEST_REMOVABLE  a removable drive's folder for ENG-07b (asks you to pull the drive)
-  DM_NASA_MAX_MB     the largest NASA original to fetch for PUB-12b (default 400)
-  DM_FFMPEG          an ffmpeg to decode each video with, as well (default: ffmpeg on PATH)
-  DM_AUTH_PROFILES   folder of kept browser profiles for --auth, one per site
+  EDM_BINARY          edm-gpui to test (default: $CARGO_TARGET_DIR/debug, then target/debug)
+  EDM_VIDEO_WORK      folder for the run's throwaway files (default: the system's temp)
+  EDM_VIDEO_REPORT    where the report goes (default: <work>/report, kept after the run)
+  EDM_TEST_LARGE_GB   size of ENG-08's file, in GiB (default 4.5; 0 skips it)
+  EDM_TEST_REMOVABLE  a removable drive's folder for ENG-07b (asks you to pull the drive)
+  EDM_NASA_MAX_MB     the largest NASA original to fetch for PUB-12b (default 400)
+  EDM_FFMPEG          an ffmpeg to decode each video with, as well (default: ffmpeg on PATH)
+  EDM_AUTH_PROFILES   folder of kept browser profiles for --auth, one per site
   SITES_URL_<NAME>   a page for a panel site instead of the one found (see sites-check.py)
 
-Not in CI: it reaches real sites, which change. Needs a built dm, and for
+Not in CI: it reaches real sites, which change. Needs a built EDM, and for
 public-panel a packaged extension (sh scripts/package.sh) and Microsoft Edge.
 """
 import argparse
@@ -100,17 +100,17 @@ sys.path.insert(0, str(HERE))
 import media_check  # noqa: E402
 
 EXE = ".exe" if sys.platform == "win32" else ""
-# The window dm ships, on every system: GPUI (docs/gaps.md G9).
-SHIPPED = "dm-gpui"
+# The window EDM ships, on every system: GPUI (docs/gaps.md G9).
+SHIPPED = "edm-gpui"
 # The script's own name to the sites it asks (APIs and reference copies), not a person's.
-AGENT = "dm-video-sites-check/1.0 (+https://github.com/pranavo72bex/Easy-Download-Manager)"
+AGENT = "edm-video-sites-check/1.0 (+https://github.com/pranavo72bex/Easy-Download-Manager)"
 MB = 1024 * 1024
 
 
 def default_binary():
-    if os.environ.get("DM_BINARY"):
-        return pathlib.Path(os.environ["DM_BINARY"])
-    for target in filter(None, [os.environ.get("CARGO_TARGET_DIR"), "D:/dm-target" if sys.platform == "win32" else None,
+    if os.environ.get("EDM_BINARY"):
+        return pathlib.Path(os.environ["EDM_BINARY"])
+    for target in filter(None, [os.environ.get("CARGO_TARGET_DIR"), "D:/edm-target" if sys.platform == "win32" else None,
                                 str(ROOT / "target")]):
         candidate = pathlib.Path(target) / "debug" / f"{SHIPPED}{EXE}"
         if candidate.exists():
@@ -127,8 +127,8 @@ BINARY = default_binary()
 # (id, website, what is tested, priority, phase). The gate counts PUB P0 and every CORE/ENG.
 PLAN = [
     ("CORE-08", "local server", "pause and resume: no bytes while paused, the rest fetched after", "core", "engine"),
-    ("CORE-09a", "local server", "dm quits mid-download (Exit) and starts again: the row goes on", "core", "engine"),
-    ("CORE-09b", "local server", "dm is killed mid-download and starts again: the row goes on", "core", "engine"),
+    ("CORE-09a", "local server", "EDM quits mid-download (Exit) and starts again: the row goes on", "core", "engine"),
+    ("CORE-09b", "local server", "EDM is killed mid-download and starts again: the row goes on", "core", "engine"),
     ("CORE-10", "local server", "connections dropped mid-body three times: retried, whole", "core", "engine"),
     ("CORE-11a", "local", "a line that is not an address is refused", "core", "engine"),
     ("CORE-11b", "local", "a host that does not exist fails with a reason", "core", "engine"),
@@ -144,7 +144,7 @@ PLAN = [
     ("ENG-05", "local server", "429, 429, 503 with Retry-After: waited, then whole", "core", "engine"),
     ("ENG-06", "local server", "the server goes away for 10 s mid-download: recovered, whole", "core", "engine"),
     ("ENG-07a", "local", "the destination folder is a file: an I/O error, not completed", "core", "engine"),
-    ("ENG-07b", "removable drive", "the drive is pulled mid-download (DM_TEST_REMOVABLE)", "core", "engine"),
+    ("ENG-07b", "removable drive", "the drive is pulled mid-download (EDM_TEST_REMOVABLE)", "core", "engine"),
     ("ENG-08", "local server", "a file past 4 GiB: progress, size and bytes stay right", "core", "engine"),
     ("PUB-01a", "YouTube", "a public video, best quality, by Add URL (CORE-01, CORE-04)", "P0", "public-url"),
     ("PUB-01b", "YouTube", "a chosen height, 360 (CORE-03)", "P0", "public-url"),
@@ -200,7 +200,7 @@ def record(test_id, result, url="", fmt="", size=None, playable="N/A", notes="",
     RESULTS.append(row)
     shown = f"{size / MB:.1f} MB" if isinstance(size, (int, float)) and size else ""
     print(f"  {result:<11} {test_id:<9} {site:<18} {notes[:110]} {shown}".rstrip()
-          + (f"\n              dm: {log[:200]}" if log and result != "PASS" else ""), flush=True)
+          + (f"\n              EDM: {log[:200]}" if log and result != "PASS" else ""), flush=True)
     return row
 
 
@@ -213,15 +213,15 @@ def wait(probe, seconds, every=0.5):
         time.sleep(every)
 
 
-# ------------------------------------------------------------ dm, headless
+# ------------------------------------------------------------ EDM, headless
 
 
-class DmError(Exception):
+class EdmError(Exception):
     pass
 
 
 class Dm:
-    """One dm, headless, on a home and download folder of its own, driven over its control port."""
+    """One EDM, headless, on a home and download folder of its own, driven over its control port."""
 
     def __init__(self, root, **settings):
         self.root = pathlib.Path(root)
@@ -241,13 +241,13 @@ class Dm:
 
     def start(self):
         (self.home / "control.port").unlink(missing_ok=True)
-        env = dict(os.environ, DM_HOME=str(self.home), XDG_CACHE_HOME=str(self.cache))
+        env = dict(os.environ, EDM_HOME=str(self.home), XDG_CACHE_HOME=str(self.cache))
         self.stderr = open(self.home / "stderr.txt", "ab")
         self.app = subprocess.Popen([str(BINARY), "--headless", "--control", "0"], env=env,
                                     stdout=subprocess.DEVNULL, stderr=self.stderr)
         port = wait(lambda: (self.home / "control.port").exists() and (self.home / "control.port").read_text(encoding="utf-8").strip(), 60)
         if not port:
-            raise DmError(f"dm did not open its control port within 60 s (see {self.home / 'stderr.txt'})")
+            raise EdmError(f"EDM did not open its control port within 60 s (see {self.home / 'stderr.txt'})")
         self.conn = socket.create_connection(("127.0.0.1", int(port)), timeout=120)
         self.replies = self.conn.makefile("r", encoding="utf-8")
         self.call("auth", token=(self.home / "control.token").read_text(encoding="utf-8").strip())
@@ -257,7 +257,7 @@ class Dm:
         self.conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
         reply = json.loads(self.replies.readline())
         if not reply.get("ok", True):
-            raise DmError(reply.get("error"))
+            raise EdmError(reply.get("error"))
         return reply.get("result")
 
     def rows(self):
@@ -267,12 +267,12 @@ class Dm:
         return next((r for r in self.rows() if r.get("id") == ident), None)
 
     def add(self, url, **options):
-        """The new row's id, or raises DmError with dm's own words."""
+        """The new row's id, or raises EdmError with EDM's own words."""
         before = {r["id"] for r in self.rows()}
         self.call("downloads.add", urls=[url], again=True, **options)
         new = wait(lambda: [r for r in self.rows() if r["id"] not in before], 20)
         if not new:
-            raise DmError("dm said nothing and listed no new row")
+            raise EdmError("EDM said nothing and listed no new row")
         return new[0]["id"]
 
     def settle(self, ident, seconds):
@@ -288,7 +288,7 @@ class Dm:
         if graceful and self.conn:
             try:
                 self.call("command.run", id="program.exit")
-            except (DmError, OSError, ValueError):
+            except (EdmError, OSError, ValueError):
                 pass
             try:
                 self.app.wait(20)
@@ -316,12 +316,12 @@ class Dm:
 
 
 def held(row):
-    """A row dm paused itself, saying why (`stalled`): no room on the disk, a folder it cannot write."""
+    """A row EDM paused itself, saying why (`stalled`): no room on the disk, a folder it cannot write."""
     return bool(row) and row["state"]["kind"] == "paused" and bool(row.get("stalled"))
 
 
 def state(row):
-    """(kind, dm's words): a failure's reason, or what holds a paused row."""
+    """(kind, EDM's words): a failure's reason, or what holds a paused row."""
     if not row:
         return "missing", ""
     return row["state"]["kind"], str(row["state"].get("reason") or row.get("stalled") or "")
@@ -350,15 +350,15 @@ def accounting(row, path):
     return ""
 
 
-def nothing_saved(dm, before):
-    after = {f for f in dm.downloads.rglob("*") if f.is_file()}
+def nothing_saved(edm, before):
+    after = {f for f in edm.downloads.rglob("*") if f.is_file()}
     return sorted(f.name for f in after - before)
 
 
 # ------------------------------------------------------------ media checks
 
 
-FFMPEG = os.environ.get("DM_FFMPEG") or shutil.which("ffmpeg")
+FFMPEG = os.environ.get("EDM_FFMPEG") or shutil.which("ffmpeg")
 
 
 def media(path):
@@ -569,9 +569,9 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 def engine_phase(work):
-    print("\n== engine: CORE and ENG cases against a local server, dm headless ==", flush=True)
+    print("\n== engine: CORE and ENG cases against a local server, EDM headless ==", flush=True)
     server = Server()
-    dm = Dm(work / "engine", connections=8, retry_wait=0).start()
+    edm = Dm(work / "engine", connections=8, retry_wait=0).start()
     try:
         def whole_file(test_id, url, size, row, extra_notes="", problem=""):
             """The file is every byte served, the row's numbers agree, and `problem` (a check of the
@@ -595,7 +595,7 @@ def engine_phase(work):
         def eng02():
             size = 48 * MB
             url = server.file("ranged.bin", size, rate=4 * MB)
-            row = dm.settle(dm.add(url), 180)
+            row = edm.settle(edm.add(url), 180)
             asked = [r for r in server.requests("ranged.bin") if r["method"] == "GET" and r["range"]]
             starts = {r["range"] for r in asked}
             whole_file("ENG-02", url, size, row,
@@ -606,7 +606,7 @@ def engine_phase(work):
         def eng03():
             size = 24 * MB
             url = server.file("plain.bin", size, ranges=False, rate=8 * MB)
-            row = dm.settle(dm.add(url), 180)
+            row = edm.settle(edm.add(url), 180)
             whole_file("ENG-03", url, size, row, f"{len(server.requests('plain.bin'))} requests")
         guarded("ENG-03", eng03)
 
@@ -614,7 +614,7 @@ def engine_phase(work):
             size = 6 * MB
             server.file("redirected.bin", size)
             url = f"{server.origin}/r/3/redirected.bin"
-            row = dm.settle(dm.add(url), 120)
+            row = edm.settle(edm.add(url), 120)
             whole_file("ENG-01", url, size, row, f"saved as {(row or {}).get('filename')}")
         guarded("ENG-01", eng01)
 
@@ -622,17 +622,17 @@ def engine_phase(work):
         def core08():
             size = 40 * MB
             url = server.file("paused.bin", size, rate=512 * 1024)
-            ident = dm.add(url)
-            wait(lambda: got_bytes(dm.row(ident)) > size // 5, 90)
-            dm.call("downloads.pause", ids=[ident])
-            paused = wait(lambda: state(dm.row(ident))[0] == "paused", 15)
+            ident = edm.add(url)
+            wait(lambda: got_bytes(edm.row(ident)) > size // 5, 90)
+            edm.call("downloads.pause", ids=[ident])
+            paused = wait(lambda: state(edm.row(ident))[0] == "paused", 15)
             time.sleep(1.5)  # what was already in the sockets' buffers when the pause came
-            at_pause, sent_pause = got_bytes(dm.row(ident)), server.cases["paused.bin"]["sent"]
+            at_pause, sent_pause = got_bytes(edm.row(ident)), server.cases["paused.bin"]["sent"]
             time.sleep(4)
             still = server.cases["paused.bin"]["sent"] - sent_pause
             mark = time.time()
-            dm.call("downloads.resume", ids=[ident])
-            row = dm.settle(ident, 240)
+            edm.call("downloads.resume", ids=[ident])
+            row = edm.settle(ident, 240)
             after = sum(1 for r in server.requests("paused.bin", mark) if r["method"] == "GET")
             refetched = server.cases["paused.bin"]["sent"] - sent_pause - still
             whole_file("CORE-08", url, size, row,
@@ -642,30 +642,30 @@ def engine_phase(work):
                        "started again from the beginning" if refetched > size * 0.95 else "")
         guarded("CORE-08", core08)
 
-        # CORE-09: Exit, then a kill, mid-download; dm started again on the same home.
+        # CORE-09: Exit, then a kill, mid-download; EDM started again on the same home.
         def core09(test_id, how):
-            nonlocal dm
+            nonlocal edm
             size = 40 * MB
             name = f"restart-{how}.bin"
             url = server.file(name, size, rate=512 * 1024)
-            ident = dm.add(url)
-            wait(lambda: got_bytes(dm.row(ident)) > size // 4, 90)
-            at_stop = got_bytes(dm.row(ident))
+            ident = edm.add(url)
+            wait(lambda: got_bytes(edm.row(ident)) > size // 4, 90)
+            at_stop = got_bytes(edm.row(ident))
             if how == "exit":
-                dm.stop(graceful=True)
+                edm.stop(graceful=True)
             else:
-                dm.kill()
+                edm.kill()
             sent_stop = server.cases[name]["sent"]
             # The same home and queue: only the process is new.
-            dm = Dm(work / "engine", connections=8, retry_wait=0).start()
-            row = wait(lambda: dm.row(ident), 20)
+            edm = Dm(work / "engine", connections=8, retry_wait=0).start()
+            row = wait(lambda: edm.row(ident), 20)
             listed = state(row)
             time.sleep(4)
             resumed_by = "by itself"
-            if state(dm.row(ident))[0] in ("paused", "failed", "queued"):
-                dm.call("downloads.resume", ids=[ident])
+            if state(edm.row(ident))[0] in ("paused", "failed", "queued"):
+                edm.call("downloads.resume", ids=[ident])
                 resumed_by = "after Resume"
-            row = dm.settle(ident, 240)
+            row = edm.settle(ident, 240)
             refetched = server.cases[name]["sent"] - sent_stop
             whole_file(test_id, url, size, row,
                        f"stopped at {at_stop / MB:.1f} MB; listed again as {listed[0]}; went on {resumed_by}; "
@@ -677,20 +677,20 @@ def engine_phase(work):
         def core10():
             size = 16 * MB
             url = server.file("dropped.bin", size, drop_first=3, drop_after=MB)
-            row = dm.settle(dm.add(url), 180)
+            row = edm.settle(edm.add(url), 180)
             whole_file("CORE-10", url, size, row, f"{len(server.requests('dropped.bin'))} requests, the first 3 cut at 1 MB")
         guarded("CORE-10", core10)
 
         def eng05():
             size = 8 * MB
             url = server.file("limited.bin", size, status_first=[429, 429, 503], retry_after="2")
-            row = dm.settle(dm.add(url), 240)
+            row = edm.settle(edm.add(url), 240)
             log = server.requests("limited.bin")
             t0 = log[0]["t"] if log else 0
             timeline = ", ".join(f"+{r['t'] - t0:.1f}s {r['range'] or 'no Range'}" for r in log[:5])
             # The same request asked again: a 429 or 503 answered by asking again without Range at
-            # once (dm's fallback for a server that refuses ranges) is a different request, and so
-            # is one in another name: a 429 to a browser's name is asked once more at once in dm's
+            # once (EDM's fallback for a server that refuses ranges) is a different request, and so
+            # is one in another name: a 429 to a browser's name is asked once more at once in EDM's
             # own (`probe.rs`, for servers that limit browsers' names from a program).
             again = [next((b for b in log[i + 1:] if (b["range"], b["agent"]) == (a["range"], a["agent"])), None)
                      for i, a in enumerate(log[:3])]
@@ -702,32 +702,32 @@ def engine_phase(work):
         def eng06():
             size = 32 * MB
             url = server.file("outage.bin", size, rate=512 * 1024)
-            ident = dm.add(url)
-            wait(lambda: got_bytes(dm.row(ident)) > size // 4, 90)
+            ident = edm.add(url)
+            wait(lambda: got_bytes(edm.row(ident)) > size // 4, 90)
             server.down = True
             time.sleep(10)
-            during = state(dm.row(ident))
+            during = state(edm.row(ident))
             server.down = False
-            row = dm.settle(ident, 180)
+            row = edm.settle(ident, 180)
             how = "by itself"
             if state(row)[0] == "failed":
-                dm.call("downloads.resume", ids=[ident])
-                row = dm.settle(ident, 180)
+                edm.call("downloads.resume", ids=[ident])
+                row = edm.settle(ident, 180)
                 how = "after Resume"
-            whole_file("ENG-06", url, size, row, f"during the outage dm said {during[0]} {during[1][:80]!r}; recovered {how}")
+            whole_file("ENG-06", url, size, row, f"during the outage EDM said {during[0]} {during[1][:80]!r}; recovered {how}")
         guarded("ENG-06", eng06)
 
         def eng04():
             size = 24 * MB
             url = server.file("expiring.bin", size, rate=256 * 1024)
-            ident = dm.add(url)
-            wait(lambda: got_bytes(dm.row(ident)) > 2 * MB, 60)
-            dm.call("downloads.pause", ids=[ident])
-            wait(lambda: state(dm.row(ident))[0] == "paused", 15)
+            ident = edm.add(url)
+            wait(lambda: got_bytes(edm.row(ident)) > 2 * MB, 60)
+            edm.call("downloads.pause", ids=[ident])
+            wait(lambda: state(edm.row(ident))[0] == "paused", 15)
             server.cases["expiring.bin"]["expires"] = time.time()
             time.sleep(1)
-            dm.call("downloads.resume", ids=[ident])
-            row = dm.settle(ident, 240)
+            edm.call("downloads.resume", ids=[ident])
+            row = edm.settle(ident, 240)
             kind, reason = state(row)
             if kind == "completed":
                 record("ENG-04", "FAIL", url, notes="completed from an address that answers 403", log=reason)
@@ -738,16 +738,16 @@ def engine_phase(work):
         guarded("ENG-04", eng04)
 
         def refusals():
-            before = {f for f in dm.downloads.rglob("*") if f.is_file()}
+            before = {f for f in edm.downloads.rglob("*") if f.is_file()}
             first = len(RESULTS)
             # CORE-11a: not an address at all.
             try:
-                ident = dm.add("this is not a link")
-                row = dm.settle(ident, 60)
+                ident = edm.add("this is not a link")
+                row = edm.settle(ident, 60)
                 kind, reason = state(row)
                 record("CORE-11a", "PASS" if kind == "failed" and reason else "FAIL", "this is not a link",
                        notes=f"added, then {kind}", log=reason)
-            except DmError as e:
+            except EdmError as e:
                 record("CORE-11a", "PASS", "this is not a link", notes="refused when added", log=str(e))
             cases = [("CORE-11b", "http://no-such-host.invalid/video.mp4"),
                      ("CORE-12a", f"{server.origin}/s/404/deleted.mp4"),
@@ -757,18 +757,18 @@ def engine_phase(work):
             idents, added = {}, {}
             for test_id, url in cases:
                 try:
-                    idents[test_id] = dm.add(url)
+                    idents[test_id] = edm.add(url)
                     added[test_id] = time.monotonic()
-                except DmError as e:
+                except EdmError as e:
                     record(test_id, "PASS", url, notes="refused when added", log=str(e))
             # All watched at once, each timed from its own add. What the window says of a row
             # (`ui.inspect`'s status: "Server not found (retry 6 of 15)") is read beside the row,
             # since a retried row is "running" to the control port until its tries run out.
             settled, said = {}, {}
             while len(settled) < len(idents) and time.monotonic() - min(added.values(), default=0) < 300:
-                shown = {r.get("id"): r.get("status", "") for r in (dm.call("ui.inspect") or {}).get("rows", [])}
+                shown = {r.get("id"): r.get("status", "") for r in (edm.call("ui.inspect") or {}).get("rows", [])}
                 for test_id, ident in idents.items():
-                    row = dm.row(ident)
+                    row = edm.row(ident)
                     words = shown.get(ident, "")
                     if test_id not in said and words and not words.startswith(("Starting", "Queued")) and "%" not in words:
                         said[test_id] = (words, time.monotonic() - added[test_id])
@@ -778,7 +778,7 @@ def engine_phase(work):
             for test_id, url in cases:
                 if test_id not in idents:
                     continue
-                row, took = settled.get(test_id, (dm.row(idents[test_id]), None))
+                row, took = settled.get(test_id, (edm.row(idents[test_id]), None))
                 kind, reason = state(row)
                 ok = took is not None and kind != "completed" and bool(reason)
                 window = f"the window said {said[test_id][0]!r} after {said[test_id][1]:.0f} s; " if test_id in said else ""
@@ -786,7 +786,7 @@ def engine_phase(work):
                        notes=window + (f"{kind} after {took:.0f} s" if ok else
                                        f"still {kind} after 5 minutes" if took is None else f"{kind}, no reason"),
                        log=reason)
-            left = nothing_saved(dm, before)
+            left = nothing_saved(edm, before)
             if left:
                 for r in RESULTS[first:]:
                     r["result"], r["notes"] = "FAIL", r["notes"] + f"; left in the folder: {left}"
@@ -795,12 +795,12 @@ def engine_phase(work):
         def core14():
             # 64 TiB: no more than 16 MB a response and 64 MB in all is ever sent.
             url = server.file("enormous.bin", 64 * 1024 ** 4, cap=16 * MB, total_cap=64 * MB)
-            ident = dm.add(url)
-            row = dm.settle(ident, 60)
+            ident = edm.add(url)
+            row = edm.settle(ident, 60)
             kind, reason = state(row)
             sent = server.cases["enormous.bin"]["sent"]
             if kind != "failed":
-                dm.call("downloads.cancel", ids=[ident])
+                edm.call("downloads.cancel", ids=[ident])
             ok = kind in ("failed", "paused") and any(w in reason.lower() for w in ("room", "space", "disk", "full"))
             record("CORE-14", "PASS" if ok else "FAIL", url,
                    notes=f"{kind}; {sent / MB:.1f} MB fetched before that" + ("" if ok else "; no word of the disk"),
@@ -810,13 +810,13 @@ def engine_phase(work):
         def eng07a():
             size = 4 * MB
             url = server.file("nowhere.bin", size)
-            blocker = dm.downloads / "not-a-folder"
+            blocker = edm.downloads / "not-a-folder"
             blocker.write_text("a file where the download's folder should be", encoding="utf-8")
             try:
-                ident = dm.add(url, folder=str(blocker))
-            except DmError as e:
+                ident = edm.add(url, folder=str(blocker))
+            except EdmError as e:
                 return record("ENG-07a", "PASS", url, notes="refused when added", log=str(e))
-            row = dm.settle(ident, 120)
+            row = edm.settle(ident, 120)
             kind, reason = state(row)
             path = landed(row)
             if kind == "completed":
@@ -824,13 +824,13 @@ def engine_phase(work):
                               notes=f"completed at {path}" if path else "completed with no file", log=reason)
             record("ENG-07a", "PASS" if kind in ("failed", "paused") and reason else "FAIL", url,
                    notes=f"ended {kind}, saying why", log=reason)
-            dm.call("downloads.cancel", ids=[ident])
+            edm.call("downloads.cancel", ids=[ident])
         guarded("ENG-07a", eng07a)
 
-        removable = os.environ.get("DM_TEST_REMOVABLE")
+        removable = os.environ.get("EDM_TEST_REMOVABLE")
         if removable and sys.stdin.isatty():
             def eng07b():
-                folder = pathlib.Path(removable) / "dm-video-sites-check"
+                folder = pathlib.Path(removable) / "edm-video-sites-check"
                 other = Dm(work / "removable", download_dir=str(folder)).start()
                 try:
                     size = 200 * MB
@@ -846,22 +846,22 @@ def engine_phase(work):
                     other.stop()
             guarded("ENG-07b", eng07b)
         else:
-            record("ENG-07b", "BLOCKED", notes="needs a removable drive: set DM_TEST_REMOVABLE and run in a terminal")
+            record("ENG-07b", "BLOCKED", notes="needs a removable drive: set EDM_TEST_REMOVABLE and run in a terminal")
 
         def eng08():
-            gib = float(os.environ.get("DM_TEST_LARGE_GB", "4.5"))
+            gib = float(os.environ.get("EDM_TEST_LARGE_GB", "4.5"))
             if gib <= 0:
-                return record("ENG-08", "N/A", notes="skipped (DM_TEST_LARGE_GB=0)")
+                return record("ENG-08", "N/A", notes="skipped (EDM_TEST_LARGE_GB=0)")
             size = int(gib * 1024 ** 3)
-            free = shutil.disk_usage(dm.downloads).free
+            free = shutil.disk_usage(edm.downloads).free
             if free < size * 1.2 + 1024 ** 3:
                 return record("ENG-08", "BLOCKED", notes=f"needs {size * 1.2 / 1024 ** 3:.1f} GiB free, "
-                                                         f"{free / 1024 ** 3:.1f} GiB is (DM_VIDEO_WORK on a bigger disk)")
+                                                         f"{free / 1024 ** 3:.1f} GiB is (EDM_VIDEO_WORK on a bigger disk)")
             url = server.file("large.bin", size)
-            ident = dm.add(url)
+            ident = edm.add(url)
             seen, problems, started = [], [], time.monotonic()
             while time.monotonic() - started < 1800:
-                row = dm.row(ident)
+                row = edm.row(ident)
                 kind, _ = state(row)
                 p = (row or {}).get("progress", {})
                 now = p.get("downloaded") or 0
@@ -876,7 +876,7 @@ def engine_phase(work):
                     break
                 time.sleep(1)
             took = time.monotonic() - started
-            row = dm.row(ident)
+            row = edm.row(ident)
             whole_file("ENG-08", url, size, row, f"{size / 1024 ** 3:.2f} GiB in {took:.0f} s"
                        + ("" if problems else "; progress only went up"),
                        "; ".join(sorted(set(problems))[:3]))
@@ -885,7 +885,7 @@ def engine_phase(work):
                 path.unlink(missing_ok=True)
         guarded("ENG-08", eng08)
     finally:
-        dm.stop()
+        edm.stop()
         server.shutdown()
 
 
@@ -893,7 +893,7 @@ def engine_phase(work):
 
 
 # Certificates are checked, but not with Python 3.13's strict extra rules, which refuse some
-# real chains (a CA without a critical Basic Constraints) that browsers and dm accept.
+# real chains (a CA without a critical Basic Constraints) that browsers and EDM accept.
 TLS = ssl.create_default_context()
 TLS.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
 
@@ -931,14 +931,14 @@ def digest(path, algorithm):
 
 
 YT_SHORT = "https://www.youtube.com/watch?v=jNQXAC9IVRw"     # "Me at the zoo", 19 s
-YT_HEIGHTS = os.environ.get("DM_YT_QUALITY_URL", "https://www.youtube.com/watch?v=aqz-KE-bpKQ")  # Big Buck Bunny, CC-BY
+YT_HEIGHTS = os.environ.get("EDM_YT_QUALITY_URL", "https://www.youtube.com/watch?v=aqz-KE-bpKQ")  # Big Buck Bunny, CC-BY
 YT_MISSING = "https://www.youtube.com/watch?v=Zz0Zz0Zz0Zz"
 VIMEO_PRIVATE = "https://vimeo.com/76979871"
 MUX_HLS = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
 SHAKA_DASH = "https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd"
 TEST_VIDEOS = [("DIR-01", "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"),
                ("DIR-02", "https://test-videos.co.uk/vids/bigbuckbunny/webm/vp9/360/Big_Buck_Bunny_360_10s_1MB.webm")]
-ARCHIVE_ITEM = os.environ.get("DM_ARCHIVE_ITEM", "Popeye_forPresident")
+ARCHIVE_ITEM = os.environ.get("EDM_ARCHIVE_ITEM", "Popeye_forPresident")
 
 
 def archive_cases():
@@ -976,7 +976,7 @@ def wikimedia_cases():
 def nasa_cases():
     found = fetch_json("https://images-api.nasa.gov/search?q=" + urllib.parse.quote("apollo 11")
                        + "&media_type=video&page_size=10")
-    limit = float(os.environ.get("DM_NASA_MAX_MB", "400")) * MB
+    limit = float(os.environ.get("EDM_NASA_MAX_MB", "400")) * MB
     ids = [i.get("data", [{}])[0].get("nasa_id") for i in found.get("collection", {}).get("items", [])]
     # Plain ids first: some items' names hold characters their own files are not served under.
     for nasa_id in sorted(filter(None, ids), key=lambda n: (not n.isascii() or " " in n, n)):
@@ -1059,7 +1059,7 @@ def judge_public(test_id, url, row, expect, ref=None, quality="", note="", probl
 
 
 def public_url_phase(work):
-    print("\n== public-url: real public sites by Add URL, dm headless, signed in nowhere ==", flush=True)
+    print("\n== public-url: real public sites by Add URL, EDM headless, signed in nowhere ==", flush=True)
     found = {}
     for name, finder in (("archive", archive_cases), ("wikimedia", wikimedia_cases), ("nasa", nasa_cases)):
         try:
@@ -1073,7 +1073,7 @@ def public_url_phase(work):
             if test_id not in have:
                 record(test_id, "BLOCKED", notes=f"{name}'s API named no suitable file today")
 
-    # Each group is one dm, its stream_quality set for all of it.
+    # Each group is one EDM, its stream_quality set for all of it.
     groups = [
         ("best", [("PUB-01a", YT_SHORT, {"tracks": {"video", "audio"}}, None),
                   ("CORE-12c", YT_MISSING, "refused", None),
@@ -1090,13 +1090,13 @@ def public_url_phase(work):
         ("audio", [("PUB-01d", YT_SHORT, {"tracks": {"audio"}, "only": {"audio"}}, None)]),
     ]
     for quality, cases in groups:
-        dm = Dm(work / f"public-{quality}", stream_quality=quality).start()
+        edm = Dm(work / f"public-{quality}", stream_quality=quality).start()
         try:
             idents = {}
             for test_id, url, expect, ref in cases:
                 try:
-                    idents[test_id] = dm.add(url)
-                except DmError as e:
+                    idents[test_id] = edm.add(url)
+                except EdmError as e:
                     if expect == "refused":
                         record(test_id, "PASS", url, notes="refused when added", log=str(e))
                     else:
@@ -1104,28 +1104,28 @@ def public_url_phase(work):
                                notes="refused when added", log=str(e))
             for test_id, url, expect, ref in cases:
                 if test_id in idents:
-                    row = dm.settle(idents[test_id], 1800)
+                    row = edm.settle(idents[test_id], 1800)
                     judge_public(test_id, url, row, expect, ref, quality)
             if quality == "360":
-                hls_pause_resume(dm)
+                hls_pause_resume(edm)
         finally:
-            dm.stop()
+            edm.stop()
 
 
-def hls_pause_resume(dm):
+def hls_pause_resume(edm):
     """CORE-08b: a stream, slowed so there is time to pause it, paused, then resumed."""
     try:
-        dm.call("downloads.speed_limit", kb=400)
-        ident = dm.add(MUX_HLS)
-        wait(lambda: got_bytes(dm.row(ident)) > 2 * MB, 180)
-        dm.call("downloads.pause", ids=[ident])
-        paused = wait(lambda: state(dm.row(ident))[0] == "paused", 20)
-        at = got_bytes(dm.row(ident))
+        edm.call("downloads.speed_limit", kb=400)
+        ident = edm.add(MUX_HLS)
+        wait(lambda: got_bytes(edm.row(ident)) > 2 * MB, 180)
+        edm.call("downloads.pause", ids=[ident])
+        paused = wait(lambda: state(edm.row(ident))[0] == "paused", 20)
+        at = got_bytes(edm.row(ident))
         time.sleep(4)
-        moved = got_bytes(dm.row(ident)) - at
-        dm.call("downloads.speed_limit", kb=0)
-        dm.call("downloads.resume", ids=[ident])
-        row = dm.settle(ident, 1800)
+        moved = got_bytes(edm.row(ident)) - at
+        edm.call("downloads.speed_limit", kb=0)
+        edm.call("downloads.resume", ids=[ident])
+        row = edm.settle(ident, 1800)
         judge_public("CORE-08b", MUX_HLS, row, {"tracks": {"video"}}, None, "360",
                      note=f"paused at {at / MB:.1f} MB, {moved} bytes counted while paused",
                      problem="never paused" if not paused else "went on while paused" if moved > 256 * 1024 else "")
@@ -1176,8 +1176,8 @@ def resolve_panel_urls():
 
 def run_sites_check(names, env_extra, work):
     env = {k: v for k, v in os.environ.items()
-           if k not in ("DM_CHROME_PROFILE", "SITES_SIGNIN", "DM_KEEP_OTHER_EXTENSIONS", "SITES_HOLD")}
-    env.update({"DM_SKIP_LOCAL": "1", "DM_BINARY": str(BINARY), "PYTHONUNBUFFERED": "1",
+           if k not in ("EDM_CHROME_PROFILE", "SITES_SIGNIN", "EDM_KEEP_OTHER_EXTENSIONS", "SITES_HOLD")}
+    env.update({"EDM_SKIP_LOCAL": "1", "EDM_BINARY": str(BINARY), "PYTHONUNBUFFERED": "1",
                 "SITES_FINISH_WAIT": os.environ.get("SITES_FINISH_WAIT", "600"),
                 "TMP": str(work), "TEMP": str(work), "TMPDIR": str(work), **env_extra})
     out = []
@@ -1221,12 +1221,12 @@ def judge_panel(test_id, r, signed_in=False):
     blocked = ("no public video post found", "no video player appeared", "not signed in within")
     verdict = "BLOCKED" if any(b in result for b in blocked) else "FAIL"
     detail = r.get("body") or r.get("title") or ""
-    # A file that did not land: what dm's row said by then (sites-check's `dm_rows`).
-    for row in r.get("dm_rows") or []:
+    # A file that did not land: what EDM's row said by then (sites-check's `edm_rows`).
+    for row in r.get("edm_rows") or []:
         st, p = row.get("state") or {}, row.get("progress") or {}
         got = (f"{(p.get('downloaded') or 0) / MB:.1f} of {p['total'] / MB:.1f} MB" if p.get("total")
                else f"{(p.get('downloaded') or 0) / MB:.1f} MB")
-        result += f"; dm's row: {st.get('kind')}, {got} {st.get('reason') or row.get('stalled') or ''}".rstrip()
+        result += f"; EDM's row: {st.get('kind')}, {got} {st.get('reason') or row.get('stalled') or ''}".rstrip()
         if st.get("kind") == "running" and p.get("downloaded"):
             verdict, result = "BLOCKED", result + " (still arriving when the wait ran out: not judged)"
     return record(test_id, verdict, url, fmt, notes=result, log=str(detail)[:300], **extra)
@@ -1235,7 +1235,7 @@ def judge_panel(test_id, r, signed_in=False):
 def public_panel_phase(work, only=()):
     print("\n== public-panel: video sites through the browser panel, a new profile signed in nowhere ==", flush=True)
     sites = {k: x for k, x in PANEL_SITES.items() if not only or k in only}
-    if not (ROOT / "dist" / "chrome" / "pkg" / "dm_catcher_bg.wasm").exists():
+    if not (ROOT / "dist" / "chrome" / "pkg" / "edm_catcher_bg.wasm").exists():
         for test_id in sites.values():
             record(test_id, "BLOCKED", notes="no packaged extension: run sh scripts/package.sh")
         return
@@ -1258,14 +1258,14 @@ def auth_phase(work, sites):
     print("\n== optional authenticated suite: signed in BY HAND, not part of the release gate ==", flush=True)
     print("   The script creates no account and never types or keeps a password. Sign in with an account\n"
           "   of your own (a spare one made for testing is fine) when the Edge window opens.", flush=True)
-    profiles = pathlib.Path(os.environ.get("DM_AUTH_PROFILES") or work / "auth-profiles")
+    profiles = pathlib.Path(os.environ.get("EDM_AUTH_PROFILES") or work / "auth-profiles")
     for name in sites:
         if name not in AUTH_SITES:
             print(f"  {name}: not a site this suite knows ({', '.join(AUTH_SITES)})", flush=True)
             continue
         test_id, pages = AUTH_SITES[name]
         profiles.mkdir(parents=True, exist_ok=True)
-        env = {"SITES_SIGNIN": name, "DM_CHROME_PROFILE": str(profiles / name)}
+        env = {"SITES_SIGNIN": name, "EDM_CHROME_PROFILE": str(profiles / name)}
         results, _ = run_sites_check(pages, env, work)
         for i, r in enumerate(results):
             judge_panel(test_id + (chr(ord("a") + i) if len(results) > 1 else ""), r, signed_in=True)
@@ -1312,7 +1312,7 @@ def write_report(folder, meta, phases):
     summary = gate()
     (folder / "report.json").write_text(json.dumps({"meta": meta, "summary": summary, "results": RESULTS}, indent=2), encoding="utf-8")
     esc = lambda s: str(s if s is not None else "").replace("|", "\\|").replace("\n", " ")
-    lines = [f"# dm video website compatibility run, {meta['date']}", "",
+    lines = [f"# EDM video website compatibility run, {meta['date']}", "",
              "| Field | Value |", "|---|---|"]
     lines += [f"| {k} | {esc(v)} |" for k, v in meta.items()]
     lines += ["", "## Results summary", "", "| Metric | Result |", "|---|---|"]
@@ -1320,8 +1320,8 @@ def write_report(folder, meta, phases):
     lines += ["", "Phases run: " + ", ".join(phases) + ". A gate worked out from fewer than the three public phases "
               "says nothing of the ones left out.", ""]
     lines += ["## Every test", "",
-              "| Test ID | Website | Test | Priority | Exact URL | Time | Signed out | Cookies or credentials to dm "
-              "| Format and quality | Result | Size | Playable | Notes | dm said |",
+              "| Test ID | Website | Test | Priority | Exact URL | Time | Signed out | Cookies or credentials to EDM "
+              "| Format and quality | Result | Size | Playable | Notes | EDM said |",
               "|" + "---|" * 14]
     for r in RESULTS:
         size = f"{r['size'] / MB:.1f} MB" if isinstance(r["size"], (int, float)) and r["size"] else ""
@@ -1330,11 +1330,11 @@ def write_report(folder, meta, phases):
                                                          size, r["playable"], r["notes"], r["log"])) + " |")
     lines += ["", "## Release decision", "",
               f"- [{'x' if summary['Release gate'] == 'PASS' else ' '}] Mandatory public-video acceptance suite passed.",
-              "- [x] Public downloads were run in a clean signed-out session (a new dm home; a new browser profile).",
+              "- [x] Public downloads were run in a clean signed-out session (a new EDM home; a new browser profile).",
               f"- [{'x' if summary['Public tests requiring cookies'] == '0' else ' '}] No public test required cookies "
               "or browser-session extraction.",
               f"- [{'x' if not any(r['result'] == 'FAIL' and r['priority'] == 'core' and 'reason' in r['notes'] for r in RESULTS) else ' '}]"
-              " Unsupported/restricted content produced clear errors (read the \"dm said\" column).",
+              " Unsupported/restricted content produced clear errors (read the \"EDM said\" column).",
               "- [x] Optional authenticated results are reported separately (phase `auth`, priority `optional`).",
               "", f"**Final decision:** {'APPROVE' if summary['Release gate'] == 'PASS' else 'DO NOT APPROVE'} "
               "(a person confirms, having read the FAIL and BLOCKED rows)", "",
@@ -1361,23 +1361,23 @@ def main():
     if unknown:
         sys.exit(f"no phase called {', '.join(sorted(unknown))}")
     if not BINARY.exists():
-        sys.exit(f"no dm binary at {BINARY}: cargo build -p {SHIPPED} (or set DM_BINARY)")
-    base = os.environ.get("DM_VIDEO_WORK")
+        sys.exit(f"no EDM binary at {BINARY}: cargo build -p {SHIPPED} (or set EDM_BINARY)")
+    base = os.environ.get("EDM_VIDEO_WORK")
     if base:
         pathlib.Path(base).mkdir(parents=True, exist_ok=True)
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-video-sites-", dir=base))
-    report = pathlib.Path(os.environ.get("DM_VIDEO_REPORT") or work / "report")
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-video-sites-", dir=base))
+    report = pathlib.Path(os.environ.get("EDM_VIDEO_REPORT") or work / "report")
     version = subprocess.run([str(BINARY), "--version"], capture_output=True, text=True, timeout=120, encoding="utf-8", errors="replace").stdout.strip()
     meta = {"date": datetime.datetime.now().isoformat(timespec="seconds"),
-            "dm version/build": f"{version} ({BINARY})",
+            "EDM version/build": f"{version} ({BINARY})",
             "git commit": subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
                                          cwd=str(ROOT), encoding="utf-8", errors="replace").stdout.strip(),
             "Operating system": f"{platform.system()} {platform.release()} ({platform.version()})",
-            "Browser and extension version": f"{edge_version()}, dm extension {extension_version()}"
+            "Browser and extension version": f"{edge_version()}, EDM extension {extension_version()}"
                                              if "public-panel" in phases or args.auth else "not used",
-            "Clean session": "a new dm home per phase, no cookies file, no login; a new browser profile for the panel",
+            "Clean session": "a new EDM home per phase, no cookies file, no login; a new browser profile for the panel",
             "ffmpeg decode check": FFMPEG or "not installed: structure read by scripts/media_check.py only"}
-    print(f"dm: {meta['dm version/build']}\nwork: {work}\nreport: {report}", flush=True)
+    print(f"EDM: {meta['EDM version/build']}\nwork: {work}\nreport: {report}", flush=True)
     try:
         if "engine" in phases:
             engine_phase(work)

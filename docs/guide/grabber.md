@@ -29,7 +29,7 @@ open, it comes to the front as it stands.
   with what it has found. 0 is no limit beyond the 100 pages; the most is a
   day.
 - **Smallest file (KB)** and **Largest file (KB):**
-  leave files out by size; 0 is any size. dm asks each file's server for its size. A file
+  leave files out by size; 0 is any size. EDM asks each file's server for its size. A file
   whose size the server does not say is kept.
 - **Only paths containing:** words a file's address must have, separated
   by spaces or commas; empty is any.
@@ -49,13 +49,13 @@ found". **Stop** ends the search early and lists what it found so far.
 - "No files of those types are linked from that page." when there are none.
 - **Check all** and **Uncheck all:** tick or untick every file.
 - The list: each file's address with a tick box. Every file is ticked
-  except one already in dm's list, which says "(already in the list)".
+  except one already in EDM's list, which says "(already in the list)".
 - A search that could not be made says why in the warning colour.
 
 ## Saving a search
 
 - **Save this search as:** a name for the search.
-- **Run every (hours):** how often dm runs it again by itself,
+- **Run every (hours):** how often EDM runs it again by itself,
   up to a month (744 hours). 0 runs it only when you ask.
 - **Save search:** keeps the search under its name; saving again under the
   same name replaces it and keeps what it found before. A search needs a

@@ -1,9 +1,9 @@
 # Ubuntu 22.04 as a person has it, for the Firefox check run elsewhere than
-# Debian (DM_DISTRO=ubuntu2204 in linux-firefox-check.sh). Ubuntu's own
+# Debian (EDM_DISTRO=ubuntu2204 in linux-firefox-check.sh). Ubuntu's own
 # Firefox (and Chromium) is a snap, which needs snapd and so cannot run in
 # a container: Firefox is Mozilla's tarball, which firefox-check.py fetches
-# into the dm-firefox-cache volume, with the libraries Mozilla says it
-# needs. dm is built in the Debian image and copied in; its libraries are
+# into the edm-firefox-cache volume, with the libraries Mozilla says it
+# needs. EDM is built in the Debian image and copied in; its libraries are
 # the .deb's. Plus the test's X server, window manager, xdotool and
 # ImageMagick for screenshots.
 FROM ubuntu:22.04

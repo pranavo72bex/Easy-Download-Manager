@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The size gate (gaps row A12), part of `cargo xtask layers`: a file that grows into a
@@ -21,23 +21,23 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-/// The source folders of dm's product crates, whose `.rs` files the gate measures; a test
+/// The source folders of EDM's product crates, whose `.rs` files the gate measures; a test
 /// file of its own (`tests.rs`, `*_tests.rs`) is not measured.
 pub(crate) const PRODUCT_SOURCES: [&str; 14] = [
-    "crates/dm-assets/src",
-    "crates/dm-js/src",
-    "crates/dm-media/src",
-    "crates/dm-torrent/src",
-    "crates/dm-net/src",
-    "crates/dm-protocol/src",
-    "crates/dm-safari/src",
-    "crates/dm-core/src",
-    "crates/dm-shell/src",
-    "crates/dm-test-support/src",
-    "crates/dm-desktop-base/src",
-    "crates/dm-gpui/src",
-    "crates/dm-android/src",
-    "crates/dm-catcher/src",
+    "crates/edm-assets/src",
+    "crates/edm-js/src",
+    "crates/edm-media/src",
+    "crates/edm-torrent/src",
+    "crates/edm-net/src",
+    "crates/edm-protocol/src",
+    "crates/edm-safari/src",
+    "crates/edm-core/src",
+    "crates/edm-shell/src",
+    "crates/edm-test-support/src",
+    "crates/edm-desktop-base/src",
+    "crates/edm-gpui/src",
+    "crates/edm-android/src",
+    "crates/edm-catcher/src",
 ];
 
 /// The most lines a product file the file baseline does not name may have.

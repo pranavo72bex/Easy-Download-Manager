@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The README's desktop demo, recorded from the real window.
@@ -9,13 +9,13 @@
     python3 scripts/readme-demo.py             # docs/demo-desktop.gif
     python3 scripts/readme-demo.py some/folder
 
-dm's GPUI window (`target/debug/dm-gpui`, or DM_BINARY) is started with a home
+EDM's GPUI window (`target/debug/edm-gpui`, or EDM_BINARY) is started with a home
 of its own, in the dark look, and recorded from the screen over its window
 (`screencapture -v`) while five downloads arrive from a server on 127.0.0.1:
 two large ones run side by side, three small ones finish at once, then one
 download's own window shows its speed, time left and parts. ffmpeg makes the
 recording a GIF. Nothing of the computer that made it is shown: the files are
-made up, the window is dm's alone. macOS; needs ffmpeg and the screen
+made up, the window is EDM's alone. macOS; needs ffmpeg and the screen
 recording permission for the terminal.
 """
 
@@ -44,7 +44,7 @@ SECONDS = 16
 FPS = 10
 WIDTH = 960
 
-# The README's pictures' own helpers: dm started on a home, asked over its control port.
+# The README's pictures' own helpers: EDM started on a home, asked over its control port.
 _spec = importlib.util.spec_from_file_location("readme_shots", ROOT / "scripts" / "readme-shots.py")
 shots = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(shots)
@@ -127,7 +127,7 @@ def main():
     if sys.platform != "darwin":
         sys.exit("the demo is recorded on macOS, with screencapture")
     if not shots.BINARY.exists():
-        sys.exit(f"no dm at {shots.BINARY}: cargo build -p dm-gpui")
+        sys.exit(f"no EDM at {shots.BINARY}: cargo build -p edm-gpui")
     if not shutil.which("ffmpeg"):
         sys.exit("no ffmpeg: brew install ffmpeg")
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Files)
@@ -136,40 +136,40 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     # Under /tmp, not the system's per-user temporary folder, whose path is unique to the
     # computer and its user.
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-demo-", dir="/tmp"))
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-demo-", dir="/tmp"))
     home = work / "home"
     downloads = home / "downloads"
     downloads.mkdir(parents=True)
-    # No pop-up on each download (the settings' edition saved with them, or dm takes its
-    # defaults, every pop-up on), and no bar asking to add dm to a browser (its Not now).
+    # No pop-up on each download (the settings' edition saved with them, or EDM takes its
+    # defaults, every pop-up on), and no bar asking to add EDM to a browser (its Not now).
     (home / "settings.json").write_text(json.dumps({
         "theme": "dark", "download_dir": str(downloads), "show_progress": False,
         "show_complete": False, "popups_version": 2,
     }), encoding="utf-8")
     (home / "browser-hint.hidden").write_text("", encoding="utf-8")
-    dm = shots.Dm(home)
+    edm = shots.Dm(home)
     try:
         time.sleep(1.5)
-        shots.in_front(dm)
-        box = dm.call("ui.windows")["main"]
+        shots.in_front(edm)
+        box = edm.call("ui.windows")["main"]
         movie = work / "demo.mov"
         recording = record(box, movie)
         time.sleep(1.5)
         for name in ("ubuntu-24.04-desktop-amd64.iso", "report.pdf", "holiday-4k.mp4",
                      "photos.zip", "song.mp3"):
-            dm.call("downloads.add", urls=[f"{base}/{name}"])
+            edm.call("downloads.add", urls=[f"{base}/{name}"])
             time.sleep(0.7)
         time.sleep(5)
         # One large download's own window: its speed, time left and parts.
-        large = dm.wait("ubuntu-24.04-desktop-amd64.iso", {"running"})
-        dm.call("ui.select", ids=[large["id"]])
-        dm.call("ui.click", text="ubuntu-24.04-desktop-amd64.iso", double=True)
+        large = edm.wait("ubuntu-24.04-desktop-amd64.iso", {"running"})
+        edm.call("ui.select", ids=[large["id"]])
+        edm.call("ui.click", text="ubuntu-24.04-desktop-amd64.iso", double=True)
         recording.wait(SECONDS + 10)
         if not movie.exists():
             sys.exit("nothing was recorded: give the terminal the screen recording permission")
         to_gif(movie, OUT / "demo-desktop.gif")
     finally:
-        dm.quit()
+        edm.quit()
         server.shutdown()
         shutil.rmtree(work, ignore_errors=True)
     print(OUT / "demo-desktop.gif")

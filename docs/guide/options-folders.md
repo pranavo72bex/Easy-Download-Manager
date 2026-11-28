@@ -6,7 +6,7 @@ works.
 - **Download folder:** where finished downloads go. **Browse…** picks a
   folder.
 - **Folder for unfinished downloads:** where the parts of a download wait
-  until it is whole. Empty keeps them in dm's own folder. "A download
+  until it is whole. Empty keeps them in EDM's own folder. "A download
   already begun keeps the folder it began in."
 - **Sort finished files into folders by category:** each finished file goes into
   a folder for its kind inside the download folder: Videos, Audio,
@@ -43,7 +43,7 @@ written outside that folder."
   file is sorted as **Archives**, so that is the one to turn on. All are off
   in a new install. A single download can be unpacked without its kind:
   tick **Unpack when done** in [Download details](download-details.md).
-- The archive is unpacked as **Extract here** unpacks it: dm checks every
+- The archive is unpacked as **Extract here** unpacks it: EDM checks every
   file in it first, and if one would land outside the new folder, or is a
   link, nothing is unpacked. Where a folder of that name is there already,
   the new one is numbered ("pack (1)").
@@ -51,7 +51,7 @@ written outside that folder."
   `film.zip.001`…) is unpacked once, from its first part, when every part in
   the list has finished in the same folder; until then the parts wait. Sent
   to the Trash, the parts go together. A 7z in parts is read from its first
-  part, its parts never joined on disk; dm cannot yet read a RAR in parts,
+  part, its parts never joined on disk; EDM cannot yet read a RAR in parts,
   so for now such a set's first row says it was not unpacked.
 - **Once it is unpacked:** **Keep the archive** (the choice in a new
   install) leaves it where it was; **Send the archive to the Trash** moves

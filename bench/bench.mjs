@@ -1,11 +1,11 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-// The side-by-side benchmark. dm (and, on the Windows computer that has it, reference A) given
+// The side-by-side benchmark. EDM (and, on the Windows computer that has it, reference A) given
 // the same address on the same local server, the file checked byte for byte when it lands, every
-// parameter written down. dm's numbers are judged against reference A's frozen baseline by
+// parameter written down. EDM's numbers are judged against reference A's frozen baseline by
 // `compare.mjs`; `bench/README.md` says how, on every system.
 //
 //   node bench/bench.mjs [scenario ...]
@@ -13,33 +13,33 @@
 //                wan lossy (a line between app and server, bench/shaper.mjs; asked by name: no
 //                reference A baseline yet)
 //                slowname (the file under a name whose every lookup takes 300 ms: asked by name,
-//                no baseline yet, dm alone unless the computer's DNS is pointed at the harness)
+//                no baseline yet, EDM alone unless the computer's DNS is pointed at the harness)
 //                fast1g capped latency slowconn maxconns drops small256k, or all seven as refc
 //                (reference C's own scenarios, gaps row C0: asked by name, seven runs each)
 //                inet (public internet, never a floor)   selftest (the server alone)
 //
 // The server, the bytes it serves and the scenarios below are the standard the baseline was
-// measured with. Changing any of them makes dm's numbers incomparable with the baseline: add a
+// measured with. Changing any of them makes EDM's numbers incomparable with the baseline: add a
 // new scenario instead.
 //
 // Environment (all optional):
-//   DM_BINARY             dm to run (default: a release build under CARGO_TARGET_DIR or target)
-//   BENCH_APPS            dm, or refa,dm (default: refa,dm on Windows when bench/local.json names it)
+//   EDM_BINARY             EDM to run (default: a release build under CARGO_TARGET_DIR or target)
+//   BENCH_APPS            EDM, or refa,EDM (default: refa,EDM on Windows when bench/local.json names it)
 //   BENCH_OUT             results folder (default: bench/results/<system>-<date>)
-//   BENCH_WORK            scratch folder (default: <temp>/dm-bench)
-//   BENCH_DM_HOME         dm's home for the run (default: <work>/dm-home, wiped first)
-//   BENCH_DM_DOWNLOADS    dm's download folder (default: <dm home>/downloads); use a fresh one per run
-//   BENCH_DM_HEADLESS     1 runs dm with no window (--headless): the window's share of the CPU,
+//   BENCH_WORK            scratch folder (default: <temp>/edm-bench)
+//   BENCH_EDM_HOME         EDM's home for the run (default: <work>/edm-home, wiped first)
+//   BENCH_EDM_DOWNLOADS    EDM's download folder (default: <EDM home>/downloads); use a fresh one per run
+//   BENCH_EDM_HEADLESS     1 runs EDM with no window (--headless): the window's share of the CPU,
 //                         against a run without it (gaps row C0c)
-//   BENCH_DM_CONNECTIONS  dm's connections setting (default: dm's own; 16 for the 16-connection group)
+//   BENCH_EDM_CONNECTIONS  EDM's connections setting (default: EDM's own; 16 for the 16-connection group)
 //   BENCH_REFA_DIR        where reference A saves (default: <work>/refa)
-//   BENCH_CEILING_DIR     where `ceiling` writes (default: dm's download folder)
+//   BENCH_CEILING_DIR     where `ceiling` writes (default: EDM's download folder)
 //   BENCH_REPS            repetitions for fast, per_conn and flaky
 //   BENCH_REFC_REPS       repetitions for reference C's seven (default 7)
 //   BENCH_TAG             suffix for the result files' names
 //   BENCH_CURL            curl for `selftest` (default: Windows' own on Windows)
-//   BENCH_WAN_TLS         0 serves `wan` over plain HTTP (dm trusts the harness's certificate
-//                         through DM_BENCH_CA: bench/README.md)
+//   BENCH_WAN_TLS         0 serves `wan` over plain HTTP (EDM trusts the harness's certificate
+//                         through EDM_BENCH_CA: bench/README.md)
 //   BENCH_SLOWNAME_MS     how long each lookup of `slowname`'s name takes (default 300)
 //   BENCH_SLOWNAME_PORT   the port its DNS server answers on, at 127.0.0.1 (default: any free one;
 //                         53 where the computer is pointed at it)
@@ -74,8 +74,8 @@ const REFA = {
   process: process.env.BENCH_REFA_PROCESS || local.refa?.process || null,
   title: process.env.BENCH_REFA_TITLE || local.refa?.title || null,
 };
-// The window dm ships, on every system (docs/gaps.md G9).
-const SHIPPED = 'dm-gpui';
+// The window EDM ships, on every system (docs/gaps.md G9).
+const SHIPPED = 'edm-gpui';
 function defaultDm() {
   for (const t of [process.env.CARGO_TARGET_DIR, path.join(REPO, "target")].filter(Boolean)) {
     const p = path.join(t, 'release', SHIPPED + (WIN ? '.exe' : ''));
@@ -83,11 +83,11 @@ function defaultDm() {
   }
   return null;
 }
-const DM = process.env.DM_BINARY || defaultDm();
-const HEADLESS = process.env.BENCH_DM_HEADLESS === '1';
-const APPS = (process.env.BENCH_APPS || (WIN && REFA.exe ? 'refa,dm' : 'dm')).split(',').map((s) => s.trim()).filter(Boolean);
+const EDM = process.env.EDM_BINARY || defaultDm();
+const HEADLESS = process.env.BENCH_EDM_HEADLESS === '1';
+const APPS = (process.env.BENCH_APPS || (WIN && REFA.exe ? 'refa,EDM' : 'EDM')).split(',').map((s) => s.trim()).filter(Boolean);
 const WITH_REFA = APPS.includes('refa');
-const WORK = process.env.BENCH_WORK || path.join(os.tmpdir(), 'dm-bench');
+const WORK = process.env.BENCH_WORK || path.join(os.tmpdir(), 'edm-bench');
 const OUT = process.env.BENCH_OUT || path.join(HERE, 'results', `${process.platform}-${new Date().toISOString().slice(0, 10)}`);
 const MiB = 1024 * 1024;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -97,15 +97,15 @@ const RUN = Date.now().toString(36);
 const CURL = process.env.BENCH_CURL || (WIN && fs.existsSync(path.join(process.env.SystemRoot || 'C:\Windows', 'System32', 'curl.exe'))
   ? path.join(process.env.SystemRoot || 'C:\Windows', 'System32', 'curl.exe') : 'curl');
 
-if (APPS.includes('dm') && (!DM || !fs.existsSync(DM))) {
-  console.error(`No dm to run: set DM_BINARY, or build one cargo build --release -p ${SHIPPED}.`);
+if (APPS.includes('EDM') && (!EDM || !fs.existsSync(EDM))) {
+  console.error(`No EDM to run: set EDM_BINARY, or build one cargo build --release -p ${SHIPPED}.`);
   process.exit(2);
 }
 if (WITH_REFA && !(WIN && REFA.exe && REFA.process && REFA.title)) {
   console.error('Reference A runs only on Windows, named in bench/local.json (see bench/local.example.json).');
   process.exit(2);
 }
-if (DM && /[\\/]debug[\\/]/.test(DM)) console.warn(`warning: ${DM} is a debug build; the baseline is judged against a release build`);
+if (EDM && /[\\/]debug[\\/]/.test(EDM)) console.warn(`warning: ${DM} is a debug build; the baseline is judged against a release build`);
 fs.mkdirSync(OUT, { recursive: true });
 
 // ─── The bytes served: a seeded 1 MiB block, each 4 KiB stamped with its MiB, so a piece put in
@@ -264,7 +264,7 @@ const PORT = server.address().port;
 // ─── The `wan` and `lossy` cases' line (gaps row W2): bench/shaper.mjs in front of the server,
 // one per run, and for `wan` the same handler behind TLS. The certificate is made once and kept
 // in <work>/tls, so a computer told to trust it (reference A's: bench/README.md) keeps trusting
-// it; dm is given it as DM_BENCH_CA.
+// it; EDM is given it as EDM_BENCH_CA.
 const TLS_DIR = path.join(WORK, 'tls');
 let tls = null, tlsServer = null;
 function benchCert() {
@@ -296,9 +296,9 @@ async function lineFor(sc) {
 }
 // ─── The `slowname` case's name (gaps row W2): a DNS server in this process (bench/shaper.mjs
 // `slowDns`) that answers every name under bench.test with 127.0.0.1, each lookup BENCH_SLOWNAME_MS
-// after it was asked, and counts the questions. dm is told of it by DM_BENCH_DNS, and asks it for
+// after it was asked, and counts the questions. EDM is told of it by EDM_BENCH_DNS, and asks it for
 // names under .test alone. Reference A takes the system's resolver, which only a person can point
-// here (BENCH_SLOWNAME_SYSTEM=1): until then the case runs for dm alone.
+// here (BENCH_SLOWNAME_SYSTEM=1): until then the case runs for EDM alone.
 const NAME_MS = Number(process.env.BENCH_SLOWNAME_MS || 300);
 const REFC_REPS = Number(process.env.BENCH_REFC_REPS || 7);
 const NAME_SYSTEM = process.env.BENCH_SLOWNAME_SYSTEM === '1';
@@ -306,7 +306,7 @@ let nameServer = null;
 async function namesUp() {
   if (nameServer) return nameServer;
   nameServer = await slowDns({ delayMs: NAME_MS, port: Number(process.env.BENCH_SLOWNAME_PORT || 0), upstream: process.env.BENCH_SLOWNAME_UPSTREAM || null });
-  console.log(`# slow name: *.bench.test answered after ${NAME_MS} ms at 127.0.0.1:${nameServer.port}${NAME_SYSTEM ? ' (the computer is pointed at it: both apps ask the system)' : ' (dm is given it as DM_BENCH_DNS)'}`);
+  console.log(`# slow name: *.bench.test answered after ${NAME_MS} ms at 127.0.0.1:${nameServer.port}${NAME_SYSTEM ? ' (the computer is pointed at it: both apps ask the system)' : ' (EDM is given it as EDM_BENCH_DNS)'}`);
   if (NAME_SYSTEM) {
     // The computer's own lookup, as reference A makes it (asynchronous: the server is this process).
     const probe = `probe-${RUN}.bench.test`, t = Date.now();
@@ -334,10 +334,10 @@ setInterval(() => {
 const samples = []; // { t, app, pid, ws, priv, cpu } (bytes, bytes or null, ms)
 const watched = new Map(); // pid -> app, on macOS and Linux
 let sampler = null;
-const appOfImage = (name) => (DM && name.toLowerCase() === path.parse(DM).name.toLowerCase() ? 'dm' : REFA.process && name.toLowerCase() === REFA.process.toLowerCase() ? 'refa' : null);
+const appOfImage = (name) => (EDM && name.toLowerCase() === path.parse(EDM).name.toLowerCase() ? 'EDM' : REFA.process && name.toLowerCase() === REFA.process.toLowerCase() ? 'refa' : null);
 function startSampler() {
   if (WIN) {
-    const names = [DM && path.parse(DM).name, WITH_REFA && REFA.process].filter(Boolean).map((n) => `'${n}'`).join(',');
+    const names = [EDM && path.parse(EDM).name, WITH_REFA && REFA.process].filter(Boolean).map((n) => `'${n}'`).join(',');
     sampler = spawn('powershell', ['-NoProfile', '-Command',
       `while ($true) { $t = [DateTimeOffset]::Now.ToUnixTimeMilliseconds(); Get-Process -Name ${names} -ErrorAction SilentlyContinue | ForEach-Object { "$t,$($_.Name),$($_.Id),$($_.WorkingSet64),$($_.PrivateMemorySize64),$($_.TotalProcessorTime.TotalMilliseconds)" }; Start-Sleep -Milliseconds 400 }`],
       { stdio: ['ignore', 'pipe', 'ignore'] });
@@ -453,32 +453,32 @@ async function runRefa(urls, names, size, dir, timeoutMs, queue, gate) {
   return { t0, t1, files: names.map((n) => path.join(dir, n)) };
 }
 
-// ─── dm: its window shown, driven through its control port, a home of its own.
+// ─── EDM: its window shown, driven through its control port, a home of its own.
 class Dm {
   constructor(home) { this.home = home; }
   async start() {
     fs.rmSync(this.home, { recursive: true, force: true });
     fs.mkdirSync(path.join(this.home, 'downloads'), { recursive: true });
-    this.downloads = process.env.BENCH_DM_DOWNLOADS || path.join(this.home, 'downloads');
+    this.downloads = process.env.BENCH_EDM_DOWNLOADS || path.join(this.home, 'downloads');
     fs.mkdirSync(this.downloads, { recursive: true });
-    fs.writeFileSync(path.join(this.home, 'settings.json'), JSON.stringify({ download_dir: this.downloads, ...(process.env.BENCH_DM_CONNECTIONS ? { connections: Number(process.env.BENCH_DM_CONNECTIONS) } : {}) }));
+    fs.writeFileSync(path.join(this.home, 'settings.json'), JSON.stringify({ download_dir: this.downloads, ...(process.env.BENCH_EDM_CONNECTIONS ? { connections: Number(process.env.BENCH_EDM_CONNECTIONS) } : {}) }));
     this.t0 = Date.now();
-    // DM_BENCH_CA: the harness's certificate, which dm trusts beside the public roots for the
+    // EDM_BENCH_CA: the harness's certificate, which EDM trusts beside the public roots for the
     // `wan` case served over TLS (bench/README.md, "The line cases").
-    // DM_BENCH_DNS: the slow name's server, which dm asks names under .test of (`slowname`),
+    // EDM_BENCH_DNS: the slow name's server, which EDM asks names under .test of (`slowname`),
     // unless the computer itself is pointed at it.
-    const named = nameServer && !NAME_SYSTEM ? { DM_BENCH_DNS: `127.0.0.1:${nameServer.port}` } : {};
-    this.proc = spawn(DM, HEADLESS ? ['--headless', '--control', '0'] : ['--control', '0'], { env: { ...process.env, DM_HOME: this.home, ...(tls ? { DM_BENCH_CA: tls.certFile } : {}), ...named }, stdio: 'ignore' });
-    watched.set(this.proc.pid, 'dm');
+    const named = nameServer && !NAME_SYSTEM ? { EDM_BENCH_DNS: `127.0.0.1:${nameServer.port}` } : {};
+    this.proc = spawn(EDM, HEADLESS ? ['--headless', '--control', '0'] : ['--control', '0'], { env: { ...process.env, EDM_HOME: this.home, ...(tls ? { EDM_BENCH_CA: tls.certFile } : {}), ...named }, stdio: 'ignore' });
+    watched.set(this.proc.pid, 'EDM');
     const portFile = path.join(this.home, 'control.port');
     for (let i = 0; i < 400; i++) { if (fs.existsSync(portFile) && fs.readFileSync(portFile, 'utf8').trim()) break; await sleep(50); }
-    if (!fs.existsSync(portFile)) throw new Error(`dm wrote no control port into ${this.home} within 20 s`);
+    if (!fs.existsSync(portFile)) throw new Error(`EDM wrote no control port into ${this.home} within 20 s`);
     this.port = Number(fs.readFileSync(portFile, 'utf8'));
     this.token = fs.readFileSync(path.join(this.home, 'control.token'), 'utf8').trim();
     await this.connect();
     this.ready = Date.now();
   }
-  // dm cuts a control connection that says nothing for 300 s (`control.rs`), and reference A's
+  // EDM cuts a control connection that says nothing for 300 s (`control.rs`), and reference A's
   // batch run lasts longer than that: the next request went into the cut socket, its error was
   // ignored, and the harness waited for an answer for ever (2026-11-13, Windows). A cut
   // connection is made again, and authenticated, before the next request.
@@ -503,9 +503,9 @@ class Dm {
   async rows() { return (await this.call('queue.list')).result || []; }
   stop() { try { this.proc.kill(); } catch {} }
 }
-let dm = null;
-const dmHome = () => process.env.BENCH_DM_HOME || path.join(WORK, 'dm-home');
-async function dmUp() { if (!dm) { dm = new Dm(dmHome()); await dm.start(); await sleep(2000); } return dm; }
+let edm = null;
+const dmHome = () => process.env.BENCH_EDM_HOME || path.join(WORK, 'edm-home');
+async function dmUp() { if (!edm) { edm = new Dm(dmHome()); await edm.start(); await sleep(2000); } return edm; }
 
 async function runDm(urls, names, size, timeoutMs, gate) {
   const d = await dmUp();
@@ -538,7 +538,7 @@ function provenance() {
   const rustc = run('rustc', ['-vV']) || run(path.join(os.homedir(), '.cargo', 'bin', 'rustc' + (WIN ? '.exe' : '')), ['-vV']);
   const field = (name) => rustc?.split('\n').find((l) => l.startsWith(name + ':'))?.slice(name.length + 1).trim() || null;
   const head = run('git', ['-C', REPO, 'rev-parse', 'HEAD']);
-  const parts = DM ? path.resolve(DM).split(path.sep) : [];
+  const parts = EDM ? path.resolve(EDM).split(path.sep) : [];
   const at = parts.lastIndexOf('target');
   const inTarget = at >= 0 ? parts.slice(at + 1, -1) : [];
   let gpus = null, displays = null;
@@ -569,13 +569,13 @@ function provenance() {
 }
 function meta() {
   let dmBinary = null;
-  if (DM && fs.existsSync(DM)) { const s = fs.statSync(DM); dmBinary = { path: DM, bytes: s.size, modified: s.mtime.toISOString() }; }
+  if (EDM && fs.existsSync(EDM)) { const s = fs.statSync(EDM); dmBinary = { path: EDM, bytes: s.size, modified: s.mtime.toISOString() }; }
   return {
     harness: 1, run: RUN, date: new Date().toISOString(), apps: APPS,
     system: { platform: process.platform, release: os.release(), arch: os.arch(), cpu: os.cpus()[0]?.model?.trim(), logicalCores: os.cpus().length, memoryGB: +(os.totalmem() / 2 ** 30).toFixed(1) },
     node: process.version, dmBinary, build: provenance(),
-    dmConnections: process.env.BENCH_DM_CONNECTIONS ? Number(process.env.BENCH_DM_CONNECTIONS) : null,
-    folders: { work: WORK, dmHome: dmHome(), dmDownloads: process.env.BENCH_DM_DOWNLOADS || path.join(dmHome(), 'downloads'), refa: WITH_REFA ? (process.env.BENCH_REFA_DIR || path.join(WORK, 'refa')) : null },
+    dmConnections: process.env.BENCH_EDM_CONNECTIONS ? Number(process.env.BENCH_EDM_CONNECTIONS) : null,
+    folders: { work: WORK, dmHome: dmHome(), dmDownloads: process.env.BENCH_EDM_DOWNLOADS || path.join(dmHome(), 'downloads'), refa: WITH_REFA ? (process.env.BENCH_REFA_DIR || path.join(WORK, 'refa')) : null },
   };
 }
 const write = (name, body) => fs.writeFileSync(path.join(OUT, `${name}${process.env.BENCH_TAG || ''}.json`), JSON.stringify({ ...body, meta: meta() }, null, 1));
@@ -600,7 +600,7 @@ async function once(app, name, sc, rep) {
   const line = via.line ? { oneWayMs: sc.rttMs / 2, tls: !!sc.tls, late: via.line.late(), connections: via.line.connections(), lossStalls: sc.loss ? run.stalls : undefined } : undefined;
   // `slowname`: how often the app asked for its name (type A, and any other type), through what, and
   // the most an answer of its went later than asked (timers).
-  const lookups = sc.nameMs ? { host, delayMs: sc.nameMs, through: NAME_SYSTEM ? 'system' : 'DM_BENCH_DNS', ...nameServer.asked(host) } : undefined;
+  const lookups = sc.nameMs ? { host, delayMs: sc.nameMs, through: NAME_SYSTEM ? 'system' : 'EDM_BENCH_DNS', ...nameServer.asked(host) } : undefined;
   if (via.line) await via.line.close();
   let whole = 0;
   for (let i = 0; i < names.length; i++) {
@@ -620,7 +620,7 @@ async function once(app, name, sc, rep) {
     outageDroppedRequests: run.requests.filter((q) => q.dropped).length,
     outageAtMs: run.outage ? run.outage.start - run.firstReq : null,
     perRequest: run.requests.slice(0, 60).map((q) => [q.t - run.firstReq, q.sent ?? 0, q.range, q.dropped ? 'dropped' : '']),
-    ...usage(app, r.t0, r.t1 || Date.now(), app === 'dm' ? dm?.proc?.pid ?? null : null),
+    ...usage(app, r.t0, r.t1 || Date.now(), app === 'EDM' ? edm?.proc?.pid ?? null : null),
     states: r.states, errors: r.errors, line, lookups, timeline: run.timeline.filter((_, i) => i % 2 === 0),
   };
   runs.delete(key);
@@ -665,7 +665,7 @@ const SC = {
   slowconn:  { size: 32 * MiB, crawl: [3, 128000], label: '32 MiB, one connection in three crawls at 128 KB/s', reps: REFC_REPS, timeoutMs: 300000 },
   maxconns:  { size: 50 * MiB, perConn: 2000000, maxConns: 2, label: '50 MiB, the server allows 2 connections (503 past them), 2 MB/s each', reps: REFC_REPS, timeoutMs: 300000 },
   drops:     { size: 50 * MiB, perConn: 4000000, cutEvery: [2, 2 * MiB], label: '50 MiB, every 2nd connection cut after 2 MiB, 4 MB/s each', reps: REFC_REPS, timeoutMs: 300000 },
-  // Added for gaps row K1, dm alone, no baseline: once nine tenths of the file is served, one
+  // Added for gaps row K1, EDM alone, no baseline: once nine tenths of the file is served, one
   // answer under way stops sending for 20 s, its connection left open, as a server that stalls one
   // range near the end. What it measures is how long the others wait on it.
   tailstall: { size: 64 * MiB, perConn: 2 * MiB, tailStall: { at: 0.9, ms: 20000 }, label: '64 MiB, each connection 2 MiB/s, one answer stalled 20 s once 90% is served', reps: Number(process.env.BENCH_REPS || 3), timeoutMs: 120000 },
@@ -676,17 +676,17 @@ const DATA = {}, SHAS = {};
 
 async function scenario(name) {
   const sc = SC[name];
-  // Reference C's seven each with a dm of its own, as its own were each run in a process of their
-  // own: one server serves them all, and what dm learnt of it in one (maxconns' two at once, kept
+  // Reference C's seven each with an EDM of its own, as its own were each run in a process of their
+  // own: one server serves them all, and what EDM learnt of it in one (maxconns' two at once, kept
   // for the rest of a run by `agents::remember_ceiling`) is not carried into the next.
-  if (REFC.includes(name) && dm) { dm.stop(); dm = null; await sleep(1500); }
-  if (WITH_REFA && !runsCase('refa', sc)) console.log(`# ${name}: dm alone; reference A looks names up through the system, which is not pointed at the slow name (BENCH_SLOWNAME_SYSTEM, bench/README.md)`);
+  if (REFC.includes(name) && edm) { edm.stop(); edm = null; await sleep(1500); }
+  if (WITH_REFA && !runsCase('refa', sc)) console.log(`# ${name}: EDM alone; reference A looks names up through the system, which is not pointed at the slow name (BENCH_SLOWNAME_SYSTEM, bench/README.md)`);
   DATA[name] = []; SHAS[name] = [];
   for (let i = 0; i < (sc.files || 1); i++) { const d = makeData(sc.size, 1000 + i * 7 + name.length); DATA[name].push(d); SHAS[name].push(sha(d)); }
   const out = [];
   for (let rep = 1; rep <= sc.reps; rep++) {
     // Each repetition alternates which app goes first.
-    const order = rep % 2 ? ['refa', 'dm'] : ['dm', 'refa'];
+    const order = rep % 2 ? ['refa', 'EDM'] : ['EDM', 'refa'];
     for (const app of order.filter((a) => APPS.includes(a) && runsCase(a, sc))) { out.push(await once(app, name, sc, rep)); await sleep(3000); }
   }
   delete DATA[name];
@@ -700,7 +700,7 @@ async function scenario(name) {
 // (fast, big40) to another computer. Not curl: on Windows its small writes made the disk, not the
 // machine, the limit (512 MiB in 21.6 s where reference A took 3.7).
 async function ceiling() {
-  const dir = path.join(process.env.BENCH_CEILING_DIR || process.env.BENCH_DM_DOWNLOADS || path.join(WORK, 'ceiling'), `ceiling-${RUN}`);
+  const dir = path.join(process.env.BENCH_CEILING_DIR || process.env.BENCH_EDM_DOWNLOADS || path.join(WORK, 'ceiling'), `ceiling-${RUN}`);
   const out = {};
   for (const name of ['fast', 'per_conn', 'flaky', 'big40']) {
     const { size, perConn, total } = SC[name];
@@ -740,7 +740,7 @@ async function inet() {
   const out = [];
   for (const f of INET) {
     for (let rep = 1; rep <= 2; rep++) {
-      const order = rep % 2 ? ['refa', 'dm'] : ['dm', 'refa'];
+      const order = rep % 2 ? ['refa', 'EDM'] : ['EDM', 'refa'];
       for (const app of order.filter((a) => APPS.includes(a))) {
         const r = app === 'refa'
           ? await runRefa([f.url + `?r=${rep}${RUN}`], [f.name], f.size, path.join(WORK, 'inet-refa', `${rep}-${RUN}-${f.name}`), 600000, false)
@@ -749,7 +749,7 @@ async function inet() {
         const digest = file && fs.existsSync(file) ? await shaFile(file) : null;
         const secs = r.t1 ? (r.t1 - r.t0) / 1000 : null;
         const res = { app, url: f.url, rep, ok: !!r.t1, seconds: secs, mbps: secs ? +(f.size / MiB / secs).toFixed(2) : null, sha256: digest,
-          ...usage(app, r.t0, r.t1 || Date.now(), app === 'dm' ? dm?.proc?.pid ?? null : null), errors: r.errors };
+          ...usage(app, r.t0, r.t1 || Date.now(), app === 'EDM' ? edm?.proc?.pid ?? null : null), errors: r.errors };
         console.log(JSON.stringify(res));
         out.push(res);
         if (file && fs.existsSync(file)) fs.rmSync(file, { force: true });
@@ -763,10 +763,10 @@ async function inet() {
 // ─── Idle: each app with its window up and nothing to do, for 20 s.
 async function idle() {
   if (WITH_REFA) { await refaUp(); spawn(REFA.exe, [], { detached: true, stdio: 'ignore' }).unref(); }
-  if (APPS.includes('dm')) await dmUp();
+  if (APPS.includes('EDM')) await dmUp();
   await sleep(3000);
   const t0 = Date.now(); await sleep(20000); const t1 = Date.now();
-  const out = APPS.map((app) => ({ app, scenario: 'idle', rep: 1, ok: true, ...usage(app, t0, t1, app === 'dm' ? dm?.proc?.pid ?? null : null) }));
+  const out = APPS.map((app) => ({ app, scenario: 'idle', rep: 1, ok: true, ...usage(app, t0, t1, app === 'EDM' ? edm?.proc?.pid ?? null : null) }));
   console.log(JSON.stringify(out));
   write('idle', { scenario: 'idle', label: 'window up, nothing to do, 20 s', runs: out });
 }
@@ -807,7 +807,7 @@ async function selftest() {
     await via.line.close();
     runs.delete(key);
   }
-  // The slow name: Node's own resolver asks its server (as dm does, through DM_BENCH_DNS) for the
+  // The slow name: Node's own resolver asks its server (as EDM does, through EDM_BENCH_DNS) for the
   // same name twice, each answer no sooner than the delay.
   const ns = await namesUp();
   const resolver = new dns.promises.Resolver({ timeout: 3000, tries: 1 });
@@ -824,10 +824,10 @@ async function selftest() {
 const asked = process.argv.slice(2).flatMap((s) => (s === 'refc' ? REFC : [s]));
 const todo = asked.length ? asked : ['idle', 'fast', 'per_conn', 'flaky', 'outage', 'batch', 'big40', 'ceiling'];
 for (const s of todo) if (!(s in SC) && !['inet', 'idle', 'selftest', 'ceiling'].includes(s)) { console.error(`unknown scenario ${s}`); process.exit(2); }
-console.log(`# apps ${APPS.join(', ')}; dm ${DM || '-'}; results in ${OUT}`);
-// The certificate before dm starts, whichever scenario starts it: dm is given it once, at start.
-if (todo.some((s) => SC[s]?.tls)) { tls = benchCert(); console.log(`# TLS certificate ${tls.certFile} (dm is given it as DM_BENCH_CA)`); }
-// The slow name's server before dm starts, likewise: dm is given it once, at start.
+console.log(`# apps ${APPS.join(', ')}; EDM ${EDM || '-'}; results in ${OUT}`);
+// The certificate before EDM starts, whichever scenario starts it: EDM is given it once, at start.
+if (todo.some((s) => SC[s]?.tls)) { tls = benchCert(); console.log(`# TLS certificate ${tls.certFile} (EDM is given it as EDM_BENCH_CA)`); }
+// The slow name's server before EDM starts, likewise: EDM is given it once, at start.
 if (todo.some((s) => SC[s]?.nameMs)) await namesUp();
 startSampler();
 await sleep(1500);
@@ -837,7 +837,7 @@ try {
     if (s === 'inet') await inet(); else if (s === 'idle') await idle(); else if (s === 'selftest') await selftest(); else if (s === 'ceiling') await ceiling(); else await scenario(s);
   }
 } finally {
-  if (dm) dm.stop();
+  if (edm) edm.stop();
   if (sampler) { if (WIN) sampler.kill(); else clearInterval(sampler); }
   server.close();
   if (tlsServer) tlsServer.close();

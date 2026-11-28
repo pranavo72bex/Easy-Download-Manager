@@ -1,6 +1,6 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # A Linux with everything the client needs to build and run. Tray integration
@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       # there is a driver, else GL through EGL (Mesa), and Wayland's client.
       libxkbcommon-x11-0 libxkbcommon0 libvulkan1 libegl1 libgl1-mesa-dri \
       libwayland-client0 libwayland-egl1 \
-      # What the window (dm-gpui, GPUI) builds against.
+      # What the window (edm-gpui, GPUI) builds against.
       libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
       libxcb1-dev libx11-xcb-dev libvulkan-dev \
     && rm -rf /var/lib/apt/lists/*

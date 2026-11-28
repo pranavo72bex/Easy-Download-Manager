@@ -147,7 +147,7 @@ jobs:
           cat > .bot/prompt.md <<EOF
           You are writing tests for one file of this repository (a Rust download manager, Cargo workspace at the root, crates in crates/): $FILE, where $MISSED lines are run by no test.
 
-          1. Start with .bot/context.md: the part of dm this file belongs to, the skill pages to follow (read them, in its order, and docs/ai-skills/testing.md), the files around it and how to test. Then the rules: search docs/behaviour-contract.md (55 KB) and AGENTS.md (35 KB) for what your change touches (\`grep -n\`), and read those parts and docs/ai-notes.md, not whole files; a free model's quota ends long before it reads them twice. You are a bot working unattended: no person will answer a question.
+          1. Start with .bot/context.md: the part of EDM this file belongs to, the skill pages to follow (read them, in its order, and docs/ai-skills/testing.md), the files around it and how to test. Then the rules: search docs/behaviour-contract.md (55 KB) and AGENTS.md (35 KB) for what your change touches (\`grep -n\`), and read those parts and docs/ai-notes.md, not whole files; a free model's quota ends long before it reads them twice. You are a bot working unattended: no person will answer a question.
           2. The lines no test runs are listed in .bot/missing-lines.txt (it may be empty; then read the file and its existing tests to see what is untested).
           3. Write tests that run those lines, in the style the crate already uses: the file's own #[cfg(test)] module or its tests/ module, the crate's tests/ directory, and the helpers the crate's tests already have.
           4. Test what the code is meant to do (its doc comments, docs/, the behaviour contract), not just what it happens to return. If a test shows the code is wrong, fix the code with the smallest change and say so in the summary.
@@ -176,14 +176,14 @@ jobs:
           sudo chmod -R a+rwX "$HOME/.cargo" "$HOME/.rustup"
           sudo chown -R dmbot "$GITHUB_WORKSPACE"
           # The disk, watched (scripts/ai-disk-watch.sh; see ai-fix.yml).
-          sudo mkdir -p /opt/dm-bot && sudo install -m 0644 -o "$(id -u)" /dev/null /opt/dm-bot/disk.log
-          watch=$(bash scripts/ai-disk-watch.sh start /opt/dm-bot/disk.log)
+          sudo mkdir -p /opt/edm-bot && sudo install -m 0644 -o "$(id -u)" /dev/null /opt/edm-bot/disk.log
+          watch=$(bash scripts/ai-disk-watch.sh start /opt/edm-bot/disk.log)
           sudo -u dmbot -H env -i HOME=/home/dmbot USER=dmbot PATH="$HOME/.cargo/bin:$PATH" \
             CARGO_HOME="$HOME/.cargo" RUSTUP_HOME="$HOME/.rustup" \
             KILO_API_KEY="$KILO_API_KEY" KILO_MODEL="$KILO_MODEL" \
             PROVIDERS="$PROVIDERS" FILE="$FILE" MISSED="$MISSED" TOTAL_BEFORE="$TOTAL_BEFORE" \
             GITHUB_OUTPUT=.bot/outputs CI=true TERM=dumb CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 \
-            AI_BASELINE=/opt/dm-bot/baseline.txt \
+            AI_BASELINE=/opt/edm-bot/baseline.txt \
             bash -c '
               set +e -uo pipefail
               cd "$0"
@@ -210,7 +210,7 @@ jobs:
           kill "$watch" 2>/dev/null || true
           sudo chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE"
           echo "::group::The disk after the models"
-          cat /opt/dm-bot/disk.log
+          cat /opt/edm-bot/disk.log
           bash scripts/ai-disk-watch.sh report
           echo "::endgroup::"
           provider=$(grep -oxE 'provider=(kilo)' .bot/outputs 2>/dev/null | head -n1 | cut -d= -f2 || true)
@@ -265,7 +265,7 @@ jobs:
         id: log
         run: |
           gh label create bot-tests --color 0e8a16 --description 'The nightly AI tests' 2>/dev/null || true
-          gh label create bot:automerge --color ededed --description "dm's bot" 2>/dev/null || true
+          gh label create bot:automerge --color ededed --description "EDM's bot" 2>/dev/null || true
           log=$(gh issue list --state open --label bot-tests --search "\"$LOG_TITLE\" in:title" \
             --json number,title --jq ".[] | select(.title == \"$LOG_TITLE\") | .number" | head -n1)
           if [ -z "$log" ]; then

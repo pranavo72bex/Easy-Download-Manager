@@ -3,7 +3,7 @@
 From the engine to whatever presentation draws it, as the code does it today.
 
 ```text
-engine (dm-core runner)            application (dm_shell::app)         presentation (the GPUI window, dm-gpui)
+engine (edm-core runner)            application (edm_shell::app)         presentation (the GPUI window, edm-gpui)
 ───────────────────────            ───────────────────────────         ───────────────────────────────────────
 progress bytes ──► row's Slot (no signal; read on the next look)
 state change ──► DownloadList::save ──► on_change ──► changes::changed()
@@ -43,13 +43,13 @@ state change ──► DownloadList::save ──► on_change ──► changes:
 - **Snapshots share, never copy.** `Snapshot::rows` is `Vec<Arc<Entry>>`: n
   pointer copies per read, and a row's own bytes only when it changed.
 - **A script's reading is not a frame.** The GPUI window opens the control port
-  with a reader (`control::listen_reading`, `dm-gpui/src/port.rs`): `queue.list`
+  with a reader (`control::listen_reading`, `edm-gpui/src/port.rs`): `queue.list`
   is answered on the connection's own thread from a snapshot of its own, the
   window neither woken nor drawn for it; anything else a script asks is the
   window's, a whole look, as before. A script asking ten times a second drew
   the window ten times a second (gaps row 176).
 
-## Typed events (`dm_shell::app::events`)
+## Typed events (`edm_shell::app::events`)
 
 For a presentation, a script or a test that wants to know what happened to
 each download rather than draw the list, `session.events.subscribe(wake)` gives
@@ -79,7 +79,7 @@ events; nothing polls the engine), each read compared with the last.
 
 ## Cost at large queues
 
-Measured 2026-11-09 on macOS in release (`cargo test -p dm-shell --release --lib
+Measured 2026-11-09 on macOS in release (`cargo test -p edm-shell --release --lib
 large_queue -- --ignored --nocapture`), four downloads running against a server
 that never finishes them:
 
@@ -107,7 +107,7 @@ n). The control port's `ui.inspect` grows with the square of the list (about
 
 ## What a second presentation does
 
-1. `dm_shell::app::changes::subscribe(|| /* wake my loop or request a frame */)`,
+1. `edm_shell::app::changes::subscribe(|| /* wake my loop or request a frame */)`,
    and, for what happened to each download, `session.events.subscribe(..)`.
 2. On a wake (or every 250 ms while something runs): `changes::take()`, then
    `Session::read` (the snapshot, what was detected, the events published),

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  EDM's manifest (docs/android.md, gaps rows N1, N5, N6, N12, N14, N16): the package is
+  com.edm.android (app/build.gradle.kts), Android 10 (API 29) and up, built against API 35.
+  The activity is EDM's EdmActivity, gpui-mobile's GpuiInputActivity (a NativeActivity with the
+  soft keyboard's input connection, which loads libedm_android.so and runs its android_main)
+  with a new intent handed to Rust. EDM's service and receivers (java/com/edm/android) each hand
+  their events to Rust and do nothing else (the maintainer's word, 2026-11-20).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Held while a download runs, so the processor does not sleep under it (gaps row N6). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The foreground service that keeps EDM's process while it downloads (gaps row N6,
+         src/android/service.rs). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- The phone's start: the schedule's alarm set again, downloads to go on with said
+         (gaps row N12, src/android/receivers.rs). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- The schedule's start as an exact alarm; without it (Android 13 and up do not grant it
+         by themselves) an inexact one, which Android may put off a little (gaps row N12). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Asked for at start on Android 13 and up (src/android/notify.rs, ask_permissions). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- GPUI draws through wgpu: Vulkan where the phone has it, else OpenGL ES 3. -->
+    <uses-feature
+        android:name="android.hardware.vulkan.level"
+        android:required="false"
+        android:version="0" />
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <application
+        android:allowBackup="false"
+        android:hardwareAccelerated="true"
+        android:hasCode="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="EDM"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <!-- configChanges: the window is drawn again on these rather than the activity made
+             anew (which would start android_main a second time). singleTask: one EDM; a link
+             shared while it runs goes to the running one, as a new intent (gaps row N5). -->
+        <activity
+            android:name="com.edm.android.EdmActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|density|uiMode|locale|fontScale"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="${nativeLibraryName}" />
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- A link shared from any app (the system's share sheet). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <!-- A magnet link opened in a browser or another app. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="magnet" />
+            </intent-filter>
+
+            <!-- A .torrent opened from Files, a browser's downloads or a mail, by its type. Only
+                 content:// (gaps row H16): Android 7 and up hand no file:// between apps. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:mimeType="application/x-bittorrent" />
+            </intent-filter>
+
+            <!-- A .torrent whose type the sender did not give, by its name. A path pattern is
+                 matched only with a host given (*), and Android's pattern stops at the first
+                 dot it meets, hence a second pattern for names with dots before .torrent. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\.torrent" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\\..*\\.torrent" />
+            </intent-filter>
+        </activity>
+
+        <!-- gpui-mobile's file chooser (gpui-android's prompt_for_paths): imports the
+             documents picked into the app's cache, as paths GPUI can read. -->
+        <activity
+            android:name="dev.gpui.mobile.GpuiPathPicker"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|navigation|density|uiMode"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Keeps EDM's process while it downloads, with the ongoing notification (gaps row
+             N6). Started and stopped by EDM itself, never by another app. -->
+        <service
+            android:name="com.edm.android.EdmService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- A notification's Retry, Stop All and Open, and the schedule's alarm: EDM's own
+             PendingIntents alone reach it (gaps rows N6, N12). -->
+        <receiver
+            android:name="com.edm.android.EdmActionReceiver"
+            android:exported="false" />
+
+        <!-- The phone's start (gaps row N12): only the system sends BOOT_COMPLETED, and a
+             sender must hold RECEIVE_BOOT_COMPLETED. -->
+        <receiver
+            android:name="com.edm.android.EdmBootReceiver"
+            android:exported="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

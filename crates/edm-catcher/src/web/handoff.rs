@@ -1,0 +1,244 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! Handing a download to the app, and telling the person what became of it.
+
+use super::*;
+
+/// Forgets what is known of the app, so the next download asks again.
+#[wasm_bindgen]
+pub fn forget_app() {
+    KNOWN.with(|k| *k.borrow_mut() = None);
+}
+
+/// What is known of the app, for a person or a harness looking at the worker.
+#[wasm_bindgen]
+pub fn app_status() -> String {
+    KNOWN.with(|k| match &*k.borrow() {
+        None => "not asked yet".into(),
+        Some(Known {
+            app: App::Absent { reason },
+            ..
+        }) => format!("absent: {reason}"),
+        Some(Known {
+            app: App::Present { hello, rules },
+            ..
+        }) => format!(
+            "present: EDM {}, catching {}",
+            hello.engine_version,
+            if rules.enabled {
+                format!("{} file types", rules.extensions.len())
+            } else {
+                "nothing".into()
+            }
+        ),
+    })
+}
+
+/// Hands one download to the app, and waits for it to say it has it. `tab` is the tab it was
+/// asked for from, whose own requests alone may renew its address later.
+/// `Ok(true)` where the app's own window comes forward to ask about it.
+pub(super) async fn hand(
+    port: Option<Port>,
+    start: Start,
+    tab: Option<i64>,
+) -> Result<bool, String> {
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open()?,
+    };
+    let id = start.id.clone();
+    // What the app took is remembered, for a newer address of it later; a
+    // renewal is not a hand-off of its own.
+    let handed = (!start.renews).then(|| (start.url.clone(), start.referrer.clone()));
+    // The app is told when this stops waiting, so it does not take what has
+    // been given back to the browser by then.
+    let deadline = now() + decide::TAKEN_WITHIN_MS;
+    let start = Start {
+        deadline: Some(deadline.max(0.0) as u64),
+        ..start
+    };
+    port.send(&Request::Start(start))?;
+    let outcome = answered(&mut port, &id, deadline).await;
+    if outcome.is_err() {
+        // Whatever went wrong may be the app going away; ask again next time.
+        forget_app();
+    } else if let Some((url, referrer)) = handed {
+        load_handed().await;
+        HANDED.with(|h| h.borrow_mut().keep(&url, &referrer, tab));
+        store_handed().await;
+    }
+    outcome
+}
+
+/// Waits for the app's answer to the hand-off filed under `id`. Words the app sent for the
+/// browser to say of it are said here, in place of this extension's own: a hand-off taken is
+/// then `Ok(true)`, which posts no toast, and a refusal's words are not said a second time.
+async fn answered(port: &mut Port, id: &str, deadline: f64) -> Result<bool, String> {
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some((outcome, notice)) = decide::taken_said(&frame, id) {
+                    let Some(notice) = notice else {
+                        return outcome;
+                    };
+                    show_notice(&notice.title, &notice.body);
+                    return match outcome {
+                        Ok(_) => Ok(true),
+                        Err(why) => {
+                            SAID.with(|said| said.borrow_mut().push(why.clone()));
+                            Err(why)
+                        }
+                    };
+                }
+            }
+            Heard::Gone(why) => return Err(why),
+        }
+    }
+}
+
+/// Sends `request`, a hand-off of its own kind (a click on the app's own menu item), and waits
+/// for the app to say it has it, as [`hand`] does.
+pub(super) async fn ask_app(
+    port: Option<Port>,
+    request: &Request,
+    id: &str,
+) -> Result<bool, String> {
+    let mut port = match port {
+        Some(port) => port,
+        None => Port::open()?,
+    };
+    port.send(request)?;
+    let outcome = answered(&mut port, id, now() + decide::TAKEN_WITHIN_MS).await;
+    if outcome.is_err() {
+        forget_app();
+    }
+    outcome
+}
+
+thread_local! {
+    /// Refusals whose words the app has had said already: the notification this extension
+    /// would post for one is not posted again.
+    static SAID: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+    /// The names handed to the app in the last moment, said in one toast (gaps row U11).
+    static SENT: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Says that `name` was handed to the app: those handed together, within a second and a half,
+/// in one toast, where each posted one (three stacked for three files). Not said where the
+/// app's own window comes forward to ask about it, which says so itself.
+pub(super) fn toast_sent(name: String) {
+    let first = SENT.with(|sent| {
+        let mut sent = sent.borrow_mut();
+        sent.push(name);
+        sent.len() == 1
+    });
+    if !first {
+        return;
+    }
+    wasm_bindgen_futures::spawn_local(async {
+        super::plumbing::sleep(1500.0).await;
+        let names = SENT.with(|sent| std::mem::take(&mut *sent.borrow_mut()));
+        match names.as_slice() {
+            [] => {}
+            // The panel's own words for the same (gaps row U11): "Sent to EDM".
+            [one] => notify(&crate::words::PANEL_SENT.say(), one),
+            many => {
+                let count = many.len().to_string();
+                let mut listed = many.iter().take(3).cloned().collect::<Vec<_>>().join(", ");
+                if many.len() > 3 {
+                    listed.push_str(", …");
+                }
+                notify(&crate::words::TOAST_SENT_MANY.with(&[&count]), &listed);
+            }
+        }
+    });
+}
+
+pub(super) fn notify(title: &str, message: &str) {
+    // Said already, in the app's own words.
+    let said = SAID.with(|said| {
+        let mut said = said.borrow_mut();
+        let at = said.iter().position(|m| message.contains(m.as_str()))?;
+        Some(said.remove(at))
+    });
+    if said.is_some() {
+        return log(
+            "info",
+            &format!("{title}: {message} (said in the app's words)"),
+        );
+    }
+    show_notice(title, message);
+}
+
+/// Posts a notification, whatever has been said before.
+fn show_notice(title: &str, message: &str) {
+    log("info", &format!("{title}: {message}"));
+    let icon = call_on(&api("runtime"), "getURL", &["icons/icon128.png".into()])
+        .unwrap_or(JsValue::UNDEFINED);
+    let options = to_js(&serde_json::json!({
+        "type": "basic",
+        "title": title,
+        "message": message,
+    }));
+    let _ = Reflect::set(&options, &"iconUrl".into(), &icon);
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Err(why) = call("notifications", "create", &[options]).await {
+            log("warn", &format!("could not show a notification: {why}"));
+        }
+    });
+}
+
+/// The cookie store (Firefox's container) of the tab at `path` in `from`
+/// ("" for `from` itself), if the browser names one. Chrome does not.
+pub(super) fn tab_store(from: &JsValue, path: &str) -> Option<String> {
+    let key = if path.is_empty() {
+        "cookieStoreId".to_string()
+    } else {
+        format!("{path}.cookieStoreId")
+    };
+    get(from, &key).as_string().filter(|s| !s.is_empty())
+}
+
+/// The id of the tab at `path` in `from` ("" for `from` itself), if it is a tab's.
+pub(super) fn tab_of(from: &JsValue, path: &str) -> Option<i64> {
+    let key = if path.is_empty() {
+        "id".to_string()
+    } else {
+        format!("{path}.id")
+    };
+    get(from, &key)
+        .as_f64()
+        .map(|id| id as i64)
+        .filter(|id| *id >= 0)
+}
+
+pub(super) fn own_id() -> String {
+    api("runtime.id").as_string().unwrap_or_default()
+}
+
+/// Which browser this is, as Options lists them (`edm_protocol::BROWSERS`): from the brands a
+/// Chromium browser names in `navigator.userAgentData`, or Firefox.
+pub(super) fn this_browser() -> &'static str {
+    let navigator = get(&js_sys::global().into(), "navigator");
+    let brands: Vec<String> = from_js(&get(&navigator, "userAgentData.brands"))
+        .as_array()
+        .map(|list| {
+            list.iter()
+                .filter_map(|b| b.get("brand").and_then(|v| v.as_str()).map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    edm_protocol::browser_named(&brands, is_firefox())
+}
+
+pub(super) fn is_firefox() -> bool {
+    call_on(&api("runtime"), "getURL", &["".into()])
+        .ok()
+        .and_then(|url| url.as_string())
+        .is_some_and(|url| url.starts_with("moz-extension:"))
+}
+
+/* -------------------------------------------------------------- handlers */

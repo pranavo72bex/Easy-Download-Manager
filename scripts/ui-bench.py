@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""What dm's window costs, measured through the control port only (gaps rows G5, 187, 188).
+"""What EDM's window costs, measured through the control port only (gaps rows G5, 187, 188).
 
     python3 scripts/ui-bench.py [--rows 100,10000] [--runs 3] [--idle 60]
                                 [--only start,idle,list,busy,many,transfer]
@@ -12,12 +12,12 @@
 
 Talks to the window as `human-qa.py` does, over `--control`, so a build and an earlier one
 are measured the same way. For each list size a home is seeded once with that many rows
-(added for later, against a local server); each run then starts dm on a copy of it and takes,
+(added for later, against a local server); each run then starts EDM on a copy of it and takes,
 group by group (`--only` picks groups; all of them by default):
 
   start    cold   launch to the first `ui.texts` answer with words in it (a drawn frame), after
                   the system's file cache is emptied: `purge` (macOS) or `drop_caches` (Linux)
-                  where sudo needs no password, else dm's own binary evicted from the cache (the
+                  where sudo needs no password, else EDM's own binary evicted from the cache (the
                   system's libraries then stay cached; the JSON says which was done). Not on
                   Windows, where only a restart empties it
            start  the same, started again at once (warm)
@@ -32,21 +32,21 @@ group by group (`--only` picks groups; all of them by default):
            filter the last row's name typed into the search box (Find, Cmd-F or Ctrl-F), until
                   the list shows that row alone; find, then Find next (F3) until it is chosen;
                   unfilter, Escape in the box until the whole list is back
-  busy     busy   the CPU over 30 s with 20 downloads queued at 1 MB/s each (dm runs as many at
+  busy     busy   the CPU over 30 s with 20 downloads queued at 1 MB/s each (EDM runs as many at
                   once as its setting allows, 3 by default)
-           busy_page, busy_page_worst: with `list` too, the list paged through in a dm started
+           busy_page, busy_page_worst: with `list` too, the list paged through in an EDM started
                   again with 60 downloads at 1 MB/s running at once
   idle     idle_frames: how many times the window was drawn in the idle spell (GPUI's
                   `ui.frames`), none where nothing changed; list_frames: drawn over 100
                   `queue.list` asks, none (they are answered on the port's thread, gaps row S1)
-  many     300 downloads added at once at 256 KB/s each, 1 MB apiece, 10 at a time (dm's
+  many     300 downloads added at once at 256 KB/s each, 1 MB apiece, 10 at a time (EDM's
            most): many_answer and many_worst, the window's answer to `ui.texts` over 20 asks
            while the queue turns over; many_cpu over 15 s; how many finished meanwhile
   transfer one 512 MB file at full speed from the local server, 8 connections: its seconds
-           (transfer_window), dm's CPU seconds (transfer_window_cpu) and the window's answer
+           (transfer_window), EDM's CPU seconds (transfer_window_cpu) and the window's answer
            meanwhile (transfer_answer, transfer_worst); then the same file with `--headless`
            (transfer_headless, transfer_headless_cpu), so the window's cost to the engine is
-           the difference. The local server is Python: past a few hundred MB/s it, not dm,
+           the difference. The local server is Python: past a few hundred MB/s it, not EDM,
            sets the speed
 
 Every figure is lower-is-better. Each is the median of the runs, printed with the spread (the
@@ -57,8 +57,8 @@ this system, scripts/ui-bench-baselines/<system>-<machine>.json, where there is 
 `--save-baseline` makes this run the baseline. Numbers taken while other work runs on the
 computer are upper bounds: say so where they are written.
 
-A release build is what the numbers are for (`cargo build --release -p dm-gpui`); BINARY or
-DM_BINARY names it, else the release build of dm-gpui, else a debug one.
+A release build is what the numbers are for (`cargo build --release -p edm-gpui`); BINARY or
+EDM_BINARY names it, else the release build of edm-gpui, else a debug one.
 Needs a display. Frame times are not taken here: neither window reports them over the control
 port (docs/testing.md, Profiling, says how to take them with the system's profiler).
 """
@@ -133,12 +133,12 @@ METRICS = {
 
 
 def binary(named):
-    for candidate in (named, os.environ.get("DM_BINARY"),
-                      ROOT / "target/release/dm-gpui",
-                      ROOT / "target/debug/dm-gpui"):
+    for candidate in (named, os.environ.get("EDM_BINARY"),
+                      ROOT / "target/release/edm-gpui",
+                      ROOT / "target/debug/edm-gpui"):
         if candidate and pathlib.Path(candidate).exists():
             return pathlib.Path(candidate)
-    sys.exit("no dm binary: build one, or name it")
+    sys.exit("no EDM binary: build one, or name it")
 
 
 def cpu_seconds(pid):
@@ -176,7 +176,7 @@ def evict(path):
     if sys.platform == "darwin":
         if subprocess.run(["sudo", "-n", "purge"], capture_output=True).returncode == 0:
             return "purge"
-        # Without root: dm's own pages dropped. A shared mapping synced with MS_INVALIDATE
+        # Without root: EDM's own pages dropped. A shared mapping synced with MS_INVALIDATE
         # leaves none of the file in the cache (mincore says so, and its next read is the
         # disk's, twice as slow).
         libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
@@ -209,20 +209,20 @@ def evict(path):
     return None
 
 
-def drawn(dm):
+def drawn(edm):
     """The words on screen, with where they are."""
-    r = dm.call("ui.texts")
+    r = edm.call("ui.texts")
     return r.get("result", {}).get("texts", []) if r.get("ok") else []
 
 
-def texts(dm):
-    return [t["text"] for t in drawn(dm)]
+def texts(edm):
+    return [t["text"] for t in drawn(edm)]
 
 
-def names(dm):
+def names(edm):
     """The seeded rows' names on screen, top to bottom: what a scroll changes, and a
     download's progress does not."""
-    return [t["text"] for t in sorted(drawn(dm), key=lambda t: t["rect"][1]) if t["text"].startswith("bench")]
+    return [t["text"] for t in sorted(drawn(edm), key=lambda t: t["rect"][1]) if t["text"].startswith("bench")]
 
 
 def until(what, seconds=60, step=0.02):
@@ -235,12 +235,12 @@ def until(what, seconds=60, step=0.02):
     return None
 
 
-def answers(dm, asks, gap):
+def answers(edm, asks, gap):
     """How long the window takes to answer `ui.texts`, `asks` times, `gap` seconds apart."""
     took = []
     for _ in range(asks):
         t = time.time()
-        dm.call("ui.texts")
+        edm.call("ui.texts")
         took.append(time.time() - t)
         time.sleep(gap)
     return took
@@ -248,68 +248,68 @@ def answers(dm, asks, gap):
 
 def seed(root, base, rows):
     """A home holding `rows` rows added for later, to copy for each run."""
-    dm = sc.DM(root, name=f"seed{rows}").start()
+    edm = sc.EDM(root, name=f"seed{rows}").start()
     try:
         for k in range(0, rows, 500):
             n = min(500, rows - k)
-            r = dm.call("downloads.add", urls=[f"{base}/f/b{i}/1024/bench{i:05}.bin" for i in range(k, k + n)],
+            r = edm.call("downloads.add", urls=[f"{base}/f/b{i}/1024/bench{i:05}.bin" for i in range(k, k + n)],
                         later=True)
             assert r.get("ok"), r
-        assert until(lambda: len(dm.rows()) >= rows, 120), f"only {len(dm.rows())} of {rows} rows"
+        assert until(lambda: len(edm.rows()) >= rows, 120), f"only {len(edm.rows())} of {rows} rows"
     finally:
-        dm.stop()
-    return dm.home
+        edm.stop()
+    return edm.home
 
 
 def fresh(root, home, name, settings=None, window=True):
-    """A dm on a copy of the seeded home, not yet started."""
-    dm = sc.DM(root, settings, name=name, window=window)
-    shutil.rmtree(dm.home, ignore_errors=True)
-    shutil.copytree(home, dm.home)
+    """An EDM on a copy of the seeded home, not yet started."""
+    edm = sc.EDM(root, settings, name=name, window=window)
+    shutil.rmtree(edm.home, ignore_errors=True)
+    shutil.copytree(home, edm.home)
     for stale in ("control.port", "control.token", "instance.lock"):
-        (dm.home / stale).unlink(missing_ok=True)
-    return dm
+        (edm.home / stale).unlink(missing_ok=True)
+    return edm
 
 
-def finish(dm):
-    dm.stop(kill=True)
-    shutil.rmtree(dm.home, ignore_errors=True)
-    shutil.rmtree(dm.out, ignore_errors=True)
+def finish(edm):
+    edm.stop(kill=True)
+    shutil.rmtree(edm.home, ignore_errors=True)
+    shutil.rmtree(edm.out, ignore_errors=True)
 
 
-def first_frame(dm):
+def first_frame(edm):
     started = time.time()
-    dm.start()
-    assert until(lambda: texts(dm), 120), "the window never drew"
+    edm.start()
+    assert until(lambda: texts(edm), 120), "the window never drew"
     return time.time() - started
 
 
-def frames(dm):
+def frames(edm):
     """How many times the window has been drawn, where it says (`ui.frames`, answered without
     drawing); None where it does not."""
-    r = dm.call("ui.frames")
+    r = edm.call("ui.frames")
     return r["result"]["frames"] if r.get("ok") else None
 
 
-def to_top(dm, rows):
+def to_top(edm, rows):
     """The list scrolled back to its first row, by the wheel: a key would go to whatever has
     the keyboard, the search box included."""
-    shown = names(dm)
+    shown = names(edm)
     if shown:
-        dm.call("ui.scroll", text=shown[0], lines=-(rows + 10))
+        edm.call("ui.scroll", text=shown[0], lines=-(rows + 10))
     def settled():
-        was = names(dm)
+        was = names(edm)
         time.sleep(0.2)
-        return was == names(dm)
+        return was == names(edm)
     until(settled, 20)
 
 
-def page_through(dm, rows):
+def page_through(edm, rows):
     """The list scrolled from its top to its end in about 50 steps, each timed until other
     rows are on screen; the times, and whether its end was reached (a scroll that moves
     nothing)."""
-    to_top(dm, rows)
-    seeded = sorted((t for t in drawn(dm) if t["text"].startswith("bench")), key=lambda t: t["rect"][1])
+    to_top(edm, rows)
+    seeded = sorted((t for t in drawn(edm) if t["text"].startswith("bench")), key=lambda t: t["rect"][1])
     if len(seeded) < 2:
         return [], False
     row_px = max(1.0, seeded[1]["rect"][1] - seeded[0]["rect"][1])
@@ -318,66 +318,66 @@ def page_through(dm, rows):
     lines = max(1.0, math.floor(step_px / LINE_PX))
     took = []
     for _ in range(int(math.ceil(total_px / (lines * LINE_PX))) + 2):
-        before = names(dm)
+        before = names(edm)
         if not before:
             break
         t = time.time()
-        dm.call("ui.scroll", text=before[len(before) // 2], lines=lines)
-        if not until(lambda: names(dm) != before, 3, 0.005):
+        edm.call("ui.scroll", text=before[len(before) // 2], lines=lines)
+        if not until(lambda: names(edm) != before, 3, 0.005):
             return took, True                       # the end: nothing more moves
         took.append(time.time() - t)
     return took, False
 
 
-def sort_each(dm):
+def sort_each(edm):
     """A click on each heading on screen, timed until it shows its arrow."""
     headings = ["File name", "Size", "Status", "Time left", "Transfer rate", "Last try date",
                 "Description", "Referrer", "Folder"]
     took = {}
-    shown = texts(dm)
+    shown = texts(edm)
     for heading in [h for h in headings if h in shown]:
         t = time.time()
-        if not dm.call("ui.click", text=heading).get("ok"):
+        if not edm.call("ui.click", text=heading).get("ok"):
             continue
-        if until(lambda: f"{heading} ▲" in texts(dm), 20, 0.005):
+        if until(lambda: f"{heading} ▲" in texts(edm), 20, 0.005):
             took[heading] = time.time() - t
     return took
 
 
-def filter_and_find(dm, rows, took):
+def filter_and_find(edm, rows, took):
     last = f"bench{rows - 1:05}"
-    ids = [r["id"] for r in dm.rows() if r["url"].endswith(f"/{last}.bin")]
+    ids = [r["id"] for r in edm.rows() if r["url"].endswith(f"/{last}.bin")]
     mod = "cmd" if sys.platform == "darwin" else "ctrl"
 
     def chosen():
-        return dm.call("ui.inspect").get("result", {}).get("selected") == ids
+        return edm.call("ui.inspect").get("result", {}).get("selected") == ids
 
     t = time.time()
-    pressed = dm.call("ui.key", key="F", modifiers=[mod])
+    pressed = edm.call("ui.key", key="F", modifiers=[mod])
     if not pressed.get("ok"):
         # A window with no keys says so, and nothing is measured.
         print(f"  find: {pressed.get('error')}", flush=True)
         return
     # The window puts the keyboard in its search box, which filters the list as it is
     # typed into.
-    whole = len(names(dm))
+    whole = len(names(edm))
     t = time.time()
-    dm.call("ui.type", text=last)
-    if until(lambda: names(dm) == [f"{last}.bin"], 30, 0.005):
+    edm.call("ui.type", text=last)
+    if until(lambda: names(edm) == [f"{last}.bin"], 30, 0.005):
         took["filter"] = time.time() - t
     t = time.time()
-    dm.call("ui.key", key="F3")
+    edm.call("ui.key", key="F3")
     if until(chosen, 30, 0.005):
         took["find"] = time.time() - t
     # Escape in the box empties it and gives the keyboard back to the list.
     t = time.time()
-    dm.call("ui.key", key="Escape")
-    if until(lambda: len(names(dm)) >= whole, 30, 0.005):
+    edm.call("ui.key", key="Escape")
+    if until(lambda: len(names(edm)) >= whole, 30, 0.005):
         took["unfilter"] = time.time() - t
 
 
 def file_done(path, size):
-    """A download is done when its file is in the folder whole: dm stages the parts apart
+    """A download is done when its file is in the folder whole: EDM stages the parts apart
     and renames them in at the end. Asking the queue instead would cost the window a
     10,000-row answer each time."""
     try:
@@ -389,121 +389,121 @@ def file_done(path, size):
 def transfer(root, base, home, rows, run, window, took):
     size = 512 * MB
     key = "window" if window else "headless"
-    dm = fresh(root, home, f"tx{key}{rows}-{run}", {"connections": 8}, window=window)
+    edm = fresh(root, home, f"tx{key}{rows}-{run}", {"connections": 8}, window=window)
     try:
-        dm.start()
+        edm.start()
         if window:
-            until(lambda: texts(dm), 120)
+            until(lambda: texts(edm), 120)
         time.sleep(2)
         name = f"tx{key}{run}.bin"
-        before = cpu_seconds(dm.proc.pid)
+        before = cpu_seconds(edm.proc.pid)
         t = time.time()
-        dm.add([f"{base}/f/tx{key}{rows}-{run}/{size}/{name}"])
+        edm.add([f"{base}/f/tx{key}{rows}-{run}/{size}/{name}"])
         asked = []
-        while not file_done(dm.out / name, size) and time.time() - t < 300:
+        while not file_done(edm.out / name, size) and time.time() - t < 300:
             if window:
                 a = time.time()
-                dm.call("ui.texts")
+                edm.call("ui.texts")
                 asked.append(time.time() - a)
             time.sleep(0.05)
-        if file_done(dm.out / name, size):
+        if file_done(edm.out / name, size):
             took[f"transfer_{key}"] = time.time() - t
-            took[f"transfer_{key}_cpu"] = cpu_seconds(dm.proc.pid) - before
+            took[f"transfer_{key}_cpu"] = cpu_seconds(edm.proc.pid) - before
         if asked:
             took["transfer_answer"] = statistics.median(asked)
             took["transfer_worst"] = max(asked)
     finally:
-        finish(dm)
+        finish(edm)
 
 
 def run_once(root, base, home, rows, idle, run, groups):
     took = {"notes": {}}
     if "start" in groups and sys.platform != "win32":
-        dm = fresh(root, home, f"cold{rows}-{run}")
+        edm = fresh(root, home, f"cold{rows}-{run}")
         try:
             how = evict(sc.BINARY)
             if how:
-                took["cold"] = first_frame(dm)
+                took["cold"] = first_frame(edm)
                 took["notes"]["cold"] = how
         finally:
-            finish(dm)
-    dm = fresh(root, home, f"bench{rows}-{run}")
+            finish(edm)
+    edm = fresh(root, home, f"bench{rows}-{run}")
     try:
-        took["start"] = first_frame(dm)
+        took["start"] = first_frame(edm)
         time.sleep(3)
         if "idle" in groups:
-            before = cpu_seconds(dm.proc.pid)
-            drawn_before = frames(dm)
+            before = cpu_seconds(edm.proc.pid)
+            drawn_before = frames(edm)
             time.sleep(idle)
-            took["idle"] = 100 * (cpu_seconds(dm.proc.pid) - before) / idle
+            took["idle"] = 100 * (cpu_seconds(edm.proc.pid) - before) / idle
             # Nothing changed, so nothing is drawn (the window counts its frames, gaps
             # row 181).
-            drawn_after = frames(dm)
+            drawn_after = frames(edm)
             if drawn_before is not None and drawn_after is not None:
                 took["idle_frames"] = drawn_after - drawn_before
                 # A script asking for the list draws nothing (gaps row S1).
                 for _ in range(100):
-                    dm.call("queue.list")
-                listed = frames(dm)
+                    edm.call("queue.list")
+                listed = frames(edm)
                 if listed is not None:
                     took["list_frames"] = listed - drawn_after
-            took["rss"], took["footprint"] = resident_mb(dm.proc.pid)
+            took["rss"], took["footprint"] = resident_mb(edm.proc.pid)
 
         if "list" in groups:
-            before = names(dm)
+            before = names(edm)
             if before:
                 t = time.time()
-                dm.call("ui.scroll", text=before[0], lines=10)
-                if until(lambda: names(dm) != before, 20, 0.005):
+                edm.call("ui.scroll", text=before[0], lines=10)
+                if until(lambda: names(edm) != before, 20, 0.005):
                     took["scroll"] = time.time() - t
-            steps, reached = page_through(dm, rows)
+            steps, reached = page_through(edm, rows)
             if steps:
                 took["page"], took["page_worst"] = statistics.median(steps), max(steps)
                 took["notes"]["page"] = f"{len(steps)} scrolls, the end {'reached' if reached else 'not reached'}"
-            sorted_by = sort_each(dm)
+            sorted_by = sort_each(edm)
             if sorted_by:
                 took["sort"], took["sort_worst"] = statistics.median(sorted_by.values()), max(sorted_by.values())
                 took["notes"]["sort"] = {k: round(v, 3) for k, v in sorted_by.items()}
-            filter_and_find(dm, rows, took)
+            filter_and_find(edm, rows, took)
 
         if "busy" in groups:
-            dm.add([f"{base}/f/busy{rows}-{run}-{i}/{200 * MB}/busy{i}.bin?rate={MB}" for i in range(20)])
+            edm.add([f"{base}/f/busy{rows}-{run}-{i}/{200 * MB}/busy{i}.bin?rate={MB}" for i in range(20)])
             time.sleep(5)
-            before = cpu_seconds(dm.proc.pid)
+            before = cpu_seconds(edm.proc.pid)
             time.sleep(30)
-            took["busy"] = 100 * (cpu_seconds(dm.proc.pid) - before) / 30
+            took["busy"] = 100 * (cpu_seconds(edm.proc.pid) - before) / 30
     finally:
-        finish(dm)
+        finish(edm)
 
     if "busy" in groups and "list" in groups:
         # Paged through while 60 downloads update at once (gaps row 182).
-        dm = fresh(root, home, f"busy60-{rows}-{run}", {"concurrency": 60})
+        edm = fresh(root, home, f"busy60-{rows}-{run}", {"concurrency": 60})
         try:
-            first_frame(dm)
-            dm.add([f"{base}/f/busy60-{rows}-{run}-{i}/{200 * MB}/busy{i}.bin?rate={MB}" for i in range(60)])
+            first_frame(edm)
+            edm.add([f"{base}/f/busy60-{rows}-{run}-{i}/{200 * MB}/busy{i}.bin?rate={MB}" for i in range(60)])
             time.sleep(5)
-            steps, _ = page_through(dm, rows)
+            steps, _ = page_through(edm, rows)
             if steps:
                 took["busy_page"], took["busy_page_worst"] = statistics.median(steps), max(steps)
         finally:
-            finish(dm)
+            finish(edm)
 
     if "many" in groups:
-        dm = fresh(root, home, f"many{rows}-{run}", {"concurrency": 10, "connections": 1})
+        edm = fresh(root, home, f"many{rows}-{run}", {"concurrency": 10, "connections": 1})
         try:
-            dm.start()
-            until(lambda: texts(dm), 120)
-            got = dm.add([f"{base}/f/many{rows}-{run}-{i}/{MB}/many{i}.bin?rate={256 * 1024}" for i in range(300)])
+            edm.start()
+            until(lambda: texts(edm), 120)
+            got = edm.add([f"{base}/f/many{rows}-{run}-{i}/{MB}/many{i}.bin?rate={256 * 1024}" for i in range(300)])
             assert got.get("ok"), got
             time.sleep(5)
-            asked = answers(dm, 20, 0.25)
+            asked = answers(edm, 20, 0.25)
             took["many_answer"], took["many_worst"] = statistics.median(asked), max(asked)
-            before = cpu_seconds(dm.proc.pid)
+            before = cpu_seconds(edm.proc.pid)
             time.sleep(15)
-            took["many_cpu"] = 100 * (cpu_seconds(dm.proc.pid) - before) / 15
-            took["notes"]["many_done"] = len([p for p in dm.out.glob("many*.bin") if file_done(p, MB)])
+            took["many_cpu"] = 100 * (cpu_seconds(edm.proc.pid) - before) / 15
+            took["notes"]["many_done"] = len([p for p in edm.out.glob("many*.bin") if file_done(p, MB)])
         finally:
-            finish(dm)
+            finish(edm)
 
     if "transfer" in groups:
         transfer(root, base, home, rows, run, True, took)
@@ -565,7 +565,7 @@ def main():
                                           "groups": sorted(groups)})
     print(f"binary: {sc.BINARY}\n{prov.line(made_by)}", flush=True)
     server, base = sc.start_server()
-    root = pathlib.Path(tempfile.mkdtemp(prefix="dm-ui-bench-"))
+    root = pathlib.Path(tempfile.mkdtemp(prefix="edm-ui-bench-"))
     results, every = {}, {}
     try:
         for rows in sizes:
@@ -582,8 +582,8 @@ def main():
             results[rows] = summarise(runs)
             every[rows] = runs
     finally:
-        for dm in list(sc.LIVE_DMS):
-            dm.stop(kill=True)
+        for edm in list(sc.LIVE_DMS):
+            edm.stop(kill=True)
         server.shutdown()
         shutil.rmtree(root, ignore_errors=True)
 

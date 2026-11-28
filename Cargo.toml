@@ -7,7 +7,7 @@
 # rather than the place the logic hides.
 [workspace]
 resolver = "2"
-# One workspace at the repository's root, every crate in crates/ (the extension's dm-catcher,
+# One workspace at the repository's root, every crate in crates/ (the extension's edm-catcher,
 # built for wasm32-unknown-unknown, among them) and the project's own tooling in tooling/:
 # one lock file and one target folder for both sides, and `cargo test --workspace` tests the
 # extension's deciding parts too (gaps row A15).
@@ -20,27 +20,27 @@ exclude = ["vendor/librqbit", "vendor/librqbit-sha1-wrapper", "vendor/librqbit-b
 # and adds its own features there; `cargo xtask layers` refuses a version written in a crate.
 # Features here are the ones every crate using it asks for.
 [workspace.dependencies]
-# dm's own crates.
-dm-android = { path = "crates/dm-android" }
-dm-assets = { path = "crates/dm-assets" }
-dm-core = { path = "crates/dm-core" }
-dm-desktop-base = { path = "crates/dm-desktop-base" }
-# The window, a library too (`dm_gpui::run_app`): the phone's app opens it (gaps row N3).
-dm-gpui = { path = "crates/dm-gpui" }
-dm-js = { path = "crates/dm-js" }
-dm-media = { path = "crates/dm-media" }
-dm-net = { path = "crates/dm-net" }
-dm-protocol = { path = "crates/dm-protocol" }
-dm-shell = { path = "crates/dm-shell" }
-dm-torrent = { path = "crates/dm-torrent" }
+# EDM's own crates.
+edm-android = { path = "crates/edm-android" }
+edm-assets = { path = "crates/edm-assets" }
+edm-core = { path = "crates/edm-core" }
+edm-desktop-base = { path = "crates/edm-desktop-base" }
+# The window, a library too (`edm_gpui::run_app`): the phone's app opens it (gaps row N3).
+edm-gpui = { path = "crates/edm-gpui" }
+edm-js = { path = "crates/edm-js" }
+edm-media = { path = "crates/edm-media" }
+edm-net = { path = "crates/edm-net" }
+edm-protocol = { path = "crates/edm-protocol" }
+edm-shell = { path = "crates/edm-shell" }
+edm-torrent = { path = "crates/edm-torrent" }
 # Tests' alone: only ever a dev-dependency (gaps row X10).
-dm-test-support = { path = "crates/dm-test-support" }
-# GPUI's Android platform, dm's copy of gpui-mobile's (vendor/README.md, gaps row N16):
-# not on crates.io, so a path, as dm's own crates are.
+edm-test-support = { path = "crates/edm-test-support" }
+# GPUI's Android platform, EDM's copy of gpui-mobile's (vendor/README.md, gaps row N16):
+# not on crates.io, so a path, as EDM's own crates are.
 gpui-android = { path = "vendor/gpui-android" }
 
 # From crates.io (or patched below).
-# The phone's NativeActivity glue (dm-android's `android_main`), the version gpui-android uses.
+# The phone's NativeActivity glue (edm-android's `android_main`), the version gpui-android uses.
 android-activity = { version = "0.6", features = ["native-activity"] }
 aes = "0.9.4"
 arboard = "3"
@@ -71,14 +71,14 @@ gpui-component = "=0.10.0"
 gpui_platform = { package = "gpui-pre-platform", version = "=0.3.12" }
 hyper = { version = "1", features = ["server", "http2"] }
 hyper-util = { version = "0.1", features = ["server-auto", "tokio", "service", "http2"] }
-# The phone's calls into Android (dm-android, gaps rows N5, N6): the version gpui-android and
+# The phone's calls into Android (edm-android, gaps rows N5, N6): the version gpui-android and
 # android-activity already use, so one copy.
 jni = "0.22.4"
 js-sys = "0.3"
 libc = "0.2"
 librqbit = { version = "9.1.0", default-features = false, features = ["rust-tls"] }
 # The peer protocol's message reader, which the library uses already (one copy in the build),
-# reached by dm-torrent for its fuzz target (gaps row H11a).
+# reached by edm-torrent for its fuzz target (gaps row H11a).
 librqbit-peer-protocol = { version = "9.1.0", default-features = false }
 md-5 = "0.11.0"
 md4 = "0.11"
@@ -129,11 +129,11 @@ windows = "0.62"
 windows-sys = "0.61"
 x11rb = "0.13"
 # async-io: the runtime its blocking calls run on; without it zbus does not build where nothing
-# else asks for one (`cargo test -p dm-android` on Linux; the whole workspace gets it through GPUI).
+# else asks for one (`cargo test -p edm-android` on Linux; the whole workspace gets it through GPUI).
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 
-# The lints every dm crate keeps, in one place rather than pasted into each crate's root
+# The lints every EDM crate keeps, in one place rather than pasted into each crate's root
 # (gaps row A1); each crate's `[lints] workspace = true` takes them. Clippy refuses warnings in
 # CI (`cargo clippy -- -D warnings`), so these hold.
 [workspace.lints.rust]
@@ -154,17 +154,17 @@ lto = true
 codegen-units = 1
 strip = true
 
-# Built for speed where the work is the CPU's: dm's engine and its media code
-# (dm-media: the MP3, GIF and resampling code, "z" made it three times as
+# Built for speed where the work is the CPU's: EDM's engine and its media code
+# (edm-media: the MP3, GIF and resampling code, "z" made it three times as
 # slow; gaps row A6), digests, unpacking,
 # TLS, AAC decoding and drawing. The rest waits on the network or the window
-# and is built for size. Not dm-gpui: with LTO a binary's setting becomes
+# and is built for size. Not edm-gpui: with LTO a binary's setting becomes
 # the whole program's (the older egui window's binary at 3 was 27 MB).
 # docs/decisions.md, 2026-11-06 and 2026-11-12 (gaps row S12).
-[profile.release.package.dm-core]
+[profile.release.package.edm-core]
 opt-level = 3
 overflow-checks = true
-[profile.release.package.dm-media]
+[profile.release.package.edm-media]
 opt-level = 3
 overflow-checks = true
 [profile.release.package.symphonia-codec-aac]
@@ -216,8 +216,8 @@ opt-level = 3
 
 # The same crates optimised in debug builds and tests too: built at opt-level 0, GPUI's layout
 # and painting of a screenful of rows took about 120 ms of a 168 ms frame on the Windows laptop
-# (gaps row 203), so the window tests timed GPUI rather than dm, which stays at opt-level 0
-# with its debug assertions. Built once per target folder; not dm's own crates.
+# (gaps row 203), so the window tests timed GPUI rather than EDM, which stays at opt-level 0
+# with its debug assertions. Built once per target folder; not EDM's own crates.
 [profile.dev.package.gpui-pre]
 opt-level = 2
 [profile.dev.package.taffy]
@@ -234,30 +234,30 @@ opt-level = 2
 opt-level = 2
 # The passphrase of a backup and of the sealed sign-ins is stretched 600,000 rounds of
 # SHA-256 (`secretstore::passphrase`): at opt-level 0 a debug build took about 18 s to back
-# dm up, past what a person (and B72's check) waits for.
+# EDM up, past what a person (and B72's check) waits for.
 [profile.dev.package.sha2]
 opt-level = 3
 
-# Overflow checks kept in the release (dm-core and dm-media in their sections above) for the crates that read what a server, a page, a file
+# Overflow checks kept in the release (edm-core and edm-media in their sections above) for the crates that read what a server, a page, a file
 # or a peer sends (gaps row H12): a length that overflows stops that download with an error
 # rather than wrapping to a wrong size and reading or writing in the wrong place. Measured
 # with `bench/` before and after (docs/decisions.md, 2026-11-24). Package overrides are
 # taken by the profiles that inherit the release (extension, profiling).
-[profile.release.package.dm-net]
+[profile.release.package.edm-net]
 overflow-checks = true
-[profile.release.package.dm-torrent]
+[profile.release.package.edm-torrent]
 overflow-checks = true
-[profile.release.package.dm-js]
+[profile.release.package.edm-js]
 overflow-checks = true
-[profile.release.package.dm-protocol]
+[profile.release.package.edm-protocol]
 overflow-checks = true
-[profile.release.package.dm-catcher]
+[profile.release.package.edm-catcher]
 overflow-checks = true
 [profile.release.package.librqbit]
 overflow-checks = true
 
 # The extension's WebAssembly (scripts/package.sh: `cargo build --profile extension --target
-# wasm32-unknown-unknown`), as crates/dm-catcher/ built it as a workspace of its own: for size, and a
+# wasm32-unknown-unknown`), as crates/edm-catcher/ built it as a workspace of its own: for size, and a
 # panic stops it. The release's per-crate opt-levels above are the desktop's crates, none in it.
 [profile.extension]
 inherits = "release"
@@ -265,7 +265,7 @@ opt-level = "s"
 panic = "abort"
 
 # The release build with its symbols and line tables kept, for a profiler
-# (docs/testing.md, Profiling): `cargo build --profile profiling -p dm-gpui`.
+# (docs/testing.md, Profiling): `cargo build --profile profiling -p edm-gpui`.
 # The same code as the release (line tables do not change it: stripped, it was
 # within 1.2 KB of the release binary on macOS), built about a fifth slower.
 [profile.profiling]
@@ -274,7 +274,7 @@ debug = "line-tables-only"
 split-debuginfo = "packed"
 strip = false
 
-# Crates built with a change of dm's own (vendor/README.md).
+# Crates built with a change of EDM's own (vendor/README.md).
 [patch.crates-io]
 librqbit = { path = "vendor/librqbit" }
 librqbit-sha1-wrapper = { path = "vendor/librqbit-sha1-wrapper" }

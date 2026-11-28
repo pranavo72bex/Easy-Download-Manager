@@ -1,6 +1,6 @@
-# Using dm
+# Using EDM
 
-The parts of dm the Help menu points to. For installing dm and its browser
+The parts of EDM the Help menu points to. For installing EDM and its browser
 extension, see the [README](../README.md).
 
 ## How to…
@@ -14,12 +14,12 @@ each one, without a connection.
 - [Download a video](guide/download-a-video.md)
 - [Stop now, finish later](guide/resuming.md)
 - [Keep some speed for everything else](guide/speed-limits.md)
-- [dm on a USB stick](guide/usb-stick.md) (Windows)
-- [dm on a home server](guide/home-server.md) (Docker)
+- [EDM on a USB stick](guide/usb-stick.md) (Windows)
+- [EDM on a home server](guide/home-server.md) (Docker)
 
 ## Every page of the help
 
-- **When something goes wrong:** [What dm's messages mean](guide/failures.md),
+- **When something goes wrong:** [What EDM's messages mean](guide/failures.md),
   each failure and note a download can show, with what to do next.
 - **Topics:** [Videos and their qualities](guide/videos.md),
   [Sign-ins](guide/sign-ins.md), [Proxies](guide/proxies.md),
@@ -35,14 +35,14 @@ each one, without a connection.
   [Playlist](guide/playlist.md), [Download links](guide/download-links.md),
   [Links on the clipboard](guide/clipboard-links.md),
   [Add numbered series](guide/numbered-series.md),
-  [Grabber](guide/grabber.md), [Add dm to your browser](guide/welcome.md).
+  [Grabber](guide/grabber.md), [Add EDM to your browser](guide/welcome.md).
 - **While and after a download:** [Download progress](guide/download-window.md),
   [Download complete](guide/download-complete.md),
   [File properties](guide/properties.md),
   [Update download link](guide/update-link.md),
   [Move to queue](guide/move-to-queue.md),
   [Move/Rename](guide/move-rename.md), [Scheduler](guide/scheduler.md),
-  [Questions dm asks](guide/questions.md), [About dm](guide/about.md),
+  [Questions EDM asks](guide/questions.md), [About EDM](guide/about.md),
   [Statistics](guide/statistics.md).
 
 ## Queues and the Scheduler
@@ -67,7 +67,7 @@ choose another.
   days, or pick one date, and the time to start and to stop.
   **Start now** and **Stop** act on the queue you picked; **OK** keeps the
   hours of every queue.
-- **When the downloads are done:** the Scheduler can close dm, put the
+- **When the downloads are done:** the Scheduler can close EDM, put the
   computer to sleep, hibernate it or shut it down once the scheduled
   downloads have finished, and try a failed download again a few times
   first. Every setting is in [Scheduler](guide/scheduler.md).
@@ -100,8 +100,8 @@ to open the Grabber with it filled in. Every setting is in
 
 ## Download links from a page
 
-Right-click a page and choose **Download all links with dm**, or select part
-of it and choose **Download selected links with dm**. dm lists the links
+Right-click a page and choose **Download all links with EDM**, or select part
+of it and choose **Download selected links with EDM**. EDM lists the links
 with their name, type, size, where each will be saved and the link's words
 on the page. Tick the ones you want, choose where they go, and click **Start
 now**, or **Add for later** to a queue you pick. **Use link texts as
@@ -118,17 +118,17 @@ over.
 
 ## Torrents
 
-Click a magnet link or open a `.torrent` file and dm downloads it.
+Click a magnet link or open a `.torrent` file and EDM downloads it.
 **Options › Browser** shows which program opens magnet links and `.torrent`
-files, with a button to make it dm. The first torrent makes Windows ask
-whether dm may use the network: allow it and other peers can reach dm, so
+files, with a button to make it EDM. The first torrent makes Windows ask
+whether EDM may use the network: allow it and other peers can reach EDM, so
 torrents go faster.
 
 ## Import and Export
 
 **Tasks › Export…** writes every download in the list to a `.dmlist` file;
 **Tasks › Import…** adds the downloads in such a file, or in a plain list of
-links, one to a line. When some of them are already in the list, dm asks
+links, one to a line. When some of them are already in the list, EDM asks
 first ([Some are already in the list](guide/questions.md#some-are-already-in-the-list)).
 
 Where the computer has no file panel to choose the file with (a Linux
@@ -142,8 +142,8 @@ the path to be put right.
 
 ## Back up and restore
 
-**File › Back up dm…** writes one `.dmbackup` file of dm's settings, queues,
-schedules, site rules, saved searches and list of downloads, to carry dm to
+**File › Back up EDM…** writes one `.dmbackup` file of EDM's settings, queues,
+schedules, site rules, saved searches and list of downloads, to carry EDM to
 another computer or keep it safe. The sign-ins (Options › Sign-ins'
 passwords, the proxy's and the dial-up connection's, a login in a
 download's address, and the cookies and headers a browser handed over) go
@@ -162,8 +162,8 @@ download comes back as its record, and an unfinished one waits, paused,
 to be fetched again from its start. Where its sign-ins are sealed, type
 the passphrase; left empty, everything else is restored without them, and
 a wrong one is said in the window, which stays open, and nothing is
-restored. The programs dm runs (the command after each download, the
+restored. The programs EDM runs (the command after each download, the
 program at the end of the scheduled hours, the proxy script) are never set
-from a file: set them again in Options. A backup made by a newer dm is
+from a file: set them again in Options. A backup made by a newer EDM is
 read as far as this one knows its fields; what it cannot read keeps its
 default, and the status bar says so.

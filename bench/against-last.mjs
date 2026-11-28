@@ -1,26 +1,26 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-// dm against its own last numbers, parameter by parameter (gaps row R5). `compare.mjs` judges dm
+// EDM against its own last numbers, parameter by parameter (gaps row R5). `compare.mjs` judges EDM
 // against reference A's frozen floor; this judges a run of `bench.mjs` against an earlier run of
-// dm on the same kind of computer (CI's weekly benchmark, .github/workflows/bench.yml), so a change
-// that makes dm slower or heavier is seen the week it lands, wherever reference A's floor is still
+// EDM on the same kind of computer (CI's weekly benchmark, .github/workflows/bench.yml), so a change
+// that makes EDM slower or heavier is seen the week it lands, wherever reference A's floor is still
 // far away.
 //
 //   node bench/against-last.mjs <this run's results> <last run's results> [--tolerance <percent>]
 //                               [--markdown <file>] [--json]
 //   node bench/against-last.mjs --self-test
 //
-// Each parameter compares dm's median over its whole runs with the last run's median. It is worse
+// Each parameter compares EDM's median over its whole runs with the last run's median. It is worse
 // when it is over the last one by more than the tolerance (default 20%) and a small allowance for
 // what the harness can see (`SLACK`: the finish is looked for every 100 ms, CPU is read in 10 ms
 // ticks). The machine-bound scenarios' times (`fast`, `big40`: seconds, transferSeconds,
 // lastByteToDoneMs) are scaled as bench/README.md scales the frozen floors, by the ceiling each run
 // measured on its own computer: the last number x (ceiling now / ceiling then). Unlike the frozen
 // floor's min(1, ...), the factor goes both ways: the last run is a number on another runner, not a
-// bar that may only get stricter, and a slower runner this week is not dm getting slower.
+// bar that may only get stricter, and a slower runner this week is not EDM getting slower.
 //
 // It reads bench/reference-a-baseline.json for the parameters' names, units and directions and
 // for which scenarios are machine-bound; it never writes it, and never judges against its floors.
@@ -38,7 +38,7 @@ const ORDER = ['idle', 'fast', 'per_conn', 'flaky', 'outage', 'batch', 'big40', 
 const SLACK = { s: 0.25, ms: 150, '%': 0.5, MiB: 3 };
 const median = (xs) => { const v = xs.filter((x) => x != null).sort((a, b) => a - b); if (!v.length) return null; const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
 
-// A results folder (or files): dm's runs by scenario, the ceiling, and where it ran.
+// A results folder (or files): EDM's runs by scenario, the ceiling, and where it ran.
 export function load(inputs) {
   const files = inputs.flatMap((p) => (fs.statSync(p).isDirectory() ? fs.readdirSync(p).filter((f) => f.endsWith('.json')).map((f) => path.join(p, f)) : [p]));
   const out = { scenarios: new Map(), ceiling: null, meta: null };
@@ -47,8 +47,8 @@ export function load(inputs) {
     if (j.scenario === 'ceiling') { out.ceiling = j.results || null; continue; }
     if (!Array.isArray(j.runs) || !j.scenario || j.scenario === 'inet') continue;
     out.meta ||= j.meta || null;
-    const dm = j.runs.filter((r) => r.app === 'dm').map((r) => ({ ...r, transferSeconds: r.seconds != null && r.firstRequestMs != null ? r.seconds - r.firstRequestMs / 1000 : null }));
-    out.scenarios.set(j.scenario, [...(out.scenarios.get(j.scenario) || []), ...dm]);
+    const edm = j.runs.filter((r) => r.app === 'EDM').map((r) => ({ ...r, transferSeconds: r.seconds != null && r.firstRequestMs != null ? r.seconds - r.firstRequestMs / 1000 : null }));
+    out.scenarios.set(j.scenario, [...(out.scenarios.get(j.scenario) || []), ...edm]);
   }
   return out;
 }
@@ -62,7 +62,7 @@ export function judge(now, last, tolerance = 20) {
     const out = { scenario: sc, label: spec.label || null, dmRuns: runs?.length ?? 0, whole: runs?.filter((r) => r.ok).length ?? 0, rows: [] };
     report.scenarios.push(out);
     if (!runs?.length) { out.note = 'not run this time'; report.worse.push(`${sc}: the last run had it, this one did not run it`); continue; }
-    if (out.whole < runs.length) report.worse.push(`${sc}: ${runs.length - out.whole} of ${runs.length} dm runs did not end with every file whole`);
+    if (out.whole < runs.length) report.worse.push(`${sc}: ${runs.length - out.whole} of ${runs.length} EDM runs did not end with every file whole`);
     if (!before?.length) { out.note = 'new: the last run did not have it'; report.notCompared.push(`${sc}: not in the last run`); continue; }
     let factor = 1;
     if (spec.scaleByCeiling) {
@@ -98,11 +98,11 @@ const n = (v) => (v == null ? '-' : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs
 
 export function markdown(report, now, last) {
   const where = (m) => (m?.system ? `${m.system.cpu}, ${m.system.logicalCores} threads, ${m.system.memoryGB} GB` : 'unknown') + (m?.build?.commit ? `, ${m.build.commit.head.slice(0, 10)}` : '');
-  const o = ['## dm against its own last numbers', '',
+  const o = ['## EDM against its own last numbers', '',
     `Worse means over the last run by more than ${report.tolerance}% plus the harness's slack (${Object.entries(report.slack).map(([u, v]) => `${v} ${u}`).join(', ')}); the machine-bound scenarios' times are scaled by the two runs' ceilings. Reference A's frozen floor is judged by \`compare.mjs\`, and the side-by-side run beside reference A stays the maintainer's.`, '',
     `This run: ${where(now?.meta)}. Last run: ${where(last?.meta)}.`, ''];
   for (const s of report.scenarios) {
-    o.push(`### ${s.scenario}${s.label ? `: ${s.label}` : ''} (dm runs ${s.dmRuns}, whole ${s.whole})`, '');
+    o.push(`### ${s.scenario}${s.label ? `: ${s.label}` : ''} (EDM runs ${s.dmRuns}, whole ${s.whole})`, '');
     if (s.ceiling) o.push(`Ceiling now ${n(s.ceiling.here)} s, then ${n(s.ceiling.then)} s: last times x ${s.ceiling.factor == null ? '-' : s.ceiling.factor.toFixed(3)}`, '');
     if (s.note) { o.push(s.note, ''); continue; }
     o.push('| Parameter | Last (here) | Allowed | Now | Change | Verdict |', '|---|---:|---:|---:|---:|---|');
@@ -116,9 +116,9 @@ export function markdown(report, now, last) {
 
 // ─── Its own workings, on made-up runs.
 function selfTest() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dm-against-last-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'edm-against-last-'));
   const write = (sub, name, body) => { fs.mkdirSync(path.join(dir, sub), { recursive: true }); fs.writeFileSync(path.join(dir, sub, `${name}.json`), JSON.stringify(body)); };
-  const run = (o) => ({ app: 'dm', ok: true, seconds: 10, firstRequestMs: 500, lastByteToDoneMs: 200, refetchedPct: 1, peakWorkingSetMB: 50, peakPrivateMB: 30, cpuMs: 1000, ...o });
+  const run = (o) => ({ app: 'EDM', ok: true, seconds: 10, firstRequestMs: 500, lastByteToDoneMs: 200, refetchedPct: 1, peakWorkingSetMB: 50, peakPrivateMB: 30, cpuMs: 1000, ...o });
   try {
     write('last', 'ceiling', { scenario: 'ceiling', results: { fast: { best: 2 } } });
     write('now', 'ceiling', { scenario: 'ceiling', results: { fast: { best: 3 } } });
@@ -132,8 +132,8 @@ function selfTest() {
     write('last', 'flaky', { scenario: 'flaky', runs: [run({})] });
     write('now', 'flaky', { scenario: 'flaky', runs: [run({}), run({ ok: false })] });
     write('last', 'outage', { scenario: 'outage', runs: [run({})] });
-    write('last', 'idle', { scenario: 'idle', runs: [{ app: 'dm', ok: true, peakWorkingSetMB: 40, peakPrivateMB: 20, cpuMs: 200 }] });
-    write('now', 'idle', { scenario: 'idle', runs: [{ app: 'dm', ok: true, peakWorkingSetMB: 41, peakPrivateMB: 20, cpuMs: 250 }] });
+    write('last', 'idle', { scenario: 'idle', runs: [{ app: 'EDM', ok: true, peakWorkingSetMB: 40, peakPrivateMB: 20, cpuMs: 200 }] });
+    write('now', 'idle', { scenario: 'idle', runs: [{ app: 'EDM', ok: true, peakWorkingSetMB: 41, peakPrivateMB: 20, cpuMs: 250 }] });
     const now = load([path.join(dir, 'now')]), last = load([path.join(dir, 'last')]);
     const r = judge(now, last, 20);
     const row = (sc, k) => r.scenarios.find((s) => s.scenario === sc)?.rows.find((x) => x.metric === k);
@@ -168,9 +168,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   if (args.length !== 2) die('usage: node bench/against-last.mjs <this run\'s results> <last run\'s results> [--tolerance <percent>] [--markdown <file>] [--json]');
   for (const p of args) if (!fs.existsSync(p)) die(`no results at ${p}`);
   const now = load([args[0]]), last = load([args[1]]);
-  if (!now.scenarios.size) die(`No scenario results with dm in ${args[0]}.`);
-  if (!last.scenarios.size) die(`No scenario results with dm in ${args[1]}.`);
-  if ((now.meta?.dmConnections ?? null) !== (last.meta?.dmConnections ?? null)) die(`The runs used different connections settings (${now.meta?.dmConnections ?? 'dm\'s own'} and ${last.meta?.dmConnections ?? 'dm\'s own'}): not comparable.`);
+  if (!now.scenarios.size) die(`No scenario results with EDM in ${args[0]}.`);
+  if (!last.scenarios.size) die(`No scenario results with EDM in ${args[1]}.`);
+  if ((now.meta?.dmConnections ?? null) !== (last.meta?.dmConnections ?? null)) die(`The runs used different connections settings (${now.meta?.dmConnections ?? 'EDM\'s own'} and ${last.meta?.dmConnections ?? 'EDM\'s own'}): not comparable.`);
   const report = judge(now, last, tolerance);
   const md = markdown(report, now, last);
   if (mdFile) fs.writeFileSync(mdFile, md, 'utf8');

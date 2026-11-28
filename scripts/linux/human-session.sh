@@ -1,7 +1,7 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # Inside a distribution's own image (see human-distro.sh): an X server, a
@@ -10,16 +10,16 @@
 # linux-firefox-check.sh set up in the Debian image.
 set -e
 browser=$1
-rm -rf /shots/* && mkdir -p /opt/dm
-# The window scripts/linux/window.sh chose (dm-gpui).
-binary="${DM_LINUX_BINARY:-dm-gpui}"
-cp "/target/debug/$binary" "/opt/dm/$binary"
-export DM_BINARY="/opt/dm/$binary" DM_SHOTS=/shots
+rm -rf /shots/* && mkdir -p /opt/EDM
+# The window scripts/linux/window.sh chose (edm-gpui).
+binary="${EDM_LINUX_BINARY:-edm-gpui}"
+cp "/target/debug/$binary" "/opt/EDM/$binary"
+export EDM_BINARY="/opt/EDM/$binary" EDM_SHOTS=/shots
 # The distribution's own Chromium is not always at /usr/bin/chromium
 # (Fedora's is chromium-browser).
-# Edge's image (DM_DISTRO=edge) has Microsoft Edge and no Chromium.
+# Edge's image (EDM_DISTRO=edge) has Microsoft Edge and no Chromium.
 for c in /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/microsoft-edge; do [ -x "$c" ] && export CHROMIUM="$c" && break; done
-# What each check was written against: Chromium's screen is wider, for dm's
+# What each check was written against: Chromium's screen is wider, for EDM's
 # window beside the browser's.
 case "$browser" in
   chromium) export DISPLAY=:79; size=2400x1200 ;;
@@ -40,11 +40,11 @@ if [ "$browser" = chromium ]; then
     *) exec dbus-run-session -- python3 scripts/chromium-human.py ;;
   esac
   # Edge: the real-input check, then chrome-check.py with CHROME_PATH
-  # naming Edge (DM_EDGE_CHROME_CHECK=0 skips the second), on the same
+  # naming Edge (EDM_EDGE_CHROME_CHECK=0 skips the second), on the same
   # display. Both are run; either failing fails the whole.
   status=0
   dbus-run-session -- python3 scripts/chromium-human.py || status=$?
-  if [ "${DM_EDGE_CHROME_CHECK:-1}" != 0 ]; then
+  if [ "${EDM_EDGE_CHROME_CHECK:-1}" != 0 ]; then
     echo; echo "== chrome-check.py, CHROME_PATH=$CHROMIUM"
     CHROME_PATH="$CHROMIUM" dbus-run-session -- python3 scripts/chrome-check.py \
       > /shots/chrome-check.txt 2>&1 || status=$?
@@ -57,4 +57,4 @@ fi
 ( n=0; while sleep 6; do n=$((n + 1))
     import -window root "/shots/$(printf %03d "$n")-screen.png" >/dev/null 2>&1 || true
   done ) &
-DM_REAL_INPUT=1 dbus-run-session -- python3 scripts/firefox-check.py native
+EDM_REAL_INPUT=1 dbus-run-session -- python3 scripts/firefox-check.py native

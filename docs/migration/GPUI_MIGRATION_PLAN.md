@@ -1,7 +1,7 @@
 # GPUI migration plan
 
-Status: **Phase 0 (audit) done, 2026-11-09, on branch `gpui-migration`. Phase A: A1 (docs and code agree), A2 (a toolkit-free crate, `dm-desktop-base`) and A3
-(rules into `dm_shell::app`), A4 (`ui.*` as a contract) and A5 (egui's baseline) done
+Status: **Phase 0 (audit) done, 2026-11-09, on branch `gpui-migration`. Phase A: A1 (docs and code agree), A2 (a toolkit-free crate, `edm-desktop-base`) and A3
+(rules into `edm_shell::app`), A4 (`ui.*` as a contract) and A5 (egui's baseline) done
 2026-11-10: Phase A is complete. Next: Phase B, the GPUI shell.**
 
 This page turns the specification the maintainer gave on 2026-11-09 ("egui → GPUI
@@ -22,17 +22,17 @@ the same 64 rows on every system, not when it looks done.
 
 ## What the audit found that shapes the plan
 
-1. **The seam is real but not finished.** `dm_shell::app` holds the queue, the
+1. **The seam is real but not finished.** `edm_shell::app` holds the queue, the
    session, the commands and every server request, with no window toolkit
    (`cargo xtask layers`). But about **2,500 lines of application rules still
-   sit in `DmApp`**: question detection (B39 to B41), pending renames,
+   sit in `EdmApp`**: question detection (B39 to B41), pending renames,
    once-only schedule dates, saved searches, the weekly update check, one-time
    hints, the hand-off cancel counter, the script guard
    (CURRENT_UI_ARCHITECTURE.md 4.2). A second window would have to copy them.
-2. **About 7,100 lines of `dm_desktop` never touch egui** (`control`, `mcp`,
+2. **About 7,100 lines of `edm_desktop` never touch egui** (`control`, `mcp`,
    `cli`, the `Desktop` Platform, `power`, `autostart`, `awake`, `wake`,
    `quiet`, `region`, `details`, `i18n`, most of `format`). `MODULE_BOUNDARIES.md`
-   forbids a GPUI crate to depend on `dm_desktop`, so they must move first.
+   forbids a GPUI crate to depend on `edm_desktop`, so they must move first.
 3. **The QA oracle is the control port's `ui.*` methods**, which today read
    egui's painted text shapes and feed it input one step per frame.
    `human-qa.py` and MCP depend on their exact JSON. A GPUI window that answers
@@ -40,7 +40,7 @@ the same 64 rows on every system, not when it looks done.
    not cannot be checked at all.
 4. **The architecture docs and the code disagree in 12 places**
    (CURRENT_UI_ARCHITECTURE.md 9): `changes::take` is never called,
-   `schedule_tick` runs before `ran_dry`, `DmApp::logic` runs twice per painted
+   `schedule_tick` runs before `ran_dry`, `EdmApp::logic` runs twice per painted
    frame, the egui window never subscribes to the typed events, and comments
    are stale (`i18n.rs` says Latin and Cyrillic only; `control.rs` lists 7 of
    24 methods).
@@ -55,7 +55,7 @@ the same 64 rows on every system, not when it looks done.
    Zed issue #64447); GPUI's macOS dialog kind is a sheet (B42 needs a movable
    window); links and text cannot be dropped (only files), and drag-out exists
    only on macOS and Wayland; no tray (keep `tray-icon`); Linux file dialogs
-   need the desktop portal (keep `rfd`); dm's three vendored winit/egui-winit/
+   need the desktop portal (keep `rfd`); EDM's three vendored winit/egui-winit/
    eframe patches do not carry over. 485 window tests are written on
    `egui_kittest`.
 7. **The proposed dependency is one maintainer's.** `gpui-pre` (weekly
@@ -92,16 +92,16 @@ chose (`docs/architecture/`), finished.
 
 | Step | What | Done when |
 |---|---|---|
-| A1 | Make the architecture docs say what the code does (section 9's twelve rows), or the code what the docs say where the docs are right: call `changes::take`, run `DmApp::logic` once per frame (measured first: it is behaviour if a frame depends on it), fix the stale comments | Docs and code agree; 64/64 |
-| A2 | A toolkit-free crate for the desktop's non-drawing parts (proposed `dm-desktop-host`, or into dm-shell where sockets already live): `control` (minus `ui.*`), `mcp`, `cli`, `Desktop` Platform, `power`, `autostart`, `awake`, `wake`, `quiet`, `region`, `details`, `i18n` (minus `pick`), `format`. `cargo xtask layers` forbids it egui | dm-desktop is drawing only; 64/64 |
-| A3 | Move CURRENT_UI_ARCHITECTURE.md 4.2's rules into `dm_shell::app`, one at a time, each with its test moved or written | `DmApp` holds view state only |
+| A1 | Make the architecture docs say what the code does (section 9's twelve rows), or the code what the docs say where the docs are right: call `changes::take`, run `EdmApp::logic` once per frame (measured first: it is behaviour if a frame depends on it), fix the stale comments | Docs and code agree; 64/64 |
+| A2 | A toolkit-free crate for the desktop's non-drawing parts (proposed `edm-desktop-host`, or into edm-shell where sockets already live): `control` (minus `ui.*`), `mcp`, `cli`, `Desktop` Platform, `power`, `autostart`, `awake`, `wake`, `quiet`, `region`, `details`, `i18n` (minus `pick`), `format`. `cargo xtask layers` forbids it egui | edm-desktop is drawing only; 64/64 |
+| A3 | Move CURRENT_UI_ARCHITECTURE.md 4.2's rules into `edm_shell::app`, one at a time, each with its test moved or written | `EdmApp` holds view state only |
 | A4 | Define the control port's `ui.*` answers as a toolkit-free contract: a trait the window implements (texts with rects and window, click/type/key/scroll, inspect, select, place, windows, screenshot, accessibility), with the JSON shapes fixed by tests in the shared crate | egui implements the trait; human-qa unchanged; 64/64 |
 | A5 | Measure the egui baseline the spec's Phase 8 asks for, with a script that uses only the control port (so it measures GPUI the same way later): start to first usable frame, idle CPU, memory (`memory-check.py`), frame time with 20 active downloads, scroll and search at 100 / 1,000 / 10,000 rows (`stress-check.py window` seeds rows) | Numbers recorded in `GPUI_TEST_PLAN.md` |
 
 ### Phase B: the GPUI shell, as a go/no-go spike
 
-A separate crate and binary (proposed `crates/dm-gpui`, binary
-`dm-gpui`), on the proposed pin, depending on dm-shell, dm-core and A2's crate
+A separate crate and binary (proposed `crates/edm-gpui`, binary
+`edm-gpui`), on the proposed pin, depending on edm-shell, edm-core and A2's crate
 only. It opens the main window and one dialog window, runs the A3 tick on one
 foreground waker, keeps the tokio runtime for the engine, and implements a
 first slice of A4's `ui.*`.
@@ -125,7 +125,7 @@ and D1 and D2 asked.
 
 The spec's eight slices, each held to the contract rows it covers
 (EGUI_FEATURE_INVENTORY.md's index), run side by side with egui by
-`human-qa.py` with `DM_BINARY` naming either window. A slice is done when its
+`human-qa.py` with `EDM_BINARY` naming either window. A slice is done when its
 rows hold in GPUI on every system, not when it draws:
 
 | Slice | Rows (main ones; the engine's rows B06 to B15, B21, B22 are shown, not drawn, and hold through every slice) |
@@ -149,7 +149,7 @@ PLATFORM_GAP_ANALYSIS.md's "Adapt" and "Redo" rows: drag-out per OS, link
 drops, taskbar progress and jump list, Dock, title-bar colours, the .deb's
 dependencies for GPUI's renderer, the macOS bundle and the Windows installer.
 Done when the release workflow's packages, downloaded from a draft, hold 64/64
-(`linux-human-qa.sh DM_RELEASE=…`, the `.dmg` on macOS, Windows' run).
+(`linux-human-qa.sh EDM_RELEASE=…`, the `.dmg` on macOS, Windows' run).
 
 ### Phase E: parity, switch, remove
 
@@ -166,12 +166,12 @@ are (none added, none dropped); where a native way changes what a contract row s
 picture shows, the row and its baseline change in the same commit, naming this word.
 
 What "native" means, slice by slice, where GPUI or the system offers it (each checked on the
-system, not assumed; a gap falls back to dm's own code, as PLATFORM_GAP_ANALYSIS.md says):
+system, not assumed; a gap falls back to EDM's own code, as PLATFORM_GAP_ANALYSIS.md says):
 
 | Area | macOS | Windows | Linux |
 |---|---|---|---|
 | Menus | The app's menus in the system menu bar (GPUI's `set_menus`), with the standard app, Edit and Window menus and their usual shortcuts | Menus in the window, Alt and access keys | Menus in the window, as GTK and Qt programs place them |
-| Title bar and window | The system's traffic lights and full-screen; the window remembered where it was | The system's caption buttons, Snap layouts, dark title bar and accent (dm's `chrome.rs` today) | Server-side decorations where offered (X11, KDE Wayland), client-side otherwise |
+| Title bar and window | The system's traffic lights and full-screen; the window remembered where it was | The system's caption buttons, Snap layouts, dark title bar and accent (EDM's `chrome.rs` today) | Server-side decorations where offered (X11, KDE Wayland), client-side otherwise |
 | Text and type | The system font and its sizes; text input with IME, dictation, emoji and the system's word and line keys | Segoe UI, ClearType-like text, IME | The desktop's font (fontconfig), IME (IBus, Fcitx) |
 | Look | Dark and light, the system accent colour, Increase contrast, Reduce motion | Dark and light, accent, High Contrast (`contrast.rs`) | The portal's colour scheme and accent (`system_theme.rs`, `accent.rs`) |
 | Scrolling and pointer | Trackpad momentum and rubber-banding; pointer shapes as the system's | Precision touchpad, wheel lines as Settings says | Smooth scrolling where the compositor gives it |
@@ -187,7 +187,7 @@ slower than egui on any of them is not done.
 
 ## Sizes, for scale
 
-dm-desktop is 35,818 lines (2026-11-09), of which about 7,100 move in A2 and
+edm-desktop is 35,818 lines (2026-11-09), of which about 7,100 move in A2 and
 about 2,500 in A3; the drawing that is rewritten is the remaining ~26,000,
 plus 485 window tests. Phase A is several sessions of work; Phase B one to two;
 Phase C is the bulk.
@@ -196,6 +196,6 @@ Phase C is the bulk.
 
 | Document | Use |
 |---|---|
-| [GPUI_UI_ARCHITECTURE.md](GPUI_UI_ARCHITECTURE.md) | The GPUI window's design: crates (`dm-desktop-base`, `dm-gpui`), the tick and its one waker, state ownership, views, the `WindowProbe` the control port asks, platform pieces; GPUI API points marked to verify in G6 |
+| [GPUI_UI_ARCHITECTURE.md](GPUI_UI_ARCHITECTURE.md) | The GPUI window's design: crates (`edm-desktop-base`, `edm-gpui`), the tick and its one waker, state ownership, views, the `WindowProbe` the control port asks, platform pieces; GPUI API points marked to verify in G6 |
 | [GPUI_TEST_PLAN.md](GPUI_TEST_PLAN.md) | The gate for every step, what each G row adds to it, the systems, the performance table G5 fills, the shell's checks G6 fills, where the tests move |
 | [EGUI_PARITY_REPORT.md](EGUI_PARITY_REPORT.md) | All 64 contract rows: kind, slice, state in egui and in GPUI; updated by each slice |

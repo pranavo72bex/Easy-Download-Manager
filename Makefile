@@ -1,9 +1,9 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-# dm — clone it and install it, or work on it as with the flutter tool.
+# EDM — clone it and install it, or work on it as with the flutter tool.
 #
 #     make install          build it and put it where your system looks
 #     make run              build it and start it, with its window
@@ -39,8 +39,8 @@ SHELL := /bin/sh
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 
 UNAME := $(shell uname -s)
-# dm's window, on every system: GPUI (crates/dm-gpui).
-WINDOW := dm-gpui
+# EDM's window, on every system: GPUI (crates/edm-gpui).
+WINDOW := edm-gpui
 VERSION := $(shell sed -n 's/.*"version": "\([^"]*\)".*/\1/p' extension/manifest.json | head -1)
 
 # Where the client goes. Override for a system-wide install:
@@ -103,14 +103,14 @@ OFF  := $(shell test -t 1 && tput sgr0 2>/dev/null)
         devices analyze format qa qa-docker
 
 help:
-	@echo "$(BOLD)dm$(OFF) — a download manager"
+	@echo "$(BOLD)EDM$(OFF) — a download manager"
 	@echo
 	@echo "$(BOLD)Working on it$(OFF)"
-	@echo "  $(BOLD)make run$(OFF)             build and start dm with its window (ARGS=\"…\" for dm)"
+	@echo "  $(BOLD)make run$(OFF)             build and start EDM with its window (ARGS=\"…\" for EDM)"
 	@echo "  make run-release     the same, optimised"
 	@echo "  $(BOLD)make build$(OFF)           installers for every platform this computer can build"
-	@echo "  make build-macos     dm.app and the .dmg                   (on a Mac)"
-	@echo "  make build-safari    the Safari extension into that dm.app and .dmg (on a Mac)"
+	@echo "  make build-macos     EDM.app and the .dmg                   (on a Mac)"
+	@echo "  make build-safari    the Safari extension into that EDM.app and .dmg (on a Mac)"
 	@echo "  make build-linux     .deb, AppImage and .rpm               (on Linux, or with Docker)"
 	@echo "  make build-windows   how the installer and .zip are built  (on Windows)"
 	@echo "  make build-extension the browser extension's zips"
@@ -128,7 +128,7 @@ help:
 	@echo "  $(BOLD)make register$(OFF)        let the extension hand downloads to it"
 	@echo "  make client          just the desktop client"
 	@echo "  make extension       just build the extension (Rust to WebAssembly)"
-	@echo "  make app             dm.app into $(APPDIR) (on a Mac)"
+	@echo "  make app             EDM.app into $(APPDIR) (on a Mac)"
 	@echo "  make doctor          what is installed and what is missing"
 	@echo "  make uninstall       remove all of it"
 	@echo
@@ -139,7 +139,7 @@ help:
 # Named tools, checked once and reported together, because being told about
 # one missing thing at a time is how a five-minute install takes an hour.
 doctor:
-	@echo "$(BOLD)what dm needs$(OFF)"
+	@echo "$(BOLD)what EDM needs$(OFF)"
 	@missing=0; \
 	for tool in cargo rustc rustup; do \
 	  if command -v $$tool >/dev/null 2>&1; then \
@@ -160,8 +160,8 @@ doctor:
 	fi; \
 	echo; \
 	echo "$(BOLD)what is installed$(OFF)"; \
-	if [ -x "$(BINDIR)/dm" ]; then printf '  client   %s\n' "$(BINDIR)/dm"; \
-	elif [ -d "$(APPDIR)/dm.app" ]; then printf '  client   %s\n' "$(APPDIR)/dm.app"; \
+	if [ -x "$(BINDIR)/EDM" ]; then printf '  client   %s\n' "$(BINDIR)/EDM"; \
+	elif [ -d "$(APPDIR)/EDM.app" ]; then printf '  client   %s\n' "$(APPDIR)/EDM.app"; \
 	else printf '  client   not installed\n'; fi; \
 	if [ -f "$(STAGED)/chrome/manifest.json" ]; then printf '  extension built at %s\n' "$(STAGED)/chrome, $(STAGED)/firefox"; \
 	else printf '  extension not built (make extension)\n'; fi; \
@@ -171,8 +171,8 @@ doctor:
 	if command -v wasm-bindgen >/dev/null 2>&1; then \
 	  printf '  %-8s %s\n' wasm-bindgen "$$(wasm-bindgen --version)"; \
 	else printf '  %-8s not yet — make extension installs the version it needs\n' wasm-bindgen; fi; \
-	if [ -n "$$(find $(HOST_DIRS) -name com.dm.engine.json 2>/dev/null)" ]; then \
-	  find $(HOST_DIRS) -name com.dm.engine.json 2>/dev/null \
+	if [ -n "$$(find $(HOST_DIRS) -name com.edm.engine.json 2>/dev/null)" ]; then \
+	  find $(HOST_DIRS) -name com.edm.engine.json 2>/dev/null \
 	    | sed 's|^|  host     |'; \
 	else printf '  host     not registered with any browser\n'; fi; \
 	if [ $$missing -ne 0 ]; then \
@@ -196,19 +196,19 @@ $(BINARY):
 
 client: doctor $(BINARY)
 	@install -d "$(BINDIR)"
-	@install -m 755 "$(BINARY)" "$(BINDIR)/dm"
-	@echo "installed $(BINDIR)/dm"
+	@install -m 755 "$(BINARY)" "$(BINDIR)/EDM"
+	@echo "installed $(BINDIR)/EDM"
 ifeq ($(UNAME),Linux)
 	@install -d "$(PREFIX)/share/applications" "$(PREFIX)/share/icons/hicolor/128x128/apps"
-	@sed 's|^Exec=.*|Exec=$(BINDIR)/dm %u|' packaging/dm.desktop \
-	  > "$(PREFIX)/share/applications/dm.desktop"
+	@sed 's|^Exec=.*|Exec=$(BINDIR)/EDM %u|' packaging/EDM.desktop \
+	  > "$(PREFIX)/share/applications/EDM.desktop"
 	@install -m 644 assets/app-icons/128x128.png \
-	  "$(PREFIX)/share/icons/hicolor/128x128/apps/dm.png"
+	  "$(PREFIX)/share/icons/hicolor/128x128/apps/EDM.png"
 	@echo "installed a menu entry and an icon"
 endif
 	@case ":$$PATH:" in *":$(BINDIR):"*) ;; \
 	  *) echo; echo "$(BOLD)note$(OFF) $(BINDIR) is not on your PATH."; \
-	     echo "     add it, or run dm as $(BINDIR)/dm";; esac
+	     echo "     add it, or run EDM as $(BINDIR)/EDM";; esac
 
 # The macOS bundle, which is what people expect to drag to Applications.
 # Kept separate because it needs a tool that takes a while to install.
@@ -221,16 +221,16 @@ app:
 	@echo
 	@echo "built target/release/bundle/"
 ifeq ($(UNAME),Darwin)
-	@rm -rf "$(APPDIR)/dm.app"
-	@cp -R target/release/bundle/dm.app "$(APPDIR)/dm.app"
-	@echo "installed $(APPDIR)/dm.app"
+	@rm -rf "$(APPDIR)/EDM.app"
+	@cp -R target/release/bundle/EDM.app "$(APPDIR)/EDM.app"
+	@echo "installed $(APPDIR)/EDM.app"
 	@echo "$(DIM)unsigned, so the first launch is right-click → Open$(OFF)"
 endif
 
 # -------------------------------------------------------------- extension
 
 # Built rather than copied: the extension is Rust compiled to WebAssembly
-# (crates/dm-catcher/), with a loader and two manifests (extension/). package.sh adds
+# (crates/edm-catcher/), with a loader and two manifests (extension/). package.sh adds
 # the wasm32 target and the matching wasm-bindgen CLI if they are missing.
 #
 # Loading it is two clicks no Makefile can make: Chrome and Firefox refuse an
@@ -238,7 +238,7 @@ endif
 # from is opened and the folder put on the clipboard. Chrome used to accept
 # --load-extension for this and dropped it in 137. One click is possible only
 # for an extension on the Web Store, whose id an installer can name in a
-# policy; dm's is not there yet.
+# policy; EDM's is not there yet.
 extension:
 	@sh scripts/package.sh
 	@$(COPY) "$(CURDIR)/$(STAGED)/chrome" && echo "the folder is on your clipboard" || true
@@ -254,7 +254,7 @@ extension:
 # refuses such a path rather than write a manifest that cannot work).
 # EXT_ID adds a store build's id; the unpacked Chrome build and Firefox's
 # need none.
-REGISTRAR = $(firstword $(wildcard $(BINDIR)/dm $(APPDIR)/dm.app/Contents/MacOS/$(WINDOW)) $(BINARY))
+REGISTRAR = $(firstword $(wildcard $(BINDIR)/EDM $(APPDIR)/EDM.app/Contents/MacOS/$(WINDOW)) $(BINARY))
 
 register:
 	@test -x "$(REGISTRAR)" || { \
@@ -263,7 +263,7 @@ register:
 
 unregister:
 	@if [ -x "$(REGISTRAR)" ]; then "$(REGISTRAR)" --unregister; \
-	else find $(HOST_DIRS) -name com.dm.engine.json -exec rm -v {} + 2>/dev/null || true; fi
+	else find $(HOST_DIRS) -name com.edm.engine.json -exec rm -v {} + 2>/dev/null || true; fi
 
 # -------------------------------------------------------------- everything
 
@@ -286,27 +286,27 @@ install: client extension
 	@echo "    $(DIM)temporary is Firefox's rule for unsigned add-ons; it goes on close$(OFF)"
 	@echo
 	@"$(REGISTRAR)" --register $(EXT_ID) || { \
-	  echo; echo "the browsers could not be told where dm is (above); fix that and run make register"; }
+	  echo; echo "the browsers could not be told where EDM is (above); fix that and run make register"; }
 
 uninstall: unregister
-	@rm -f "$(BINDIR)/dm"
-	@rm -f "$(PREFIX)/share/applications/dm.desktop"
-	@rm -f "$(PREFIX)/share/icons/hicolor/128x128/apps/dm.png"
-	@rm -rf "$(APPDIR)/dm.app"
+	@rm -f "$(BINDIR)/EDM"
+	@rm -f "$(PREFIX)/share/applications/EDM.desktop"
+	@rm -f "$(PREFIX)/share/icons/hicolor/128x128/apps/EDM.png"
+	@rm -rf "$(APPDIR)/EDM.app"
 	@rm -rf "$(STAGED)" extension/pkg
 	@echo "removed the client, the built extension and the host registration"
 	@echo "$(DIM)settings and the queue are left in place; delete them yourself if"
 	@echo "you mean it:$(OFF)"
 ifeq ($(UNAME),Darwin)
-	@echo "  rm -rf ~/Library/Application\\ Support/dm-engine"
+	@echo "  rm -rf ~/Library/Application\\ Support/edm-engine"
 else
-	@echo "  rm -rf ~/.local/share/dm-engine"
+	@echo "  rm -rf ~/.local/share/edm-engine"
 endif
 
 # ------------------------------------------------------- working on it
 
 # Like `flutter run`: build what changed and start the real program, its
-# window and all, from this checkout. Quit it as usual; ARGS go to dm.
+# window and all, from this checkout. Quit it as usual; ARGS go to EDM.
 run:
 	@cargo run -p $(WINDOW) -- $(ARGS)
 
@@ -338,21 +338,21 @@ ifneq ($(UNAME),Darwin)
 endif
 	@command -v cargo-packager >/dev/null 2>&1 || { \
 	  echo "needs cargo-packager:  cargo install cargo-packager --version 0.11.8 --locked"; exit 1; }
-	@echo "$(BOLD)macOS$(OFF): dm.app and the .dmg"
+	@echo "$(BOLD)macOS$(OFF): EDM.app and the .dmg"
 	@cargo xtask package --out-dir "$(CURDIR)/target/release/bundle"
 	@rm -rf $(BUILD)/macos && mkdir -p $(BUILD)/macos
-	@cp -R target/release/bundle/dm.app $(BUILD)/macos/
+	@cp -R target/release/bundle/EDM.app $(BUILD)/macos/
 	@cp target/release/bundle/*.dmg $(BUILD)/macos/
 	@ls $(BUILD)/macos | sed 's|^|  $(BUILD)/macos/|'
 
-# dm's Safari extension, put into the dm.app build-macos made and into its .dmg
+# EDM's Safari extension, put into the EDM.app build-macos made and into its .dmg
 # (scripts/safari-extension.sh, gaps row R4).
 build-safari:
 ifneq ($(UNAME),Darwin)
 	@echo "Safari's extension is built on a Mac"; exit 1
 endif
-	@test -d $(BUILD)/macos/dm.app || { echo "make build-macos first"; exit 1; }
-	@sh scripts/safari-extension.sh $(BUILD)/macos/dm.app --dmg $(firstword $(wildcard $(BUILD)/macos/*.dmg))
+	@test -d $(BUILD)/macos/EDM.app || { echo "make build-macos first"; exit 1; }
+	@sh scripts/safari-extension.sh $(BUILD)/macos/EDM.app --dmg $(firstword $(wildcard $(BUILD)/macos/*.dmg))
 
 build-linux:
 	@rm -rf $(BUILD)/linux && mkdir -p $(BUILD)/linux
@@ -364,11 +364,11 @@ ifeq ($(UNAME),Linux)
 	@for f in target/release/bundle/*.deb target/release/bundle/*.AppImage \
 	          target/release/bundle/*.rpm; do \
 	  [ -e "$$f" ] || continue; n=$$(basename "$$f"); \
-	  case "$$n" in $(WINDOW)_*) n="dm_$${n#$(WINDOW)_}" ;; dm-desktop_*) continue ;; esac; cp "$$f" "$(BUILD)/linux/$$n"; done
+	  case "$$n" in $(WINDOW)_*) n="edm_$${n#$(WINDOW)_}" ;; edm-desktop_*) continue ;; esac; cp "$$f" "$(BUILD)/linux/$$n"; done
 else
 	@test "$(HAVE_DOCKER)" = yes || { echo "Linux packages are built on Linux, or here with Docker running"; exit 1; }
 	@echo "$(BOLD)Linux$(OFF) ($(if $(LINUX_ARCH),$(LINUX_ARCH),this machine's architecture)), in Docker: .deb, $(if $(LINUX_ARCH),,AppImage and ).rpm"
-	@DM_OUT="$(CURDIR)/$(BUILD)/linux" $(if $(LINUX_ARCH),DM_PLATFORM=linux/$(LINUX_ARCH) DM_FORMATS=deb) \
+	@EDM_OUT="$(CURDIR)/$(BUILD)/linux" $(if $(LINUX_ARCH),EDM_PLATFORM=linux/$(LINUX_ARCH) EDM_FORMATS=deb) \
 	  sh scripts/linux-package.sh
 endif
 	@ls $(BUILD)/linux | sed 's|^|  $(BUILD)/linux/|'
@@ -406,13 +406,13 @@ analyze:
 	@cargo fmt --all --check
 	@cargo xtask privacy
 	@cargo xtask layers
-	@cd crates/dm-catcher && cargo clippy --all-targets -- -D warnings
-	@cd crates/dm-catcher && cargo fmt --check
+	@cd crates/edm-catcher && cargo clippy --all-targets -- -D warnings
+	@cd crates/edm-catcher && cargo fmt --check
 	@echo "no warnings, formatted, nothing phones home"
 
 format:
 	@cargo fmt --all
-	@cd crates/dm-catcher && cargo fmt
+	@cd crates/edm-catcher && cargo fmt
 
 # The behaviour contract, every row, in sight (docs/behaviour-contract.md): the debug build,
 # the extension where dist/ has none, then python3 scripts/human-qa.py, as on every system.

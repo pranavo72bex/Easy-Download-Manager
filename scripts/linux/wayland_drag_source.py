@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """A window that offers a link to drag, as a browser offers one, and takes
@@ -25,7 +25,7 @@ from gi.repository import Gtk, Gdk  # noqa: E402
 LINK = sys.argv[1]
 window = Gtk.Window(title="drag source")
 window.set_default_size(400, 300)
-button = Gtk.Button(label="Drag this link onto dm")
+button = Gtk.Button(label="Drag this link onto EDM")
 button.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, [], Gdk.DragAction.COPY)
 button.drag_source_add_uri_targets()
 button.drag_source_add_text_targets()

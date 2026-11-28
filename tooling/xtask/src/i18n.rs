@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask i18n`: for each language, the strings its catalog lacks against the template
@@ -27,7 +27,7 @@ const DIR: &str = "assets/i18n";
 const TEMPLATE: &str = "assets/i18n/template/catalog.json";
 /// Each language's list of the strings no native speaker has read.
 const UNREAD: &str = "assets/i18n/unread";
-/// What divides a sentence's forms for a count (`dm_desktop_base::i18n::FORMS`).
+/// What divides a sentence's forms for a count (`edm_desktop_base::i18n::FORMS`).
 const FORMS: &str = "||";
 
 /// The languages' names in English, for the issue a reader takes; a code not here is named by
@@ -251,7 +251,7 @@ fn values_differ(english: &str, translated: &str) -> Option<String> {
 }
 
 /// The values a template takes, by position, sorted: `{}` takes the next in turn, `{N}` the
-/// Nth; any other brace is words (as `dm_desktop_base::i18n::placeholders`).
+/// Nth; any other brace is words (as `edm_desktop_base::i18n::placeholders`).
 fn placeholders(template: &str) -> Vec<usize> {
     let mut found = Vec::new();
     let mut next = 0;
@@ -390,8 +390,8 @@ fn issue(r: &Report) -> String {
 fn issue_part(code: &str, name: &str, unread: &[(String, String)], of: &str) -> String {
     let n = unread.len();
     let mut out = format!(
-        "Title: {name} ({code}): read {n} of dm's strings that no native speaker has read{of}\n\n\
-         dm's window says the {n} strings below in {name}, but no native speaker has read their \
+        "Title: {name} ({code}): read {n} of EDM's strings that no native speaker has read{of}\n\n\
+         EDM's window says the {n} strings below in {name}, but no native speaker has read their \
          translation yet. If {name} is your first language, you can take this issue: say so in a \
          comment, so two readers do not do the same work. Reading part of the list helps too.\n\n\
          1. Read [docs/guide/translating.md](https://github.com/pranavo72bex/Easy-Download-Manager/blob/main/docs/guide/translating.md).\n\
@@ -401,7 +401,7 @@ fn issue_part(code: &str, name: &str, unread: &[(String, String)], of: &str) -> 
          4. From the repository's root, run `cargo xtask i18n {code}`: it lists what is still unread and fails \
          on a file it cannot read.\n\
          5. Open a pull request that names this issue.\n\n\
-         Each line is the English, then the {name} dm says now.\n\n"
+         Each line is the English, then the {name} EDM says now.\n\n"
     );
     for (english, translated) in unread {
         let _ = writeln!(
@@ -747,7 +747,7 @@ mod tests {
         );
         let text = issue(&r);
         assert!(
-            text.starts_with("Title: French (fr): read 1 of dm's strings"),
+            text.starts_with("Title: French (fr): read 1 of EDM's strings"),
             "{text}"
         );
         assert!(
@@ -778,9 +778,9 @@ mod tests {
         assert_eq!(
             titles,
             [
-                "Title: Korean (ko): read 100 of dm's strings that no native speaker has read (part 1 of 3)",
-                "Title: Korean (ko): read 100 of dm's strings that no native speaker has read (part 2 of 3)",
-                "Title: Korean (ko): read 50 of dm's strings that no native speaker has read (part 3 of 3)",
+                "Title: Korean (ko): read 100 of EDM's strings that no native speaker has read (part 1 of 3)",
+                "Title: Korean (ko): read 100 of EDM's strings that no native speaker has read (part 2 of 3)",
+                "Title: Korean (ko): read 50 of EDM's strings that no native speaker has read (part 3 of 3)",
             ]
         );
         assert_eq!(text.matches("- [ ] ").count(), 250);

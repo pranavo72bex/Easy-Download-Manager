@@ -1,17 +1,17 @@
 # How the window looks and reads
 
-General interface rules, for the parts of a design dm's own documents leave open. dm's
+General interface rules, for the parts of a design EDM's own documents leave open. EDM's
 documents win: `docs/behaviour-contract.md`, then `docs/ui-design.md`, then
-`.claude/skills/dm-design/SKILL.md` ([desktop.md](desktop.md)).
+`.claude/skills/edm-design/SKILL.md` ([desktop.md](desktop.md)).
 
 `vendor/ui-ux-pro-max/` holds a checklist taken verbatim from an MIT-licensed skill
 ([README.md](README.md)): `quick-reference.md` (the rules by category, most important first),
 `app-interface.csv` (rules for native apps on phones) and `ux-guidelines.csv` (rules with a
 Platform column). Search them with `grep_search` for the words of your task.
 
-## Which of them hold for dm
+## Which of them hold for EDM
 
-dm is a native window drawn with GPUI, not a web page. Of the checklist:
+EDM is a native window drawn with GPUI, not a web page. Of the checklist:
 
 - **Hold:** colour contrast (4.5:1 for text, 3:1 for large text and marks); a visible focus
   and a keyboard path to everything; an accessible name for every icon-only control; never
@@ -22,8 +22,8 @@ dm is a native window drawn with GPUI, not a web page. Of the checklist:
   slow shows that it is working.
 - **Do not hold:** anything about CSS, HTML, the DOM, ARIA attributes, Tailwind, React,
   web fonts, images and their formats, SEO, page loading and Core Web Vitals. Rows whose
-  Platform is `Web` do not apply. dm ships no font (the system's is used).
-- **Where they disagree with dm's docs**, follow dm's docs.
+  Platform is `Web` do not apply. EDM ships no font (the system's is used).
+- **Where they disagree with EDM's docs**, follow EDM's docs.
 
 ## Lessons
 

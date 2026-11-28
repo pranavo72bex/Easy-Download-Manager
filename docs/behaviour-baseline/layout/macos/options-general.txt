@@ -1,7 +1,7 @@
-# dm's window, scene options-general (macos, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene options-general (macos, 1280x720, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "Tasks" 118 8 157 29
 "File" 173 8 205 29
 "Downloads" 221 8 292 29
@@ -22,10 +22,10 @@
 "Queues" 16 242 56 260
 "Main queue" 40 267.5 118 288.5
 "Recheck queue" 40 295.5 142 316.5
-"Add dm to your browser:" 236 95.5 416 116.5
-"Microsoft Edge" 439 95.5 549 116.5
-"Firefox" 587 95.5 642 116.5
-"Chrome and others" 680 95.5 813 116.5
+"Add EDM to your browser:" 236 95.5 424 116.5
+"Microsoft Edge" 447 95.5 557 116.5
+"Firefox" 595 95.5 650 116.5
+"Chrome and others" 688 95.5 821 116.5
 "Not now" 1198 95.5 1253 116.5
 "File name" 212 129.5 272 147.5
 "Size" 703 129.5 730 147.5
@@ -64,16 +64,16 @@
 "200%" 418.5 245.5 445.5 263.5
 "100%" 452 219 484 240
 "Starting and updating" 220 288 860 309
-"Start dm when I sign in" 220 315 820 336
+"Start EDM when I sign in" 220 315 820 336
 "When I close the window" 220 347.5 748 368.5
 "Ask me" 770 347.5 817 368.5
 "When an address is already in the list" 220 379.5 748 400.5
 "Ask me" 770 379.5 817 400.5
 "When the same file is already here" 220 411.5 748 432.5
 "Ask me" 770 411.5 817 432.5
-"Allow the command line to control dm" 220 444 820 465
+"Allow the command line to control EDM" 220 444 820 465
 "Lets other programs on this computer add and stop downloads." 220 469 700 487
-"Allow AI assistants to control dm (MCP)" 220 501 820 522
+"Allow AI assistants to control EDM (MCP)" 220 501 820 522
 "Lets an AI assistant you run on this computer add and manage downloads." 220 526 700 531
 "?" 28 557.5 36 578.5
 "Restore defaults" 67 557.5 192 578.5

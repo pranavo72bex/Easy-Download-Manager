@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Closing dm's window under Wayland with a tray present, run by
+"""Closing EDM's window under Wayland with a tray present, run by
 scripts/linux-wayland-close-check.sh inside the Linux container under sway.
 
 On Wayland a program cannot hide its own window (winit's set_visible does
-nothing), so dm used to mark the window hidden and stop drawing it while
+nothing), so EDM used to mark the window hidden and stop drawing it while
 the compositor went on showing it: a frozen ghost (KDE Plasma 6, AppImage).
 This closes the window as a compositor does (xdg_toplevel close, here with
-`swaymsg kill`) and checks that dm lives, that the window is not marked
+`swaymsg kill`) and checks that EDM lives, that the window is not marked
 hidden, and that it still answers and draws.
 """
 import json
@@ -30,7 +30,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
+BINARY = os.environ.get("EDM_BINARY", "/target/debug/edm-gpui")
 HERE = pathlib.Path(__file__).parent
 failed = 0
 
@@ -86,7 +86,7 @@ class Control:
 
 def main():
     home = pathlib.Path(tempfile.mkdtemp())
-    env = dict(os.environ, DM_HOME=str(home), HOME=str(home), XDG_SESSION_TYPE="wayland")
+    env = dict(os.environ, EDM_HOME=str(home), HOME=str(home), XDG_SESSION_TYPE="wayland")
     env.pop("DISPLAY", None)
     watcher = subprocess.Popen([sys.executable, str(HERE / "tray_watcher.py")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.5)
@@ -95,18 +95,18 @@ def main():
     time.sleep(1)
     app = subprocess.Popen([BINARY, "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
-        check("dm opens a window under Wayland", bool(wait(lambda: windows(app.pid), 40)))
+        check("EDM opens a window under Wayland", bool(wait(lambda: windows(app.pid), 40)))
         control = Control(home)
         check("the window starts shown, not hidden", control.call("ui.inspect")["hidden"] is False)
         time.sleep(3)  # the tray item registers with the watcher
         subprocess.run(["swaymsg", f"[pid={app.pid}] kill"], capture_output=True)
         time.sleep(3)
         if app.poll() is not None:
-            print("dm exited", app.returncode, app.stderr.read().decode()[-600:], flush=True)
+            print("EDM exited", app.returncode, app.stderr.read().decode()[-600:], flush=True)
             return failed + 1
-        check("closing the window keeps dm running in the tray", True)
+        check("closing the window keeps EDM running in the tray", True)
         state = control.call("ui.inspect")
-        check("dm still answers", isinstance(state, dict))
+        check("EDM still answers", isinstance(state, dict))
         check("the window is not parked as hidden while the compositor still shows it",
               state["hidden"] is False)
         check("the compositor still has the window", bool(windows(app.pid)))

@@ -1,5 +1,5 @@
 name: Feature request
-description: Something dm should do
+description: Something EDM should do
 labels: [enhancement]
 body:
   - type: textarea

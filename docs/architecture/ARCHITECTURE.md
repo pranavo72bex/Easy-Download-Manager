@@ -1,9 +1,9 @@
-# dm's architecture
+# EDM's architecture
 
-dm is layered so that the window is one presentation of an application that
-does not know about it: the GPUI window (`dm-gpui`) is the one built and
+EDM is layered so that the window is one presentation of an application that
+does not know about it: the GPUI window (`edm-gpui`) is the one built and
 shipped on macOS, Windows and Linux, and changes neither the engine nor the
-application's rules. (The older egui window, `dm-desktop`, drove the same
+application's rules. (The older egui window, `edm-desktop`, drove the same
 application until gaps row G9 removed it on 2026-11-13.) This page says what the layers
 are, where they live, and how far the code has moved towards them. The audit
 behind it is [audit.md](audit.md); the rules for each module are in
@@ -15,72 +15,72 @@ in [EVENT_FLOW.md](EVENT_FLOW.md); where new code goes is in
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ Presentation: dm-gpui (GPUI), the window shipped             │
+│ Presentation: edm-gpui (GPUI), the window shipped             │
 │   the window, dialogs, tray, drag and drop, and what the     │
 │   system does for Desktop (clipboard, notices)               │
 └───────────────────────────┬──────────────────────────────────┘
                             │ WindowServices
 ┌───────────────────────────▼──────────────────────────────────┐
-│ The desktop program, not drawn: dm-desktop-base              │
+│ The desktop program, not drawn: edm-desktop-base              │
 │   Desktop (the Platform), the control port, MCP, the command │
 │   line, words and numbers (i18n, format), the system's       │
 │   services; no window toolkit (`cargo xtask layers`)         │
 └───────────────────────────┬──────────────────────────────────┘
-                            │ dm_shell::app: Snapshot, changes, rules, Platform
+                            │ edm_shell::app: Snapshot, changes, rules, Platform
 ┌───────────────────────────▼──────────────────────────────────┐
-│ Application: dm-shell, module dm_shell::app (+ settings,     │
+│ Application: edm-shell, module edm_shell::app (+ settings,     │
 │   host, inbox, lists, register: the glue it coordinates)     │
 │   no window toolkit, ever (`cargo xtask layers`)             │
 └───────────────────────────┬──────────────────────────────────┘
-                            │ dm_core::DownloadList, Entry, State, Id, …
+                            │ edm_core::DownloadList, Entry, State, Id, …
 ┌───────────────────────────▼──────────────────────────────────┐
-│ Domain and engine: dm-core                                   │
+│ Domain and engine: edm-core                                   │
 │   the queue and its rows (domain), the downloaders (HTTP,    │
 │   HLS, DASH, FTP, torrents, YouTube's reading), persistence  │
 └──────────────────────────────────────────────────────────────┘
-        dm-protocol: the words the browser extension and the app speak
+        edm-protocol: the words the browser extension and the app speak
 ```
 
-No new crate was made for the layering: dm-shell was already the code around
+No new crate was made for the layering: edm-shell was already the code around
 the window that is not the window, and the build tool already forbids it any
-window toolkit. The application layer is its module `dm_shell::app`.
+window toolkit. The application layer is its module `edm_shell::app`.
 
-The GPUI window depends on dm-desktop-base, dm-shell, dm-core and
-dm-protocol only (`cargo xtask layers`). It gets its
-`Platform` from `dm_desktop_base::desktop::Desktop`, supplying
-`WindowServices`, takes `dm_shell::app::changes`, reads the application's
+The GPUI window depends on edm-desktop-base, edm-shell, edm-core and
+edm-protocol only (`cargo xtask layers`). It gets its
+`Platform` from `edm_desktop_base::desktop::Desktop`, supplying
+`WindowServices`, takes `edm_shell::app::changes`, reads the application's
 rows, and asks the application to act.
 
 ## Where the engine's code is, by concern
 
 So that work on the engine knows which files are its own; the window never
-reaches past `dm_core::DownloadList` (and the control port the same queue serves).
+reaches past `edm_core::DownloadList` (and the control port the same queue serves).
 
 | Concern | Where |
 |---|---|
-| The queue the window reads and commands | `dm-core/src/queue/` (`runner.rs`, `actions.rs`, `persist.rs`, `mod.rs`) |
-| Download logic | `dm-core/src/download/` (`mod.rs`, `ranged.rs` and `ranged/`, `assemble.rs`, `files.rs`) and `plan.rs`: probing, ranges, halving (`split_largest`), growing past eight connections (`grow`), assembly, naming |
-| Networking and protocols | `dm-core/src/`: `http_client.rs`, `probe.rs`, `ftp/`, `download/hls.rs`, `dash.rs`, `torrent.rs`, `metalink.rs`, `auth.rs`, `ntlm.rs`, `proxy.rs` (reqwest over rustls, one keep-alive pool per client) |
-| Video | `youtube.rs` (a YouTube page read by dm itself, its player's checks run in `javascript.rs`), `videopage.rs` and `videopage/` (the qualities listed, the streams fetched and joined); every other site's video is a stream the extension caught, fetched as any download |
-| Files and persistence | `download/files.rs`, `download/space.rs`, `queue/persist.rs`, `dm-shell/src/settings.rs` (a staged file and a ledger per range; the queue file) |
+| The queue the window reads and commands | `edm-core/src/queue/` (`runner.rs`, `actions.rs`, `persist.rs`, `mod.rs`) |
+| Download logic | `edm-core/src/download/` (`mod.rs`, `ranged.rs` and `ranged/`, `assemble.rs`, `files.rs`) and `plan.rs`: probing, ranges, halving (`split_largest`), growing past eight connections (`grow`), assembly, naming |
+| Networking and protocols | `edm-core/src/`: `http_client.rs`, `probe.rs`, `ftp/`, `download/hls.rs`, `dash.rs`, `torrent.rs`, `metalink.rs`, `auth.rs`, `ntlm.rs`, `proxy.rs` (reqwest over rustls, one keep-alive pool per client) |
+| Video | `youtube.rs` (a YouTube page read by EDM itself, its player's checks run in `javascript.rs`), `videopage.rs` and `videopage/` (the qualities listed, the streams fetched and joined); every other site's video is a stream the extension caught, fetched as any download |
+| Files and persistence | `download/files.rs`, `download/space.rs`, `queue/persist.rs`, `edm-shell/src/settings.rs` (a staged file and a ledger per range; the queue file) |
 | Scheduling and concurrency | `queue/runner.rs`, `limit.rs` (speed), `quota.rs` (tokio tasks; one speed limiter shared by connections) |
 | Errors and recovery | `retry.rs`, `error.rs` |
-| Integration and platform | `dm-shell` (the native host, `--register`, the one-instance lock), `dm-desktop-base` (the system's services), `crates/dm-catcher/`, `extension/` |
+| Integration and platform | `edm-shell` (the native host, `--register`, the one-instance lock), `edm-desktop-base` (the system's services), `crates/edm-catcher/`, `extension/` |
 
 ## Where the code is today (2026-11-09, on main)
 
 | Layer | In place | Still in the window crate (to move) |
 |---|---|---|
-| Domain and engine | All of dm-core: no GUI types (enforced) | — |
-| Application | `dm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired, file_gone), `backend` (Backend: the queue, the settings in force and their coordination, every verb on rows), `control_api` (who may ask, what is never done over the port, `batch`, queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector, DryWatch), `schedule` (the schedule's window, work left, rows each schedule looks after), `links`, `search`, `watch`, `handoff` (where a download handed over goes), `commands` (the registry: every command's name, label and keys, which apply to the rows chosen, and the commands that are the application's alone), `names` (what a row is called and where its file will go), `import`, `files` (extraction, a ZIP's files, a file's digest), `lookups` (what a server says of a file, a page's links, a video page's qualities, a playlist), `update` (the update check and the site rules), `events` (typed download events for any number of subscribers), and `session` (Session: each read and what follows from it, the schedules' tick, When done and its countdown, delete-after, the watched folder, the hand-offs); dm-shell's settings, host, inbox | The wording of what the Session reports, the dialogs it asks to open, the window's own control methods (`ui.*`, and `command.run`'s commands that open a dialog or change the view) |
-| The desktop program, not drawn | dm-desktop-base (2026-11-10, branch `gpui-migration`, `docs/gaps.md` G2) | — |
-| Presentation | dm-gpui, the window shipped (macOS 2026-11-10, Windows and Linux 2026-11-11); the older egui window removed (G9, 2026-11-13) | — |
+| Domain and engine | All of edm-core: no GUI types (enforced) | — |
+| Application | `edm_shell::app`: `power` (WhenDone, Report), `platform` (Platform trait), `changes` (change fan-out), `snapshot` (Snapshot), `rules` (go_on, already_listed, worth_keeping, Dup, link_expired, file_gone), `backend` (Backend: the queue, the settings in force and their coordination, every verb on rows), `control_api` (who may ask, what is never done over the port, `batch`, queue.list, downloads.pause/resume/cancel, the checks of downloads.add and downloads.speed_limit), `detect` (Detector, DryWatch), `schedule` (the schedule's window, work left, rows each schedule looks after), `links`, `search`, `watch`, `handoff` (where a download handed over goes), `commands` (the registry: every command's name, label and keys, which apply to the rows chosen, and the commands that are the application's alone), `names` (what a row is called and where its file will go), `import`, `files` (extraction, a ZIP's files, a file's digest), `lookups` (what a server says of a file, a page's links, a video page's qualities, a playlist), `update` (the update check and the site rules), `events` (typed download events for any number of subscribers), and `session` (Session: each read and what follows from it, the schedules' tick, When done and its countdown, delete-after, the watched folder, the hand-offs); edm-shell's settings, host, inbox | The wording of what the Session reports, the dialogs it asks to open, the window's own control methods (`ui.*`, and `command.run`'s commands that open a dialog or change the view) |
+| The desktop program, not drawn | edm-desktop-base (2026-11-10, branch `gpui-migration`, `docs/gaps.md` G2) | — |
+| Presentation | edm-gpui, the window shipped (macOS 2026-11-10, Windows and Linux 2026-11-11); the older egui window removed (G9, 2026-11-13) | — |
 
 Steps 1 to 16 of [audit.md](audit.md) section 7 are done, each held to
 `cargo test --workspace` and the whole behaviour contract. A presentation
 drives the application in this order each tick (the GPUI window in
-`Downloads::read` and `Downloads::tick`, `dm-gpui/src/window/list.rs` and `tick.rs`;
-`--headless` in `dm_desktop_base::headless`; `session.rs`'s
+`Downloads::read` and `Downloads::tick`, `edm-gpui/src/window/list.rs` and `tick.rs`;
+`--headless` in `edm_desktop_base::headless`; `session.rs`'s
 `no_window_tests` with no window at all):
 
 1. `changes::take`; the inbox's order files (When done, a new download) are
@@ -103,7 +103,7 @@ weekly update check, each decided by the application (`hints`, `search`,
 `links`, `update`; G3, 2026-11-10): the window says and shows what they
 decide, and starts their timers.
 
-Headless (`--headless`) in the shipped program is `dm_desktop_base::headless`:
+Headless (`--headless`) in the shipped program is `edm_desktop_base::headless`:
 no window and no toolkit, settling what a window would ask as the egui
 window's headless mode did; every rule it follows is the application's. `Command` is the application's (step 15): a presentation runs the same
 commands, checks them with `commands::applies` and carries out the
@@ -127,12 +127,12 @@ cost at 10,000 rows are in [EVENT_FLOW.md](EVENT_FLOW.md).
 - Public paths: each move leaves a `pub use` at the old path, so callers and
   tests change only when they choose to.
 
-## Known coupling left in dm-core
+## Known coupling left in edm-core
 
-- `DownloadList::new` takes a `reqwest::Client` and dm-core re-exports `reqwest`;
+- `DownloadList::new` takes a `reqwest::Client` and edm-core re-exports `reqwest`;
   `Error::Network` wraps `reqwest::Error`. A presentation never needs to name
   them; the shell does, and the window does not (the update check and a ZIP's
-  listing moved to `dm_shell::app`, step 17; `pub use reqwest` kept,
+  listing moved to `edm_shell::app`, step 17; `pub use reqwest` kept,
   decisions.md 2026-11-09).
 - `Entry` carries a row's secrets (cookies, headers, a form's body), which
   its own server needs. A reader that shows or sends rows takes

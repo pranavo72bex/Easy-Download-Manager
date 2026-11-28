@@ -3,7 +3,7 @@ name: Store builds, checked with real input
 # Started by hand (Actions › this workflow › Run workflow). The extension
 # as Microsoft Edge Add-ons publishes it — installed from the store by a
 # managed policy, not built from this checkout — driven with a real pointer
-# and real keys against a dm built from this checkout, as
+# and real keys against an EDM built from this checkout, as
 # scripts/chromium-human.py drives it in a container. Edge for Linux is
 # x86_64 only, which this runner is. The screenshots are kept as an
 # artifact.
@@ -49,7 +49,7 @@ jobs:
         run: |
           sudo mkdir -p /etc/opt/edge/policies/managed
           echo '{"ExtensionInstallForcelist": ["ooafpfjpliofcdlnbdkjhonaoebcpnej;https://edge.microsoft.com/extensionwebstorebase/v1/crx"]}' \
-            | sudo tee /etc/opt/edge/policies/managed/dm.json
+            | sudo tee /etc/opt/edge/policies/managed/EDM.json
       - name: Edge, started alone
         # That it starts at all, and with the store's copy of the extension,
         # before the check leans on both.
@@ -62,14 +62,14 @@ jobs:
             curl -s http://127.0.0.1:9333/json/list | head -c 2000; ps aux | grep -c "[m]sedge"'
           tail -40 /tmp/alone.log
           ls /tmp/alone/Default/Extensions 2>/dev/null || true
-      - name: dm
-        run: cargo build -p dm-gpui --locked
+      - name: EDM
+        run: cargo build -p edm-gpui --locked
       - name: The check
         env:
-          DM_STORE: "1"
+          EDM_STORE: "1"
           CHROMIUM: /usr/bin/microsoft-edge-stable
-          DM_BINARY: ${{ github.workspace }}/target/debug/dm-gpui
-          DM_SHOTS: ${{ github.workspace }}/store-shots
+          EDM_BINARY: ${{ github.workspace }}/target/debug/edm-gpui
+          EDM_SHOTS: ${{ github.workspace }}/store-shots
         run: |
           export DISPLAY=:79
           Xvfb :79 -screen 0 2400x1200x24 >/dev/null 2>&1 &

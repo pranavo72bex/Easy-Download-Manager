@@ -1,0 +1,299 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! A ceiling on how fast bytes are allowed to arrive.
+//!
+//! The cap is shared across every connection of every download, because that
+//! is the only kind anyone wants. A per-connection limit multiplied by eight
+//! ranges and three files is not a limit; the reason to set one at all is to
+//! leave the link usable for something else, and that is a statement about
+//! the link, not about any one transfer.
+//!
+//! A torrent is fetched by an engine EDM cannot meter chunk by chunk; it
+//! can only be handed a rate. So while one runs it holds a
+//! [`Share`]: with `n` of them running, the ceiling is split `n + 1` ways,
+//! one part each and one for every download EDM fetches itself, and the
+//! total stays under the ceiling.
+
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+
+use tokio::sync::Mutex;
+use tokio::time::Instant;
+
+/// How long a waiting caller sleeps before looking at the cap again.
+///
+/// The wait is sliced rather than capped. Capping it looks like the same
+/// thing and is not: a truncated wait is a chunk let through early, so with
+/// enough connections queued at once the ceiling stops being one. Slicing
+/// keeps the total honest while still noticing a rate change within a
+/// quarter of a second.
+const SLICE: Duration = Duration::from_millis(250);
+
+/// The most a counting `take` lets through at a time.
+///
+/// A connection reads whatever the socket holds, which on a fast link is a
+/// quarter of a megabyte at once. Counted whole as it arrived, eight
+/// connections each had a chunk counted before the ceiling had let any of
+/// it through, and the shown speed ran at twice the limit for seconds.
+const PIECE: u64 = 16 * 1024;
+
+/// A shared rate ceiling. Cheap to clone; every clone shares one budget.
+#[derive(Clone)]
+pub struct Limiter {
+    /// The rate again, outside the lock.
+    ///
+    /// `take` is called once per chunk by every connection of every download
+    /// — thousands of times a second — and almost always there is no limit
+    /// set at all. Taking a shared mutex to discover that has every
+    /// connection queueing behind every other to read a zero. This is the
+    /// same number, readable without waiting for anybody.
+    rate: Arc<AtomicU64>,
+    /// How many outside engines hold a share right now.
+    outside: Arc<AtomicU64>,
+    /// When one of EDM's own downloads last took bytes, in milliseconds
+    /// after `born`: while none has lately, the outside engines share the
+    /// whole ceiling rather than leaving a part for nobody.
+    own_seen: Arc<AtomicU64>,
+    born: Instant,
+    inner: Arc<Mutex<Bucket>>,
+    /// A second ceiling held to as well: one download's own limit, chained
+    /// to the one every download shares (`chained`).
+    also: Option<Arc<Limiter>>,
+}
+
+/// How long after its last bytes one of EDM's own downloads still counts as
+/// running, for sharing the ceiling.
+const OWN_QUIET: Duration = Duration::from_secs(2);
+
+/// One outside engine's claim on the ceiling, for as long as it runs.
+/// Dropping it gives the share back.
+pub struct Share {
+    outside: Arc<AtomicU64>,
+}
+
+impl Drop for Share {
+    fn drop(&mut self) {
+        self.outside.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+/// One part of `rate` split among `outside` engines and EDM's own downloads.
+/// Zero stays zero: no ceiling is no ceiling for anyone.
+pub fn split(rate: u64, outside: u64) -> u64 {
+    if rate == 0 {
+        return 0;
+    }
+    (rate / outside.saturating_add(1)).max(1)
+}
+
+struct Bucket {
+    /// Bytes per second across everything. Zero means no ceiling at all.
+    rate: u64,
+    /// The moment the next byte handed out is allowed to have arrived.
+    next: Instant,
+    /// Bumped whenever the rate changes, so a caller part-way through a wait
+    /// computed under the old rate can tell that it no longer applies.
+    generation: u64,
+}
+
+impl Limiter {
+    /// A limiter that lets everything through.
+    pub fn unlimited() -> Self {
+        Limiter::new(0)
+    }
+
+    /// `rate` is bytes per second; zero means unlimited.
+    pub fn new(rate: u64) -> Self {
+        Limiter {
+            rate: Arc::new(AtomicU64::new(rate)),
+            outside: Arc::new(AtomicU64::new(0)),
+            own_seen: Arc::new(AtomicU64::new(u64::MAX)),
+            born: Instant::now(),
+            inner: Arc::new(Mutex::new(Bucket {
+                rate,
+                next: Instant::now(),
+                generation: 0,
+            })),
+            also: None,
+        }
+    }
+
+    /// This ceiling and `own` together: bytes wait for both. For one
+    /// download's limit of its own beside the one every download shares;
+    /// changing either's rate reaches the download at once.
+    pub fn chained(&self, own: &Limiter) -> Limiter {
+        let mut both = self.clone();
+        both.also = Some(Arc::new(Limiter {
+            also: None,
+            ..own.clone()
+        }));
+        both
+    }
+
+    /// Whether a ceiling is set, this one or the download's own: read
+    /// without waiting for anyone.
+    pub fn is_limited(&self) -> bool {
+        self.rate.load(Ordering::Acquire) != 0
+            || self.also.as_ref().is_some_and(|own| own.is_limited())
+    }
+
+    /// The rate now in force, in bytes per second; 0 is no limit.
+    pub async fn rate(&self) -> u64 {
+        self.inner.lock().await.rate
+    }
+
+    /// Claims a share of the ceiling for an outside engine, until dropped.
+    pub fn share(&self) -> Share {
+        self.outside.fetch_add(1, Ordering::AcqRel);
+        Share {
+            outside: self.outside.clone(),
+        }
+    }
+
+    /// The rate one outside engine may use now: its part of the ceiling.
+    /// With none of EDM's own downloads running, the outside engines share
+    /// all of it: a torrent alone was held to half the limit a person set.
+    pub async fn part(&self) -> u64 {
+        let rate = self.rate().await;
+        let outside = self.outside.load(Ordering::Acquire);
+        let part = if self.own_running() {
+            split(rate, outside)
+        } else if rate == 0 {
+            0
+        } else {
+            (rate / outside.max(1)).max(1)
+        };
+        // Never more than the download's own limit, where it has one.
+        match self.also.as_ref().map(|a| a.rate.load(Ordering::Acquire)) {
+            Some(own) if own > 0 && (part == 0 || own < part) => own,
+            _ => part,
+        }
+    }
+
+    /// Whether one of EDM's own downloads took bytes lately.
+    fn own_running(&self) -> bool {
+        let seen = self.own_seen.load(Ordering::Acquire);
+        seen != u64::MAX
+            && self.born.elapsed().as_millis() as u64
+                <= seen.saturating_add(OWN_QUIET.as_millis() as u64)
+    }
+
+    /// Changes the ceiling for everything already running.
+    ///
+    /// A speed cap that only applied to downloads started afterwards would
+    /// be one people set in the middle of the download they wanted to slow
+    /// down, and watch do nothing.
+    pub async fn set_rate(&self, rate: u64) {
+        let mut bucket = self.inner.lock().await;
+        bucket.rate = rate;
+        // Published under the lock, so a reader outside it never sees a rate
+        // the bucket has not been told about.
+        self.rate.store(rate, Ordering::Release);
+        // Whatever was reserved under the old rate is now the wrong length,
+        // including reservations already being waited out.
+        bucket.next = Instant::now();
+        bucket.generation += 1;
+    }
+
+    /// Waits until this many bytes are within the ceiling.
+    ///
+    /// Called after a chunk has arrived rather than before asking for one:
+    /// the delay stops the stream being read, and a stream that is not read
+    /// stops being sent. Reserving a slot under the lock and sleeping outside
+    /// it is what keeps the total right — every caller sleeping for its own
+    /// share independently would let n connections run at n times the cap.
+    pub async fn take(&self, bytes: u64) {
+        if let Some(own) = &self.also {
+            own.take_here(bytes).await;
+        }
+        self.take_here(bytes).await;
+    }
+
+    /// `take` for this ceiling alone, not the one chained to it.
+    async fn take_here(&self, bytes: u64) {
+        // The overwhelmingly common case, and the reason this is not a lock.
+        if self.rate.load(Ordering::Acquire) == 0 {
+            return;
+        }
+
+        self.own_seen
+            .store(self.born.elapsed().as_millis() as u64, Ordering::Release);
+        let (deadline, generation) = {
+            let mut bucket = self.inner.lock().await;
+            if bucket.rate == 0 {
+                return;
+            }
+            let now = Instant::now();
+            if bucket.next < now {
+                bucket.next = now;
+            }
+            let mine = bucket.next;
+            // EDM's own downloads get one part while outside engines hold theirs.
+            let rate = split(bucket.rate, self.outside.load(Ordering::Acquire));
+            let cost = Duration::from_secs_f64(bytes as f64 / rate as f64);
+            bucket.next += cost;
+            (mine, bucket.generation)
+        };
+
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return;
+            }
+            tokio::time::sleep(left.min(SLICE)).await;
+
+            // The cap moved while this chunk was waiting for the old one.
+            // Holding it back under a rule that no longer exists is how a
+            // download appears to hang after the limit was lifted.
+            if self.inner.lock().await.generation != generation {
+                return;
+            }
+        }
+    }
+}
+
+impl Limiter {
+    /// Waits until `bytes` are within the ceiling, adding them to `counted`
+    /// a piece at a time as the ceiling lets each through.
+    /// For a byte count that is shown as progress: the count then rises at
+    /// the rate the ceiling allows, which is the rate people are told, not
+    /// at the rate the socket happened to fill. `through` says how
+    /// much of `bytes` was counted, for a caller whose wait was cut short by
+    /// a pause or a cancel and who must count the rest itself.
+    pub async fn take_counting(&self, bytes: u64, counted: &AtomicU64, through: &mut u64) {
+        let own = self
+            .also
+            .as_ref()
+            .map_or(0, |a| a.rate.load(Ordering::Acquire));
+        if self.rate.load(Ordering::Acquire) == 0 && own == 0 {
+            counted.fetch_add(bytes, Ordering::Relaxed);
+            *through = bytes;
+            return;
+        }
+        while *through < bytes {
+            let piece = (bytes - *through).min(PIECE);
+            self.take(piece).await;
+            counted.fetch_add(piece, Ordering::Relaxed);
+            *through += piece;
+        }
+    }
+}
+
+impl std::fmt::Debug for Limiter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Limiter")
+    }
+}
+
+impl Default for Limiter {
+    fn default() -> Self {
+        Limiter::unlimited()
+    }
+}
+
+#[cfg(test)]
+mod tests;

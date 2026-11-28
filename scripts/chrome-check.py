@@ -1,52 +1,52 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Loads the built extension into a real Chrome and watches it hand off.
 
     sh scripts/package.sh                      # builds dist/chrome
-    cargo build -p dm-gpui  # the app the host starts
+    cargo build -p edm-gpui  # the app the host starts
     python3 scripts/chrome-check.py
 
 Chrome for Testing, because branded Chrome stopped honouring
 --load-extension in 137 and this one still does. It is downloaded on first
 use from Google's chrome-for-testing JSON endpoints into
-~/.cache/dm-chrome-for-testing (CHROME_PATH names one instead).
+~/.cache/edm-chrome-for-testing (CHROME_PATH names one instead).
 
 What it proves, against a local server and nothing else on the network:
 
   1. the extension loads, its WebAssembly initialises, and its id is the one
-     the manifest key fixes (the one `dm-desktop --register` assumes)
+     the manifest key fixes (the one `edm-desktop --register` assumes)
   2. a download started by clicking a link on a page is caught, handed to a
-     running dm over native messaging, fetched by dm (with the page as its
-     referrer) into dm's folder, and removed from the browser's list
+     running EDM over native messaging, fetched by EDM (with the page as its
+     referrer) into EDM's folder, and removed from the browser's list
      — and so is a PDF served fast, which Chromium finishes before it can
-     be held (its copy in the browser's folder is removed once dm has it)
+     be held (its copy in the browser's folder is removed once EDM has it)
   3. a download of a type the app's settings do not list stays in the browser
-  4. the catch rules are the app's: a .zip, which dm catches by default, is
+  4. the catch rules are the app's: a .zip, which EDM catches by default, is
      left alone when the app's settings say only .bin
-  5. a link only the browser can fetch (it needs the page's cookie, which dm
-     does not have) is refused by dm before anything is taken, and finishes
+  5. a link only the browser can fetch (it needs the page's cookie, which EDM
+     does not have) is refused by EDM before anything is taken, and finishes
      in the browser
-  6. "Download link with dm" hands a link over (the handler the menu calls,
+  6. "Download link with EDM" hands a link over (the handler the menu calls,
      invoked from the worker: a real context menu cannot be clicked from here)
   7. with the host unregistered, a download is left to the browser and
      finishes there — nothing is lost
   8. nothing the worker logged was an error
   9. a file whose name is too long for the disk (Chromium would ask where
-     to save it) goes to dm with no Save dialog left open (looked for with
+     to save it) goes to EDM with no Save dialog left open (looked for with
      xdotool where there is an X display), and "Download all links" works
      on a page whose page script is not in it (one still arriving, as a
-     tab open before dm was installed has none) (gap 122)
- 10. with DM_CHROME_YOUTUBE=1 (the one case that goes to the network, so off
+     tab open before EDM was installed has none) (gap 122)
+ 10. with EDM_CHROME_YOUTUBE=1 (the one case that goes to the network, so off
      by default and in CI, its rows printed as SKIP): a local page that
      embeds a YouTube player by iframe, from youtube-nocookie.com and from
      youtube.com, gets the panel inside the frame, and its click lists the
-     video's qualities, read by dm from the video's watch page (gaps row Y12)
+     video's qualities, read by EDM from the video's watch page (gaps row Y12)
 
 Everything lives in temporary directories: a profile, the browser's download
-folder, and DM_HOME for the app, whose settings, queue, inbox and lock are
+folder, and EDM_HOME for the app, whose settings, queue, inbox and lock are
 its own. The host binary is copied out of the checkout first: macOS keeps
 ~/Downloads from browsers, and a host started from there hangs in the loader
 without a word (which is why `--register` refuses such a path). The native
@@ -67,8 +67,8 @@ for _stream in (sys.stdout, sys.stderr):
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "chrome"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
-CACHE = pathlib.Path(os.environ.get("DM_CHROME_CACHE") or pathlib.Path.home() / ".cache/dm-chrome-for-testing")
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug/edm-gpui")
+CACHE = pathlib.Path(os.environ.get("EDM_CHROME_CACHE") or pathlib.Path.home() / ".cache/edm-chrome-for-testing")
 ENDPOINT = "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json"
 
 results = []
@@ -100,7 +100,7 @@ def check(name, ok, detail=""):
             try:
                 worker.drain(0.5)
                 said = [line[:200] for line in worker.logged("log", "info", "warning", "error", since=MARK[0])
-                        if line.startswith("dm")][-6:]
+                        if line.startswith("EDM")][-6:]
                 print(f"        the extension said since the last check: {said}", flush=True)
             except Exception as e:  # the worker gone or stopped: the check's own result stands
                 print(f"        (the extension could not be read: {e!r})", flush=True)
@@ -306,9 +306,9 @@ ARRIVING = ("early1.bin", "early2.bin", "early3.bin")
 
 
 def is_dm(agent):
-    """Whether a request was dm's own and not the browser's: dm asks as
+    """Whether a request was EDM's own and not the browser's: EDM asks as
     Internet Explorer 11 first (the agent reference A sends), or by its name."""
-    return agent.startswith("dm/") or "Trident/7.0" in agent
+    return agent.startswith("EDM/") or "Trident/7.0" in agent
 
 
 def body(name):
@@ -361,8 +361,8 @@ PANEL_PAGES = {
     # A player built as a web component, its video in an open shadow root
     # under its own control layer, as the Internet Archive's `play-av` is.
     "/shadow.html": (
-        '<!doctype html><title>a component</title><div style="margin:40px"><dm-test-player></dm-test-player></div>'
-        '<script>customElements.define("dm-test-player", class extends HTMLElement { connectedCallback() {'
+        '<!doctype html><title>a component</title><div style="margin:40px"><edm-test-player></edm-test-player></div>'
+        '<script>customElements.define("edm-test-player", class extends HTMLElement { connectedCallback() {'
         ' const r = this.attachShadow({mode: "open"});'
         ' r.innerHTML = \'<div style="position:relative;width:640px;height:360px">'
         '<video id="v" src="/files/inner.mp4" width="640" height="360" preload="none"></video>'
@@ -376,7 +376,7 @@ PANEL_PAGES = {
         '<video id="v" src="/files/framed.mp4" width="640" height="360" preload="none"></video>'
         + OVERLAY + '</div>', None),
     # A video only the signed-in browser can fetch (the file is refused
-    # without the page's session cookie, as W3Schools refused dm with 403).
+    # without the page's session cookie, as W3Schools refused EDM with 403).
     "/privatevideo.html": (
         '<!doctype html><title>a signed-in video</title><div style="position:relative;margin:40px">'
         '<video id="v" src="/files/private-clip.mp4" width="640" height="360" preload="none"></video>'
@@ -505,11 +505,11 @@ PLACEMENT_PAGES = {
 PANEL_PAGES.update(PLACEMENT_PAGES)
 # An article that embeds a YouTube player by iframe, from YouTube's no-cookie host or its own
 # (gaps row Y12): "Me at the zoo", as youtube-check.py plays. The one case here that goes to the
-# network, so it is run only with DM_CHROME_YOUTUBE=1 (`embed_checks`).
+# network, so it is run only with EDM_CHROME_YOUTUBE=1 (`embed_checks`).
 EMBED_VIDEO = "jNQXAC9IVRw"
-# Whether the frame holds dm's panel, out of the f-string that reports it: a backslash inside
+# Whether the frame holds EDM's panel, out of the f-string that reports it: a backslash inside
 # an f-string's braces is Python 3.12's alone, and Debian 12's 3.11 refused the whole file.
-HAS_PANEL = '!!document.querySelector("dm-panel")'
+HAS_PANEL = '!!document.querySelector("edm-panel")'
 EMBED_HOSTS = ("www.youtube-nocookie.com", "www.youtube.com")
 EMBED_PAGES = {
     f"/embed-{host.split('.')[1]}.html": (
@@ -539,7 +539,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                          "port": self.client_address[1], "body": sent[:200],
                          "headers": [f"{k}: {v}" for k, v in self.headers.items()]})
         # Read by field, as a server reads a form: the browser reports a form's
-        # fields sorted by name, and dm sends them so.
+        # fields sorted by name, and EDM sends them so.
         fields = urllib.parse.parse_qs(sent.decode("latin-1"))
         if path != "/export.bin" or fields != {"report": ["7"], "format": ["csv"]}:
             self.send_error(400)
@@ -550,7 +550,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Disposition", 'attachment; filename="posted.bin"')
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        # Slowly to the browser, so the extension holds it; at once to dm.
+        # Slowly to the browser, so the extension holds it; at once to EDM.
         if is_dm(agent):
             self.wfile.write(data)
         else:
@@ -581,8 +581,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 '<p><a id="m6" href="#" onclick="window.open(\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc00f&dn=windowopen\'); return false;">6</a></p>'
                 '<p><a id="m7" href="#" onclick="var a=document.createElement(\'a\');a.href=\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc010&dn=synthetic\';document.body.appendChild(a);a.click();return false;">7</a></p>'
                 # One click, five magnets opened by script: a page that waits for any click
-                # (a cookie banner's) must not hand dm a list of torrents (security review,
-                # 2026-11-07). One goes to dm, as one opens in a browser.
+                # (a cookie banner's) must not hand EDM a list of torrents (security review,
+                # 2026-11-07). One goes to EDM, as one opens in a browser.
                 '<p><button id="m8" onclick="for(var i=0;i<5;i++)window.open(\'magnet:?xt=urn:btih:0000000000000000000000000000000000abc02\'+i+\'&dn=flood\'+i)">8</button></p>'
             ).encode()
             self.send_response(200)
@@ -710,10 +710,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                              "alt.bin", "off.bin", "forced.txt", "paused.bin", "resumed.bin", "small.pdf", "small-shown.pdf", "small.bin",
                              "served-beacon.bin",
                              "paced.bin", "quick.bin", "quick2.bin", "quick3.bin", LONG))
-            page = f"<!doctype html><title>dm check</title>{links}".encode()
+            page = f"<!doctype html><title>EDM check</title>{links}".encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
-            # A signed-in session, which the browser has and dm does not.
+            # A signed-in session, which the browser has and EDM does not.
             self.send_header("Set-Cookie", "session=1; Path=/")
             self.send_header("Content-Length", str(len(page)))
             self.end_headers()
@@ -763,9 +763,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Range", f"bytes {start}-{end}/{len(data)}")
         self.end_headers()
         # The browser is served slowly, the way a large file arrives, so a
-        # download is still running when the extension holds it; dm is not.
+        # download is still running when the extension holds it; EDM is not.
         slow = not is_dm(agent) and not name.startswith("small")
-        # "paced": every connection, dm's too, held to about a megabyte a
+        # "paced": every connection, EDM's too, held to about a megabyte a
         # second, as a server that limits each one does.
         paced = name.startswith("paced")
         try:
@@ -795,8 +795,8 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 # Under emulation (Edge for x86_64 on an arm64 machine, human-distro.sh)
-# everything takes several times as long: DM_SLOW multiplies every wait.
-SLOW = float(os.environ.get("DM_SLOW") or 1)
+# everything takes several times as long: EDM_SLOW multiplies every wait.
+SLOW = float(os.environ.get("EDM_SLOW") or 1)
 
 
 # What DevTools says when the page went to another document while it was
@@ -951,10 +951,10 @@ def click(base, origin, link):
     return tab
 
 
-# What the page shows of dm's panel: whether it is visible, what it says,
+# What the page shows of EDM's panel: whether it is visible, what it says,
 # and where it is, read from the page through its open shadow root.
 PANEL_STATE = """(() => {
-  const host = document.querySelector('dm-panel');
+  const host = document.querySelector('edm-panel');
   if (!host) return null;
   const wrap = host.shadowRoot && host.shadowRoot.querySelector('.wrap');
   const r = wrap ? wrap.getBoundingClientRect() : host.getBoundingClientRect();
@@ -999,16 +999,16 @@ def panel_page(base, origin, path):
     loaded(tab, path.split("?")[0])
     # The page script loads its WebAssembly after document_idle; a page that
     # is busy with its own scripts takes a moment longer.
-    wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 15)
+    wait_for(lambda: tab.evaluate("!!document.querySelector('edm-panel')"), 15)
     time.sleep(0.3)
     return tab
 
 
-CLOSE_AT = """(() => { const b = document.querySelector('dm-panel').shadowRoot
+CLOSE_AT = """(() => { const b = document.querySelector('edm-panel').shadowRoot
   .querySelector('.close').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; })()"""
 
 
-GRIP_AT = """(() => { const b = document.querySelector('dm-panel').shadowRoot
+GRIP_AT = """(() => { const b = document.querySelector('edm-panel').shadowRoot
   .querySelector('.grip').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; })()"""
 
 
@@ -1046,7 +1046,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     row = wait_for(lambda: next((r for r in queue_rows(engine_home)
                                  if r.get("url", "").endswith("/guarded/guarded1.mp4")
                                  and r["state"]["kind"] in ("completed", "failed")), None), 40) or {}
-    check("a file guarded by a request header is fetched by dm with that header (row 116)",
+    check("a file guarded by a request header is fetched by EDM with that header (row 116)",
           row.get("state", {}).get("kind") == "completed" and whole(engine_dl, "guarded1.mp4")
           and any(r["path"] == "/guarded/guarded1.mp4" and is_dm(r["agent"]) and r["auth"] == "Bearer t"
                   for r in requests),
@@ -1059,7 +1059,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     tab.call("Page.enable")
     tab.call("Page.addScriptToEvaluateOnNewDocument", source=(
         "window.__bodies = []; addEventListener('message', (e) => {"
-        " if (e.data && e.data.source === 'dm-page-body') window.__bodies.push(String(e.data.body).length); });"))
+        " if (e.data && e.data.source === 'edm-page-body') window.__bodies.push(String(e.data.body).length); });"))
     tab.call("Page.navigate", url=f"{origin}/answers.html")
     loaded(tab, "/answers.html")
     wait_for(lambda: tab.evaluate("window.__finished === true"), 20)
@@ -1073,7 +1073,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     last = {}
     def early_listed():
         reply = worker.evaluate(
-            f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/early.html'}},"
+            f"dmReady.then(m => m.on_page_message({{type: 'EDM.formats', src: '', frame: '{origin}/early.html'}},"
             f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/early.html'}}))")
         last["reply"] = reply
         choices = (reply or {}).get("choices", [])
@@ -1093,7 +1093,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     time.sleep(1)
     tab_id = worker.evaluate(f"chrome.tabs.query({{url: '{origin}/pieces.html*'}}).then(t => t[t.length - 1].id)")
     reply = worker.evaluate(
-        f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/pieces.html'}},"
+        f"dmReady.then(m => m.on_page_message({{type: 'EDM.formats', src: '', frame: '{origin}/pieces.html'}},"
         f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/pieces.html'}}))")
     lines = [c for c in (reply or {}).get("choices", []) if c.get("sound")]
     check("a picture and a sound fetched in byte ranges are one line, the larger picture with the sound (row 119)",
@@ -1123,7 +1123,7 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
     before = set(queued())
     tab_id = worker.evaluate(f"chrome.tabs.query({{url: '{origin}/morelinks.html*'}}).then(t => t[t.length - 1].id)")
     worker.evaluate(
-        f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-all-links', pageUrl: '{origin}/morelinks.html',"
+        f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'edm-all-links', pageUrl: '{origin}/morelinks.html',"
         f" frameId: 0}}, {{id: {tab_id}}}))")
     want = ["more-a.bin", "more-area.bin", "more-img.bin", "more-frame.bin", "more-script.bin"]
     got = wait_for(lambda: len([n for n in want if any(u.endswith("/" + n) for u in set(queued()) - before)]) == len(want), 20)
@@ -1132,14 +1132,14 @@ def request_checks(base, origin, engine_dl, engine_home, worker):
 
 
 def answer_rule_checks(origin, worker, tab_id):
-    """An answer handed to the worker as the page script hands it (`dm.page-answer`) is read only
+    """An answer handed to the worker as the page script hands it (`EDM.page-answer`) is read only
     where the served rules name the page's site and the request, and only as JSON of at most
     1 MiB: each handed for the same tab, then the panel's list for the tab asked."""
     other_site = origin.replace("127.0.0.1", "localhost")
 
     def hand(page, asked, body_js):
         worker.evaluate(
-            f"dmReady.then(m => m.on_page_message({{type: 'dm.page-answer', url: '{origin}{asked}',"
+            f"dmReady.then(m => m.on_page_message({{type: 'EDM.page-answer', url: '{origin}{asked}',"
             f" body: {body_js}}}, {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{page}/early.html'}}))")
 
     def stream(name, pad=0):
@@ -1155,7 +1155,7 @@ def answer_rule_checks(origin, worker, tab_id):
 
     def listed():
         reply = worker.evaluate(
-            f"dmReady.then(m => m.on_page_message({{type: 'dm.formats', src: '', frame: '{origin}/early.html'}},"
+            f"dmReady.then(m => m.on_page_message({{type: 'EDM.formats', src: '', frame: '{origin}/early.html'}},"
             f" {{id: chrome.runtime.id, tab: {{id: {tab_id}}}, url: '{origin}/early.html'}}))")
         return [c.get("url") or "" for c in (reply or {}).get("choices", [])]
 
@@ -1213,16 +1213,16 @@ SIZED_LINE = re.compile(r" — [\d.]+ (?:B|KB|MB|GB|TB)\b")
 def embed_checks(base, origin):
     """A YouTube player another site embeds by iframe, from YouTube's no-cookie host and from its
     own (gaps row Y12): the panel is offered over it, inside its frame, and its click lists the
-    video's qualities, read by dm from the video's watch page. It goes to youtube.com, so it runs
-    only with DM_CHROME_YOUTUBE=1; otherwise each row is printed as SKIP, and counts for nothing."""
+    video's qualities, read by EDM from the video's watch page. It goes to youtube.com, so it runs
+    only with EDM_CHROME_YOUTUBE=1; otherwise each row is printed as SKIP, and counts for nothing."""
     for host in EMBED_HOSTS:
         path = f"/embed-{host.split('.')[1]}.html"
         offered = f"a YouTube player embedded from {host} gets the panel, inside its frame (row Y12)"
         listed_name = (f"and its click lists the qualities of the video embedded from {host}, "
                        "read from its watch page (row Y12)")
-        if not os.environ.get("DM_CHROME_YOUTUBE"):
+        if not os.environ.get("EDM_CHROME_YOUTUBE"):
             for name in (offered, listed_name):
-                print(f"  SKIP  {name} — it goes to youtube.com: DM_CHROME_YOUTUBE=1 runs it", flush=True)
+                print(f"  SKIP  {name} — it goes to youtube.com: EDM_CHROME_YOUTUBE=1 runs it", flush=True)
             continue
         try:
             embedded(base, origin, host, path, offered, listed_name)
@@ -1240,7 +1240,7 @@ def embedded(base, origin, host, path, offered, listed_name):
     shown, rect, box = {}, None, None
     if frame:
         frame.call("Runtime.enable")
-        wait_for(lambda: frame.evaluate("!!document.querySelector('dm-panel')"), 20)
+        wait_for(lambda: frame.evaluate("!!document.querySelector('edm-panel')"), 20)
         box = tab.evaluate("(() => { const r = document.getElementById('f').getBoundingClientRect();"
                            " return {x: r.left, y: r.top, w: r.width, h: r.height}; })()")
         # Muted autoplay starts it; where the browser holds it, a press on the player's middle
@@ -1268,7 +1268,7 @@ def embedded(base, origin, host, path, offered, listed_name):
     check(offered, shown.get("title") == "Download video" and bool(shown.get("caret")),
           f"no out-of-process frame of {host}/embed/{EMBED_VIDEO}" if not frame
           else (str(shown) if shown else
-                f"no panel over the player {rect}; in the frame: dm-panel "
+                f"no panel over the player {rect}; in the frame: edm-panel "
                 f"{frame.evaluate(HAS_PANEL)}, its state {panel(frame)}, "
                 f"its words {str(frame.evaluate('document.body && document.body.innerText'))[:160]!r}")
           if rect and rect["w"] > 0 else f"no player in the frame: {rect}")
@@ -1276,7 +1276,7 @@ def embedded(base, origin, host, path, offered, listed_name):
     if shown:
         click_at(tab, box["x"] + shown["x"] + 60, box["y"] + shown["y"] + shown["h"] / 2)
         # The player's own list may come first; the app's, each line with its size, takes its
-        # place once dm has read the watch page.
+        # place once EDM has read the watch page.
         done = wait_for(lambda: (lambda l: len(l) >= 2 and any(SIZED_LINE.search(x) for x in l) and l)(
             (panel(frame) or {}).get("lines") or []), 60)
         lines = done or (panel(frame) or {}).get("lines") or []
@@ -1316,13 +1316,13 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     # above it folds (YouTube's goes 8 px left and 12 px up a second after
     # its first layout): the panel follows, with no pointer move.
     before = tab.evaluate(VIDEO_RECT) or {}
-    tab.evaluate("(() => { document.body.insertAdjacentHTML('afterbegin', '<div id=\"dm-shift\" style=\"height:50px\"></div>'); return 1; })()")
+    tab.evaluate("(() => { document.body.insertAdjacentHTML('afterbegin', '<div id=\"edm-shift\" style=\"height:50px\"></div>'); return 1; })()")
     moved_to = wait_for(lambda: (tab.evaluate(VIDEO_RECT) or {}).get("y", 0) >= before.get("y", 0) + 49 and tab.evaluate(VIDEO_RECT), 5) or {}
     followed = wait_for(lambda: (lambda p: p.get("shown") and moved_to.get("y", 0) <= p.get("y", -1) <= moved_to.get("y", 0) + 30
                                  and moved_to.get("x", 0) <= p.get("x", -1) and p)(panel(tab) or {}), 5)
     check("when the player moves without changing size, the panel follows, with no pointer move",
           bool(followed), f"panel {panel(tab)}; video now {moved_to}, was {before}")
-    tab.evaluate("(() => { document.getElementById('dm-shift').remove(); return 1; })()")
+    tab.evaluate("(() => { document.getElementById('edm-shift').remove(); return 1; })()")
     wait_for(lambda: (tab.evaluate(VIDEO_RECT) or {}).get("y", 1e9) <= before.get("y", 0), 5)
     hover(tab, tab.evaluate(VIDEO_RECT))
     shown = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 3) or panel(tab) or {}
@@ -1361,7 +1361,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     # The page's own script pressing the panel's button: not a person, so
     # nothing is handed over (the panel's root is open to the page).
     mark = len(worker.events)
-    tab.evaluate("document.querySelector('dm-panel').shadowRoot.querySelector('.go').click()")
+    tab.evaluate("document.querySelector('edm-panel').shadowRoot.querySelector('.go').click()")
     time.sleep(2)
     worker.drain(0.5)
     scripted = [l for l in worker.logged("log", "info", since=mark) if "clip.mp4" in l]
@@ -1371,9 +1371,9 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
           str(panel(tab)))
     click_panel(tab)
     landed = wait_for(lambda: whole(engine_dl, "clip.mp4"), 60)
-    check("a click on it hands the file to dm, which fetches it", landed, str(engine_dl / "clip.mp4"))
-    said = wait_for(lambda: (panel(tab) or {}).get("title") == "Sent to dm" and panel(tab), 5) or panel(tab) or {}
-    check("and the panel says so", said.get("title") == "Sent to dm", str(said))
+    check("a click on it hands the file to EDM, which fetches it", landed, str(engine_dl / "clip.mp4"))
+    said = wait_for(lambda: (panel(tab) or {}).get("title") == "Sent to EDM" and panel(tab), 5) or panel(tab) or {}
+    check("and the panel says so", said.get("title") == "Sent to EDM", str(said))
 
     # Moving away hides it.
     mouse(tab, "mouseMoved", 5, 5)
@@ -1409,13 +1409,13 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     hover(tab, tab.evaluate(VIDEO_RECT))
     shown = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 5) or {}
     check("a streaming (blob:) player is offered too, as a page with qualities to list",
-          "through the dm app" in shown.get("tip", "") and shown.get("caret"), str(shown))
+          "through the EDM app" in shown.get("tip", "") and shown.get("caret"), str(shown))
     click_panel(tab)
-    # Only YouTube's page is read for qualities (by dm itself); another
+    # Only YouTube's page is read for qualities (by EDM itself); another
     # site's blob player with no stream loaded is handed over as the page.
     player = f"{origin}/player.html"
     row = wait_for(lambda: next((r for r in queue_rows(engine_home) if r.get("url") == player), None), 20) or {}
-    check("a streaming (blob:) player's click hands dm the page when no stream of it was loaded",
+    check("a streaming (blob:) player's click hands EDM the page when no stream of it was loaded",
           bool(row), str(row)[:300])
 
     # A player whose page loads an HLS playlist: the
@@ -1429,14 +1429,14 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     stream = wait_for(lambda: next((r for r in queue_rows(engine_home)
                                     if r.get("url", "").endswith("/files/stream.m3u8")
                                     and r["state"]["kind"] in ("completed", "failed")), None), 40) or {}
-    check("when a page loaded an HLS playlist, the panel hands dm that stream",
+    check("when a page loaded an HLS playlist, the panel hands EDM that stream",
           stream.get("state", {}).get("kind") == "completed"
           and any(r["path"] == "/files/seg-1.ts" and is_dm(r["agent"]) for r in requests),
-          # Not finished: where the row was, what else dm was busy with, and
+          # Not finished: where the row was, what else EDM was busy with, and
           # which pieces it asked for (gaps row 141, "the slow part is in the app").
           str(stream.get("state")) if stream else
           f"rows: {[(r.get('url', '').rsplit('/', 1)[-1], r['state'].get('kind'), r.get('queue')) for r in queue_rows(engine_home)][-8:]}; "
-          f"dm asked for: {[r['path'] for r in requests if is_dm(r['agent']) and ('seg-' in r['path'] or 'stream' in r['path'])]}")
+          f"EDM asked for: {[r['path'] for r in requests if is_dm(r['agent']) and ('seg-' in r['path'] or 'stream' in r['path'])]}")
 
     # A page that loads one playlist: its click hands the stream over at once,
     # and no list of qualities is read from the page.
@@ -1448,7 +1448,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     both = wait_for(lambda: next((r for r in queue_rows(engine_home)
                                   if r.get("url", "").endswith("/files/both.m3u8")
                                   and r["state"]["kind"] in ("completed", "failed")), None), 40) or {}
-    check("a page whose stream was loaded hands dm the stream", both.get("state", {}).get("kind") == "completed",
+    check("a page whose stream was loaded hands EDM the stream", both.get("state", {}).get("kind") == "completed",
           str(both.get("state")))
 
     # A master playlist the page loaded: read by the extension in the browser,
@@ -1477,33 +1477,33 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     # A plain-JavaScript panel takes its place there (content.js), over the video: the
     # button, the list from the same messages, and the confirmation.
     lite = wait_for(lambda: (hover(tab, tab.evaluate(VIDEO_RECT)) or True) and tab.evaluate(
-        "(() => { const h = document.querySelector('dm-panel-lite'); return !!h && h.style.display !== 'none'"
+        "(() => { const h = document.querySelector('edm-panel-lite'); return !!h && h.style.display !== 'none'"
         " && getComputedStyle(h).visibility === 'visible'; })()"), 8)
     check("on a site whose policy forbids WebAssembly the full panel stays away, quietly, and the plain one is shown",
-          not (panel(tab) or {}).get("shown") and bool(lite) and not [e for e in errors if "dm" in e],
+          not (panel(tab) or {}).get("shown") and bool(lite) and not [e for e in errors if "EDM" in e],
           "; ".join(errors)[:300])
     # The page cannot borrow a person's click: with the plain panel's holder made see-through by
-    # the page, a click on its × does nothing (the panel is not as dm drew it); as drawn, the same
+    # the page, a click on its × does nothing (the panel is not as EDM drew it); as drawn, the same
     # click hides it (gaps row 159 c, the full panel's `as_drawn`).
-    lite_shown = "(() => { const h = document.querySelector('dm-panel-lite'); return !!h && h.style.display !== 'none'; })()"
+    lite_shown = "(() => { const h = document.querySelector('edm-panel-lite'); return !!h && h.style.display !== 'none'; })()"
     restyled = drawn = None
     if lite:
-        x_at = tab.evaluate("(() => { const b = document.querySelector('dm-panel-lite').shadowRoot"
+        x_at = tab.evaluate("(() => { const b = document.querySelector('edm-panel-lite').shadowRoot"
                             ".querySelector('.x').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; })()")
-        tab.evaluate("document.querySelector('dm-panel-lite').style.opacity = '0'")
+        tab.evaluate("document.querySelector('edm-panel-lite').style.opacity = '0'")
         click_at(tab, *x_at)
         time.sleep(0.4)
         restyled = tab.evaluate(lite_shown)
-        tab.evaluate("document.querySelector('dm-panel-lite').style.opacity = '1'")
+        tab.evaluate("document.querySelector('edm-panel-lite').style.opacity = '1'")
         click_at(tab, *x_at)
         time.sleep(0.4)
         drawn = tab.evaluate(lite_shown)
     check("a click on the plain panel the page made see-through does nothing; on the panel as drawn it counts",
           bool(lite) and restyled is True and drawn is False, f"after the see-through click shown={restyled}, after the drawn one shown={drawn}")
     worker.evaluate(
-        f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-media', srcUrl: '{origin}/files/strict.mp4',"
+        f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'edm-media', srcUrl: '{origin}/files/strict.mp4',"
         f" pageUrl: '{origin}/strict.html'}}, {{}}))")
-    check("and right-click 'Download video with dm' still hands its video",
+    check("and right-click 'Download video with EDM' still hands its video",
           wait_for(lambda: whole(engine_dl, "strict.mp4"), 60))
 
     # A player embedded from another origin, in a frame of its own process.
@@ -1512,7 +1512,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
                                    if t["type"] == "iframe" and t["url"].endswith("/framevideo.html")), None), 15)
     if frame:
         frame.call("Runtime.enable")
-        wait_for(lambda: frame.evaluate("!!document.querySelector('dm-panel')"), 15)
+        wait_for(lambda: frame.evaluate("!!document.querySelector('edm-panel')"), 15)
         box = tab.evaluate("(() => { const r = document.getElementById('f').getBoundingClientRect(); return {x: r.left, y: r.top}; })()")
         inner = frame.evaluate(VIDEO_RECT)
         hover(tab, {"x": box["x"] + inner["x"], "y": box["y"] + inner["y"], "w": inner["w"], "h": inner["h"]})
@@ -1523,18 +1523,18 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
           shown.get("title") == "Download video", str(shown) if frame else "no out-of-process frame")
     if shown:
         click_at(tab, box["x"] + shown["x"] + 60, box["y"] + shown["y"] + shown["h"] / 2)
-    check("and its click lands the frame's video in dm", wait_for(lambda: whole(engine_dl, "framed.mp4"), 60))
+    check("and its click lands the frame's video in EDM", wait_for(lambda: whole(engine_dl, "framed.mp4"), 60))
 
-    # A video dm is refused but the browser can fetch: asked of dm by the
-    # panel, it is dm's. dm takes it and says if it fails; the browser is
+    # A video EDM is refused but the browser can fetch: asked of EDM by the
+    # panel, it is EDM's. EDM takes it and says if it fails; the browser is
     # never started on it behind the person's back.
     tab = panel_page(base, origin, "/privatevideo.html")
     hover(tab, tab.evaluate(VIDEO_RECT))
     if wait_for(lambda: (panel(tab) or {}).get("shown"), 5):
         click_panel(tab)
-    said = wait_for(lambda: (panel(tab) or {}).get("title") == "Sent to dm" and panel(tab), 30) or panel(tab) or {}
-    check("a video dm may be refused is still handed to dm, and the panel says so",
-          said.get("title") == "Sent to dm", str(said))
+    said = wait_for(lambda: (panel(tab) or {}).get("title") == "Sent to EDM" and panel(tab), 30) or panel(tab) or {}
+    check("a video EDM may be refused is still handed to EDM, and the panel says so",
+          said.get("title") == "Sent to EDM", str(said))
     time.sleep(2)
     check("and the browser does not download it",
           not (engine_dl.parent / "browser-downloads" / "private-clip.mp4").exists())
@@ -1546,7 +1546,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     other = origin.replace("127.0.0.1", "localhost")
     loaded(open_tab(base, f"{other}/privatevideo.html"), "/privatevideo.html")
 
-    def dm_cookies(name):
+    def edm_cookies(name):
         return [r["cookie"] for r in requests if r["path"] == f"/files/{name}" and is_dm(r["agent"])]
 
     def hand_from(page, name):
@@ -1567,7 +1567,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
     hand_from("/cross.html", "cross-a.mp4")
     hand_from("/crossplayed.html", "cross-b.mp4")
     played = "cross-b.mp4"
-    # Where the browser itself sent the tab's player the session, dm's rule and "send it all" look
+    # Where the browser itself sent the tab's player the session, EDM's rule and "send it all" look
     # alike, so the scenario is run once more in a new tab with a file of its own; the browser
     # did that once on CI (2026-11-09), and the detail below lists what it sent.
     if any("session" in names(r["cookie"]) for r in by_browser(played)):
@@ -1575,31 +1575,31 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
               + str([(r["referer"], r["range"], r["cookie"]) for r in by_browser(played)]))
         played = "cross-c.mp4"
         hand_from("/crossplayed-again.html", played)
-    sent_a, sent_b = dm_cookies("cross-a.mp4"), dm_cookies(played)
+    sent_a, sent_b = edm_cookies("cross-a.mp4"), edm_cookies(played)
 
     held = worker.evaluate(f"chrome.cookies.getAll({{url: '{other}/files/{played}'}})"
                            ".then(c => c.map(x => x.name).sort().join(','))") or ""
     browser_sent = set().union(*[names(r["cookie"]) for r in by_browser(played)])
     check("another site's sign-in is in the browser, for the checks below to mean anything",
           "session" in held.split(","), held)
-    check("another site's file the page names goes to dm without that site's session",
+    check("another site's file the page names goes to EDM without that site's session",
           bool(sent_a) and not any("session=1" in c for c in sent_a), str(sent_a))
-    # The tab's own player reached that site (a page can make its tab reach any site): dm carries
+    # The tab's own player reached that site (a page can make its tab reach any site): EDM carries
     # what the browser itself sent there, by name, and not the session it kept from this page.
     # Where the browser sent the tab's player the session both times (CI's Chrome did, 2026-11-13),
-    # "what the browser sent" and "send it all" cannot be told apart here: dm is still held to
+    # "what the browser sent" and "send it all" cannot be told apart here: EDM is still held to
     # exactly what the browser sent, and the run says it could not tell the rules apart.
     if "session" in browser_sent:
-        print("        the browser sent the session both times: dm's rule is checked for sending "
+        print("        the browser sent the session both times: EDM's rule is checked for sending "
               "what the browser sent, not told apart from sending everything")
     check("and where the tab's own player fetched from that site, only the cookies the browser sent it there",
           bool(sent_b) and all(names(c) == browser_sent for c in sent_b),
-          f"the browser sent {sorted(browser_sent)}, dm sent {sent_b}; the browser's requests: "
+          f"the browser sent {sorted(browser_sent)}, EDM sent {sent_b}; the browser's requests: "
           + str([(r["referer"], r["range"], r["cookie"]) for r in by_browser(played)]))
 
     # A player that keeps its video in a web component's shadow root.
     tab = panel_page(base, origin, "/shadow.html")
-    rect = tab.evaluate("(() => { const r = document.querySelector('dm-test-player').shadowRoot"
+    rect = tab.evaluate("(() => { const r = document.querySelector('edm-test-player').shadowRoot"
                         ".querySelector('video').getBoundingClientRect(); return {x: r.left, y: r.top, w: r.width, h: r.height}; })()")
     hover(tab, rect)
     shown = wait_for(lambda: (panel(tab) or {}).get("shown") and panel(tab), 5) or {}
@@ -1607,7 +1607,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
           shown.get("title") == "Download video", str(shown))
     if shown:
         click_panel(tab)
-    check("and its click lands the file in dm", wait_for(lambda: whole(engine_dl, "inner.mp4"), 60))
+    check("and its click lands the file in EDM", wait_for(lambda: whole(engine_dl, "inner.mp4"), 60))
 
     # × offers "Hide for now" and "Never on" the site. Last, because every page here is on the one site.
     tab = panel_page(base, origin, "/video.html")
@@ -1627,7 +1627,7 @@ def panel_checks(base, origin, engine_dl, engine_home, worker):
           gone and not (panel(tab) or {}).get("shown"), str(panel(tab)))
     # What the popup's switch does: the site taken off the list. The page
     # follows the list, so no reload is needed.
-    worker.evaluate("chrome.storage.local.set({'dm.panel.off': []}).then(() => 1)")
+    worker.evaluate("chrome.storage.local.set({'EDM.panel.off': []}).then(() => 1)")
     hover(tab, tab.evaluate(VIDEO_RECT))
     back = wait_for(lambda: (panel(tab) or {}).get("shown"), 5)
     check("and letting the site back brings the panel back, without a reload", bool(back), str(panel(tab)))
@@ -1654,23 +1654,23 @@ def queue_rows(home):
 
 
 def main():
-    if not (EXT / "pkg" / "dm_catcher_bg.wasm").exists():
+    if not (EXT / "pkg" / "edm_catcher_bg.wasm").exists():
         sys.exit("no built extension at dist/chrome — run: sh scripts/package.sh")
     if not BINARY.exists():
-        sys.exit(f"no dm binary at {BINARY} — run: cargo build -p dm-gpui")
+        sys.exit(f"no EDM binary at {BINARY} — run: cargo build -p edm-gpui")
     chrome = find_chrome()
     manifest = json.loads((EXT / "manifest.json").read_text(encoding="utf-8"))
     der = base64.b64decode(manifest["key"])
     expected_id = "".join(chr(ord("a") + int(c, 16)) for c in hashlib.sha256(der).hexdigest()[:32])
 
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-chrome-check-"))
-    # DM_CHROME_PROFILE names a profile kept between runs (a test account that stays
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-chrome-check-"))
+    # EDM_CHROME_PROFILE names a profile kept between runs (a test account that stays
     # signed in); otherwise the profile is new and goes with the run.
-    kept_profile = os.environ.get("DM_CHROME_PROFILE")
+    kept_profile = os.environ.get("EDM_CHROME_PROFILE")
     profile = pathlib.Path(kept_profile) if kept_profile else work / "profile"
     # A kept profile remembers where its unpacked extension is, so that stays one place.
     ext = pathlib.Path(kept_profile + "-extension") if kept_profile else work / "extension"
-    browser_dl, engine_home, engine_dl = work / "browser-downloads", work / "dm-home", work / "dm-downloads"
+    browser_dl, engine_home, engine_dl = work / "browser-downloads", work / "edm-home", work / "edm-downloads"
     for d in (profile / "Default", browser_dl, engine_home, engine_dl):
         d.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(ext, ignore_errors=True)
@@ -1722,7 +1722,7 @@ def main():
         shim = engine_home / "host.bat"
         # A file of its own for each start's stderr (gaps row 141): while one host
         # held a shared host-stderr.txt open, cmd.exe could not open it for the
-        # next ("being used by another process") and never started dm, so that
+        # next ("being used by another process") and never started EDM, so that
         # hand-over found no app and the browser kept the file, now and then.
         # The name is a folder made for it: cmd.exe seeds %RANDOM% with the
         # second it started, so two hosts started in the same second drew the
@@ -1733,35 +1733,35 @@ def main():
         said_dir.mkdir(exist_ok=True)
         shim.write_text(
             "@echo off\r\n"
-            f"set DM_HOME={engine_home}\r\n"
+            f"set EDM_HOME={engine_home}\r\n"
             # Torrents held off the network: the check's magnets fail at once.
-            "set DM_NO_SWARM=1\r\n"
+            "set EDM_NO_SWARM=1\r\n"
             ":pick\r\n"
-            "set DM_SAID=%RANDOM%%RANDOM%\r\n"
-            f'mkdir "{said_dir}\\%DM_SAID%" 2>nul || goto pick\r\n'
-            f'"{host}" %* 2>>"{said_dir}\\%DM_SAID%\\said.txt"\r\n', encoding="utf-8"
+            "set EDM_SAID=%RANDOM%%RANDOM%\r\n"
+            f'mkdir "{said_dir}\\%EDM_SAID%" 2>nul || goto pick\r\n'
+            f'"{host}" %* 2>>"{said_dir}\\%EDM_SAID%\\said.txt"\r\n', encoding="utf-8"
         )
     else:
         shim = engine_home / "host.sh"
         shim.write_text(
             "#!/bin/sh\n"
-            f"export DM_HOME='{engine_home}'\n"
-            "export DM_NO_SWARM=1\n"
+            f"export EDM_HOME='{engine_home}'\n"
+            "export EDM_NO_SWARM=1\n"
             f"exec '{host}' \"$@\" 2>>'{engine_home}/host-stderr.txt'\n", encoding="utf-8"
         )
         shim.chmod(0o755)
     hosts = profile / "NativeMessagingHosts"
     hosts.mkdir(exist_ok=True)
-    registration = hosts / "com.dm.engine.json"
+    registration = hosts / "com.edm.engine.json"
     host_manifest = json.dumps({
-        "name": "com.dm.engine", "description": "dm (chrome-check)", "path": str(shim),
+        "name": "com.edm.engine", "description": "EDM (chrome-check)", "path": str(shim),
         "type": "stdio", "allowed_origins": [f"chrome-extension://{expected_id}/"],
     })
     registration.write_text(host_manifest, encoding="utf-8")
     # Brave and Edge read host manifests from their own folder in the real
-    # home, whatever profile they run: the folder `dm --register` writes. For
-    # the length of the check dm's manifest there names this copy (so Edge
-    # finds this check's host, not the installed dm, and "no host" is true
+    # home, whatever profile they run: the folder `EDM --register` writes. For
+    # the length of the check EDM's manifest there names this copy (so Edge
+    # finds this check's host, not the installed EDM, and "no host" is true
     # when it is removed); whatever was there is put back afterwards, as
     # firefox-check does for Firefox.
     borrowed = []
@@ -1777,35 +1777,35 @@ def main():
         # Edge falls back to Chrome's folder for a host it does not find in its own.
         folders.append(home / ("Library/Application Support/Google/Chrome" if mac else ".config/google-chrome"))
     # Windows browsers find a host only through the registry: the key's
-    # default value names the manifest. What was there (an installed dm's)
+    # default value names the manifest. What was there (an installed EDM's)
     # is read now and put back after.
     registry_keys = []
     if sys.platform == "win32":
         import winreg
         subkeys = []
         if "edge" in where:
-            subkeys.append(r"Software\Microsoft\Edge\NativeMessagingHosts\com.dm.engine")
+            subkeys.append(r"Software\Microsoft\Edge\NativeMessagingHosts\com.edm.engine")
         if "brave" in where:
-            subkeys.append(r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.dm.engine")
+            subkeys.append(r"Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.edm.engine")
         if "chrome" in where and "edge" not in where:
-            subkeys.append(r"Software\Google\Chrome\NativeMessagingHosts\com.dm.engine")
+            subkeys.append(r"Software\Google\Chrome\NativeMessagingHosts\com.edm.engine")
         # The person's own entry is written down the first time it is seen, outside
         # this run's folders: a run stopped before it could put things back leaves
         # ours in the key, and the next run must not take that for the person's, or
-        # delete the key and with it the registration of the dm they installed.
-        backup_file = pathlib.Path.home() / ".cache" / "dm-chrome-check-registry.json"
+        # delete the key and with it the registration of the EDM they installed.
+        backup_file = pathlib.Path.home() / ".cache" / "edm-chrome-check-registry.json"
         try:
             backup = json.loads(backup_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             backup = {}
-        installed = pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "dm/NativeMessagingHosts/chromium/com.dm.engine.json"
+        installed = pathlib.Path(os.environ.get("LOCALAPPDATA", "")) / "EDM/NativeMessagingHosts/chromium/com.edm.engine.json"
         for subkey in subkeys:
             try:
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey) as k:
                     was_value = winreg.QueryValueEx(k, "")[0]
             except OSError:
                 was_value = None
-            if was_value and "dm-chrome-check" in was_value:
+            if was_value and "edm-chrome-check" in was_value:
                 # An earlier run stopped before it could put things back left our own.
                 was_value = backup.get(subkey) or (str(installed) if installed.is_file() else None)
             elif was_value:
@@ -1817,13 +1817,13 @@ def main():
                 winreg.SetValueEx(k, "", 0, winreg.REG_SZ, str(registration))
         folders = []
     for folder in folders:
-        path = folder / "NativeMessagingHosts/com.dm.engine.json"
+        path = folder / "NativeMessagingHosts/com.edm.engine.json"
         was = path.read_bytes() if path.exists() else None
         # What an earlier run that was stopped before it could put things back
         # left is not the person's own: kept as "what was there", it would be
         # put back for good, and their browser would hand every download to a
         # host in a temporary folder that is gone.
-        if was is not None and b"dm (chrome-check)" in was:
+        if was is not None and b"EDM (chrome-check)" in was:
             was = None
         borrowed.append((path, was))
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -1839,18 +1839,18 @@ def main():
         "--no-first-run", "--no-default-browser-check", "--disable-gpu",
         # Brave upgrades http:// to https:// first, which a test server on
         # loopback never answers; Chrome ignores the names it does not know.
-        # DM_CHROME_DISABLE_FEATURES adds more (a side-by-side run turns off the
+        # EDM_CHROME_DISABLE_FEATURES adds more (a side-by-side run turns off the
         # Manifest V2 phase-out, which disabled reference A's extension in the
         # kept profile).
         "--disable-features=DisableLoadExtensionCommandLineSwitch,HttpsUpgrades,BraveHttpsByDefault"
-        + "".join("," + f for f in os.environ.get("DM_CHROME_DISABLE_FEATURES", "").split(",") if f),
+        + "".join("," + f for f in os.environ.get("EDM_CHROME_DISABLE_FEATURES", "").split(",") if f),
         # Lets DevTools press the extension's toolbar button.
         "--enable-unsafe-extension-debugging",
         "--enable-logging=stderr", "--v=0", "about:blank",
     ]
-    # DM_KEEP_OTHER_EXTENSIONS=1: the extensions the kept profile already holds stay on (a
+    # EDM_KEEP_OTHER_EXTENSIONS=1: the extensions the kept profile already holds stay on (a
     # side-by-side look at another manager's extension), not only the one under test.
-    if os.environ.get("DM_KEEP_OTHER_EXTENSIONS"):
+    if os.environ.get("EDM_KEEP_OTHER_EXTENSIONS"):
         args = [a for a in args if not a.startswith("--disable-extensions-except=")]
     # Chromium will not start as root with its sandbox, which is how a
     # container runs it; anywhere else the sandbox stays on.
@@ -1859,7 +1859,7 @@ def main():
     # Without a display to draw on (an agent's shell, a container without
     # Xvfb): the new headless mode runs extensions, workers and DevTools
     # input events as the windowed browser does.
-    if os.environ.get("DM_CHROME_HEADLESS"):
+    if os.environ.get("EDM_CHROME_HEADLESS"):
         args.insert(1, "--headless=new")
     if os.environ.get("CI"):
         args += ["--no-sandbox", "--disable-dev-shm-usage"]
@@ -1922,7 +1922,7 @@ def main():
             woke = open_tab(base, f"chrome-extension://{expected_id}/popup.html")
             time.sleep(3)
             woke.evaluate("window.close()")
-        # Chrome runs component extensions of its own; dm's is the one whose
+        # Chrome runs component extensions of its own; EDM's is the one whose
         # worker is the loader.
         workers = lambda: [t for t in targets(base) if t["type"] == "service_worker"
                            and t["url"].endswith("/background.js")]
@@ -1949,7 +1949,7 @@ def main():
             return
         # A check of real sites only (sites-check.py): the loopback checks
         # below are the usual run's.
-        if os.environ.get("DM_SKIP_LOCAL"):
+        if os.environ.get("EDM_SKIP_LOCAL"):
             panel_checks(base, origin, engine_dl, engine_home, worker)
             return
         # Each named, not counted: a run reading "6 of 7" could not say which.
@@ -1970,7 +1970,7 @@ def main():
         # be reached now fails as that, here, and the clicks below find it warm.
         # The frame's envelope as the extension sends it: without `protocolVersion`
         # the host answers nothing and the browser waits on it for ever.
-        hello = ("new Promise(r => chrome.runtime.sendNativeMessage('com.dm.engine',"
+        hello = ("new Promise(r => chrome.runtime.sendNativeMessage('com.edm.engine',"
                  " {protocolVersion: 1, type: 'engine.hello'},"
                  " m => r(chrome.runtime.lastError ? 'error: ' + chrome.runtime.lastError.message : m)))")
         said = []
@@ -1984,16 +1984,16 @@ def main():
         page = f"{origin}/page.html"
         click(base, origin, "caught.bin")
         landed = wait_for(lambda: whole(engine_dl, "caught.bin"), 60)
-        check("a clicked download is fetched by dm into its own folder", landed,
+        check("a clicked download is fetched by EDM into its own folder", landed,
               f"{engine_dl / 'caught.bin'}")
-        dm_asked = [r for r in requests if r["path"] == "/files/caught.bin" and is_dm(r["agent"])]
-        check("dm fetched it with the page as referrer",
-              bool(dm_asked) and all(r["referer"] == page for r in dm_asked),
-              f"{len(dm_asked)} request(s) from dm, referer {sorted({r['referer'] for r in dm_asked})}")
+        edm_asked = [r for r in requests if r["path"] == "/files/caught.bin" and is_dm(r["agent"])]
+        check("EDM fetched it with the page as referrer",
+              bool(edm_asked) and all(r["referer"] == page for r in edm_asked),
+              f"{len(edm_asked)} request(s) from EDM, referer {sorted({r['referer'] for r in edm_asked})}")
         # Waited for, not a fixed pause: the copy is cancelled when the app's
         # answer reaches the extension, and on Windows the native host's first
         # start (a debug build the virus checker reads) took more than the
-        # 1.5 s this once allowed, now and then, with dm's file already whole.
+        # 1.5 s this once allowed, now and then, with EDM's file already whole.
         caught_at = time.monotonic()
         browser_copy = lambda: worker.evaluate(
             "chrome.downloads.search({}).then(l => l.filter(d => d.url.endsWith('caught.bin')).map(d => d.state))")
@@ -2006,19 +2006,19 @@ def main():
               worker.evaluate("dmReady.then(m => m.app_status())"))
         # The app drives the extension (gaps row A22): the right-click menu is the one its hello
         # served, kept for the worker's next start, each item naming what it does.
-        served = worker.evaluate("chrome.storage.local.get('dm.menus').then(g => g['dm.menus'])") or []
+        served = worker.evaluate("chrome.storage.local.get('EDM.menus').then(g => g['EDM.menus'])") or []
         check("the right-click menu is the one the app served",
               [(m.get("id"), m.get("does")) for m in served] == [
-                  ("dm-link", "link"), ("dm-media", "media"),
-                  ("dm-all-links", "all-links"), ("dm-selected-links", "selected-links")],
+                  ("edm-link", "link"), ("edm-media", "media"),
+                  ("edm-all-links", "all-links"), ("edm-selected-links", "selected-links")],
               str(served)[:300])
         unknown = worker.evaluate(
-            "dmReady.then(m => m.on_menu_clicked({menuItemId: 'dm-not-served', linkUrl: 'https://e.com/x.bin',"
+            "dmReady.then(m => m.on_menu_clicked({menuItemId: 'edm-not-served', linkUrl: 'https://e.com/x.bin',"
             " pageUrl: 'https://e.com/'}, {id: 1})).then(() => 'done')")
         check("an item the app did not serve hands nothing over", unknown == "done", str(unknown))
 
         # A name too long for the disk: Chromium would ask where to save it,
-        # and its Save dialog stayed open over a download dm had taken.
+        # and its Save dialog stayed open over a download EDM had taken.
         long_tab = click(base, origin, LONG)
         def read_or_none(p):
             # The saved name (up to 200 characters) under this folder passes
@@ -2039,9 +2039,9 @@ def main():
         dialogs = save_dialogs()
         left = worker.evaluate("chrome.downloads.search({}).then(l => l.filter(d => d.url.includes('verylong'))"
                                ".map(d => d.state + ' ' + d.filename.length))")
-        check("a file whose name is too long for the disk goes to dm, and the browser asks nothing",
+        check("a file whose name is too long for the disk goes to EDM, and the browser asks nothing",
               bool(landed) and left == [] and not dialogs,
-              f"dm folder: {[n[:20] + '…' for n in long_in_dm()]}; browser list {left}; "
+              f"EDM folder: {[n[:20] + '…' for n in long_in_dm()]}; browser list {left}; "
               f"Save dialogs: {'not looked for (no X display)' if dialogs is None else len(dialogs)}")
         if dialogs:
             subprocess.run(["xdotool", "key", "--window", dialogs[0], "Escape"], check=False)
@@ -2049,7 +2049,7 @@ def main():
 
         # A PDF Chromium finishes before it can be held: served fast, it is
         # complete by the time the extension asks (or completes despite the
-        # pause), where a .bin waits for its danger check. It goes to dm all
+        # pause), where a .bin waits for its danger check. It goes to EDM all
         # the same, and the browser's whole copy is removed.
         # Clicked three times, since the race does not always go one way.
         pdfs = lambda folder: sorted(p.name for p in folder.iterdir() if p.name.startswith("small") and p.name.endswith(".pdf"))
@@ -2059,16 +2059,16 @@ def main():
             wait_for(lambda: len(pdfs(engine_dl)) > before, 30)
         time.sleep(2)
         in_dm = pdfs(engine_dl)
-        check("a PDF the browser finished before it could be held is fetched by dm, every time",
+        check("a PDF the browser finished before it could be held is fetched by EDM, every time",
               len(in_dm) == 3 and all(reads_as(engine_dl / n, body("small.pdf")) for n in in_dm),
-              f"dm folder: {in_dm}")
+              f"EDM folder: {in_dm}")
         left = worker.evaluate("chrome.downloads.search({}).then(l => l.filter(d => d.url.endsWith('small.pdf')).map(d => d.state))")
         check("and the browser's finished copy is removed, file and list entry",
               left == [] and pdfs(browser_dl) == [],
               f"browser list {left}, browser folder {pdfs(browser_dl)}")
 
         # A PDF the browser would show in the tab starts no download at all:
-        # a person's plain click on its link is the only thing dm can see,
+        # a person's plain click on its link is the only thing EDM can see,
         # and the app takes it by its rules; the tab stays on the page.
         tab = open_tab(base, f"{origin}/page.html")
         loaded(tab, "/page.html", '[id="small-shown.pdf"]')
@@ -2080,20 +2080,20 @@ def main():
         click_at(tab, x, y)
         shown = wait_for(lambda: whole(engine_dl, "small-shown.pdf"), 60)
         stayed = tab.evaluate("location.pathname")
-        check("a plain click on a link to a PDF the browser would show in the tab goes to dm",
+        check("a plain click on a link to a PDF the browser would show in the tab goes to EDM",
               shown and stayed == "/page.html", f"tab at {stayed}")
         check("and the browser kept nothing of it", not (browser_dl / "small-shown.pdf").exists())
 
-        # A person clicks, and watches how long dm takes to start and to finish.
+        # A person clicks, and watches how long EDM takes to start and to finish.
         # A small file from a server that holds each connection to a megabyte
         # a second: one connection takes three seconds and more for 3 MB; the
         # connections that join once the first is seen to be slow bring it
         # to about one.
         # Timed from the press, as a person watches it: the tab this check opens and loads first
-        # (a third of a second in Edge on Windows) is the check's, not dm's, and it was counted
+        # (a third of a second in Edge on Windows) is the check's, not EDM's, and it was counted
         # until 2026-11-09 (gaps row 165). One connection alone takes over three seconds, so the
-        # limit still says the helpers came. Its parts are told too: the page, the press to dm's
-        # first request, that to its last, the last byte sent, and the file whole in dm's
+        # limit still says the helpers came. Its parts are told too: the page, the press to EDM's
+        # first request, that to its last, the last byte sent, and the file whole in EDM's
         # folder, looked at every 20 ms here rather than wait_for's quarter second.
         mark = len(requests)
         opened = time.monotonic()
@@ -2118,15 +2118,15 @@ def main():
             sent = max(r.get("ended", r["t"]) for r in asked)
             first = sorted(asked, key=lambda r: r["t"])[:4]
             parts = (f"; the page {began - opened:.2f} s before, the press {pressed - began:.2f} s, "
-                     f"to dm's first request {starts[0] - pressed:.2f} s, "
+                     f"to EDM's first request {starts[0] - pressed:.2f} s, "
                      f"to its last {starts[-1] - starts[0]:.2f} s, to the last byte sent {sent - starts[-1]:.2f} s, "
                      f"to the file whole {(landed or sent) - sent:.2f} s; its first requests at "
                      + ", ".join(f"+{(r['t'] - starts[0]) * 1000:.0f} ms {r['range'] or 'whole'}" for r in first))
         check("a small file from a server that holds each connection to 1 MB/s is fetched on helping connections",
-              done and took < 2.8 and len(ports) >= 4, f"{took:.2f} s on {len(ports)} of dm's connections{parts}")
+              done and took < 2.8 and len(ports) >= 4, f"{took:.2f} s on {len(ports)} of EDM's connections{parts}")
         # The same size from a fast server: no connection is opened that it
-        # did not need (the host's own probe and the app's one), and dm starts
-        # at once: the time from the click to dm's first request for it.
+        # did not need (the host's own probe and the app's one), and EDM starts
+        # at once: the time from the click to EDM's first request for it.
         starts = []
         for name in ("quick.bin", "quick2.bin", "quick3.bin"):
             mark = len(requests)
@@ -2137,9 +2137,9 @@ def main():
             ports = {r["port"] for r in asked}
             starts.append((min(r["t"] for r in asked) - began) * 1000 if asked else 9999)
             check(f"{name}, from a fast server, is fetched on no more connections than it needs",
-                  done and len(ports) <= 2, f"{len(ports)} of dm's connections")
+                  done and len(ports) <= 2, f"{len(ports)} of EDM's connections")
         starts.sort()
-        check("dm's first request comes soon after the click (the doorbell, not the half-second poll)",
+        check("EDM's first request comes soon after the click (the doorbell, not the half-second poll)",
               starts[1] < (1000 if sys.platform == "win32" else 700), f"{', '.join(f'{s:.0f} ms' for s in starts)} (median {starts[1]:.0f} ms)")
 
         # 3. Not a type the app catches.
@@ -2160,52 +2160,52 @@ def main():
         kept = wait_for(lambda: whole(browser_dl, "served-beacon.bin"), 60)
         check("a file the app's served rules name as never caught stays with the browser",
               kept and not (engine_dl / "served-beacon.bin").exists(),
-              f"dm folder: {sorted(p.name for p in engine_dl.iterdir())}; "
+              f"EDM folder: {sorted(p.name for p in engine_dl.iterdir())}; "
               f"browser folder: {sorted(p.name for p in browser_dl.iterdir())}")
 
         # The popup's "Take every download from this site": a type the
         # app's rules leave is taken all the same, and only while listed.
-        worker.evaluate("chrome.storage.local.set({'dm.catch.all': ['127.0.0.1']}).then(() => 'ok')")
+        worker.evaluate("chrome.storage.local.set({'EDM.catch.all': ['127.0.0.1']}).then(() => 'ok')")
         click(base, origin, "forced.txt")
         taken = wait_for(lambda: whole(engine_dl, "forced.txt"), 60)
-        check("with 'Take every download from this site' on, a type the rules leave goes to dm",
+        check("with 'Take every download from this site' on, a type the rules leave goes to EDM",
               taken and not (browser_dl / "forced.txt").exists(),
-              f"dm folder: {sorted(p.name for p in engine_dl.iterdir())}; "
+              f"EDM folder: {sorted(p.name for p in engine_dl.iterdir())}; "
               f"browser folder: {sorted(p.name for p in browser_dl.iterdir())}")
-        worker.evaluate("chrome.storage.local.remove('dm.catch.all').then(() => 'ok')")
+        worker.evaluate("chrome.storage.local.remove('EDM.catch.all').then(() => 'ok')")
 
         # The popup's "Pause capturing on this site": a type the app catches
-        # stays with the browser while the site is listed, and goes to dm
+        # stays with the browser while the site is listed, and goes to EDM
         # again once it is not.
-        worker.evaluate("chrome.storage.local.set({'dm.catch.paused': ['127.0.0.1']}).then(() => 'ok')")
+        worker.evaluate("chrome.storage.local.set({'EDM.catch.paused': ['127.0.0.1']}).then(() => 'ok')")
         click(base, origin, "paused.bin")
         kept = wait_for(lambda: whole(browser_dl, "paused.bin"), 60)
         check("with 'Pause capturing on this site' on, a type the app catches stays with the browser",
               kept and not (engine_dl / "paused.bin").exists(),
-              f"dm folder: {sorted(p.name for p in engine_dl.iterdir())}")
-        worker.evaluate("chrome.storage.local.remove('dm.catch.paused').then(() => 'ok')")
+              f"EDM folder: {sorted(p.name for p in engine_dl.iterdir())}")
+        worker.evaluate("chrome.storage.local.remove('EDM.catch.paused').then(() => 'ok')")
         click(base, origin, "resumed.bin")
         taken = wait_for(lambda: whole(engine_dl, "resumed.bin"), 60)
-        check("and goes to dm again once the site is not paused",
+        check("and goes to EDM again once the site is not paused",
               taken and not (browser_dl / "resumed.bin").exists())
 
-        # 4b. A file that is a form's answer: dm sends the same form once and
+        # 4b. A file that is a form's answer: EDM sends the same form once and
         # has the file; the browser keeps nothing (gaps row 128).
         tab = open_tab(base, f"{origin}/form.html")
         loaded(tab, "/form.html", "#go")
         tab.evaluate("document.getElementById('go').click()", gesture=True)
         taken = wait_for(lambda: whole(engine_dl, "posted.bin"), 60)
         posts = [r for r in requests if r.get("method") == "POST" and is_dm(r["agent"])]
-        check("a file that is a form's answer is fetched by dm sending the form again, once",
+        check("a file that is a form's answer is fetched by EDM sending the form again, once",
               taken and not (browser_dl / "posted.bin").exists() and len(posts) == 1,
-              f"dm's posts: {len(posts)}; the browser's: "
+              f"EDM's posts: {len(posts)}; the browser's: "
               f"{len([r for r in requests if r.get('method') == 'POST' and not is_dm(r['agent'])])}; "
-              f"in the browser's folder: {(browser_dl / 'posted.bin').exists()}; dm's row: "
+              f"in the browser's folder: {(browser_dl / 'posted.bin').exists()}; EDM's row: "
               f"{[(r.get('filename'), r.get('state')) for r in queue_rows(engine_home) if 'export' in r.get('url', '')]}; "
-              f"dm folder: {sorted(p.name for p in engine_dl.iterdir() if 'post' in p.name or 'export' in p.name)}; "
-              f"dm sent: {[(r.get('body'), r.get('headers')) for r in posts]}")
+              f"EDM folder: {sorted(p.name for p in engine_dl.iterdir() if 'post' in p.name or 'export' in p.name)}; "
+              f"EDM sent: {[(r.get('body'), r.get('headers')) for r in posts]}")
 
-        # 4c. A download link that opens a tab of its own: dm takes it, and no
+        # 4c. A download link that opens a tab of its own: EDM takes it, and no
         # empty tab is left behind (gaps row 130).
         tab = open_tab(base, f"{origin}/newtab.html")
         loaded(tab, "/newtab.html", "#go")
@@ -2215,17 +2215,17 @@ def main():
         time.sleep(3)
         left = [t.get("url", "") for t in targets(base)
                 if t.get("type") == "page" and t["id"] not in before_tabs]
-        check("a download link that opens a new tab goes to dm and leaves no empty tab behind",
+        check("a download link that opens a new tab goes to EDM and leaves no empty tab behind",
               taken and not left and not (browser_dl / "newtab.bin").exists(), f"tabs left: {left}")
 
-        # 4d. The seven ways a page opens a magnet link each reach dm (gaps row
-        # 108). dm's torrent engine is held off the network in this run
-        # (DM_NO_SWARM), so each row fails at once rather than going to the DHT
-        # and raising Windows' firewall question for this run's copy of dm.
+        # 4d. The seven ways a page opens a magnet link each reach EDM (gaps row
+        # 108). EDM's torrent engine is held off the network in this run
+        # (EDM_NO_SWARM), so each row fails at once rather than going to the DHT
+        # and raising Windows' firewall question for this run's copy of EDM.
         tab = open_tab(base, f"{origin}/magnets.html")
         loaded(tab, "/magnets.html", "#m8")
         names = ["plain", "onclick", "button", "blank", "icon", "windowopen", "synthetic"]
-        # Pressed with the mouse, as a person does: a magnet a page opens by script goes to dm
+        # Pressed with the mouse, as a person does: a magnet a page opens by script goes to EDM
         # only for the person's own press, which a script's click() is not.
         for n in range(1, 8):
             press_element(tab, f"m{n}", centre=True)
@@ -2236,7 +2236,7 @@ def main():
             return {name for r in queue_rows(engine_home) for name in names
                     if r.get("url", "").startswith("magnet:") and f"dn={name}" in r.get("url", "")}
         got = wait_for(lambda: magnets() if len(magnets()) == 7 else None, 30) or magnets()
-        check("each of the seven ways a page opens a magnet link reaches dm",
+        check("each of the seven ways a page opens a magnet link reaches EDM",
               len(got) == 7, f"missing: {sorted(set(names) - set(got))}")
         def flooded():
             return [r.get("url", "") for r in queue_rows(engine_home) if "dn=flood" in r.get("url", "")]
@@ -2245,27 +2245,27 @@ def main():
         wait_for(lambda: flooded() or None, 15)
         time.sleep(2.0)
         floods = flooded()
-        check("five magnets a page opens for one click hand dm one", len(floods) == 1, f"{floods}")
+        check("five magnets a page opens for one click hand EDM one", len(floods) == 1, f"{floods}")
 
-        # 5. Only the browser can fetch it: dm is refused without the
+        # 5. Only the browser can fetch it: EDM is refused without the
         # browser's session, so it is handed over again with it, for this
-        # download, and dm fetches it; the browser keeps nothing.
+        # download, and EDM fetches it; the browser keeps nothing.
         click(base, origin, "private.bin")
         taken = wait_for(lambda: whole(engine_dl, "private.bin"), 60)
-        check("a link only the signed-in browser can fetch is fetched by dm with the browser's session",
+        check("a link only the signed-in browser can fetch is fetched by EDM with the browser's session",
               taken and not (browser_dl / "private.bin").exists())
 
         # 6. The context menu's handler.
         worker.evaluate(
-            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-link', linkUrl: '{origin}/files/menu.bin',"
+            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'edm-link', linkUrl: '{origin}/files/menu.bin',"
             f" pageUrl: '{page}'}}, {{}}))")
-        check("'Download link with dm' hands the link to dm",
+        check("'Download link with EDM' hands the link to EDM",
               wait_for(lambda: whole(engine_dl, "menu.bin"), 60))
 
         # Alt-click: a type the app catches, left with the browser.
         tab = open_tab(base, f"{origin}/page.html")
         loaded(tab, "/page.html")
-        wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 15)
+        wait_for(lambda: tab.evaluate("!!document.querySelector('edm-panel')"), 15)
         # A person's click with Alt held, through the browser's own input: a click a page
         # makes up is not trusted, and the extension leaves it alone (gaps row H10).
         at = tab.evaluate("(() => { const r = document.getElementById('alt.bin')"
@@ -2297,22 +2297,22 @@ def main():
             "document.querySelector('a[href$=\"kept.zip\"]').setAttribute('download', 'renamed by the page.zip')"
             "}).then(() => 'ok')")
         worker.evaluate(
-            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-all-links', pageUrl: '{origin}/page.html',"
+            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'edm-all-links', pageUrl: '{origin}/page.html',"
             f" frameId: 0}}, {{id: {tab_id}}}))")
         # Counted off the page rather than written down: a link added to the
         # page for another check must not fail this one.
         on_page = tab.evaluate("document.links.length")
         got = wait_for(lambda: len(queued_main()) - before >= on_page and len(queued_main()) - before, 20)
-        check("'Download all links with dm' hands every link on the page to dm's queue",
+        check("'Download all links with EDM' hands every link on the page to EDM's queue",
               got == on_page, f"{len(queued_main()) - before} queued of {on_page} links")
         # Each link's words on the page go with it as its description (gaps
         # row 94): on this page a link's words are its file's name.
         words = {r.get("url", "").rsplit("/", 1)[-1]: r.get("description", "") for r in queued_main()}
-        check("each link's words on the page go with it to dm as its description",
+        check("each link's words on the page go with it to EDM as its description",
               words.get("notes.txt") == "notes.txt" and words.get("kept.zip") == "kept.zip",
               str({k: words[k] for k in list(words)[:6]}))
         given = {r.get("url", "").rsplit("/", 1)[-1]: r.get("save_name") for r in queued_main()}
-        check("a link's download attribute names its file in dm",
+        check("a link's download attribute names its file in EDM",
               given.get("kept.zip") == "renamed by the page.zip", f"kept.zip: {given.get('kept.zip')!r}")
         before = len(queued_main())
         tab.evaluate("(() => { const r = document.createRange();"
@@ -2320,10 +2320,10 @@ def main():
                      " r.setEndAfter(document.querySelectorAll('p')[1]);"
                      " getSelection().removeAllRanges(); getSelection().addRange(r); return 1; })()")
         worker.evaluate(
-            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-selected-links', pageUrl: '{origin}/page.html',"
+            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'edm-selected-links', pageUrl: '{origin}/page.html',"
             f" frameId: 0}}, {{id: {tab_id}}}))")
         got = wait_for(lambda: len(queued_main()) - before >= 2 and len(queued_main()) - before, 20)
-        check("'Download selected links with dm' hands only the two selected",
+        check("'Download selected links with EDM' hands only the two selected",
               got == 2, f"{len(queued_main()) - before} queued")
 
         # 7. The floating "Download video" panel over players.
@@ -2333,19 +2333,19 @@ def main():
         # 7b. Requests the page itself made: headers, answers, pieces, feeds, more links.
         request_checks(base, origin, engine_dl, engine_home, worker)
 
-        # The toolbar popup, opened as the page it is: it says dm is there,
-        # "Open dm" brings dm's window up and downloads nothing, and with
-        # "Catch downloads" off the browser keeps what dm would have caught.
+        # The toolbar popup, opened as the page it is: it says EDM is there,
+        # "Open EDM" brings EDM's window up and downloads nothing, and with
+        # "Catch downloads" off the browser keeps what EDM would have caught.
         popup = open_tab(base, f"chrome-extension://{ext_id}/popup.html")
         loaded(popup, "/popup.html", "#open")
         status_of = "document.getElementById('status').textContent"
         said = wait_for(lambda: (popup.evaluate(status_of) or "").startswith("Connected") and popup.evaluate(status_of), 20)
-        check("the toolbar popup says the dm app is there", bool(said), said or popup.evaluate(status_of))
+        check("the toolbar popup says the EDM app is there", bool(said), said or popup.evaluate(status_of))
         before = len(queue_rows(engine_home))
         popup.evaluate("document.getElementById('open').click(), 1", gesture=True)
         asked = wait_for(lambda: (engine_home / "inbox" / "show").exists(), 10)
         consumed = wait_for(lambda: not (engine_home / "inbox" / "show").exists(), 15)
-        check("its 'Open dm' brings dm's window up", bool(asked or consumed),
+        check("its 'Open EDM' brings EDM's window up", bool(asked or consumed),
               "asked and taken" if consumed else "never asked")
         time.sleep(2)
         check("and downloads nothing", len(queue_rows(engine_home)) == before,
@@ -2353,20 +2353,20 @@ def main():
 
         popup = open_tab(base, f"chrome-extension://{ext_id}/popup.html")
         loaded(popup, "/popup.html", "#catching")
-        catching = lambda: worker.evaluate("chrome.storage.local.get('dm.catching').then(r => String(r['dm.catching']))")
+        catching = lambda: worker.evaluate("chrome.storage.local.get('EDM.catching').then(r => String(r['EDM.catching']))")
         popup.evaluate("document.getElementById('catching').click(), 1", gesture=True)
         wait_for(lambda: catching() == "false", 5)
-        # off.bin is in dm's list already, from "Download all links"; what
+        # off.bin is in EDM's list already, from "Download all links"; what
         # counts is that this click adds no row of its own.
         off_rows = lambda: len([r for r in queue_rows(engine_home) if r.get("url", "").endswith("/files/off.bin")])
         before_off = off_rows()
         click(base, origin, "off.bin")
         kept = wait_for(lambda: whole(browser_dl, "off.bin"), 60)
         worker.drain(1)
-        check("with 'Catch downloads' off, a download dm would catch stays in the browser",
+        check("with 'Catch downloads' off, a download EDM would catch stays in the browser",
               kept and off_rows() == before_off,
               f"catching: {catching()}; in the browser's folder: {sorted(p.name for p in browser_dl.iterdir())}; "
-              f"new dm rows: {off_rows() - before_off}")
+              f"new EDM rows: {off_rows() - before_off}")
         # A popup opened afresh, as a person would open it again: the one
         # opened before the download can be a minute stale by now.
         popup = open_tab(base, f"chrome-extension://{ext_id}/popup.html")
@@ -2379,18 +2379,18 @@ def main():
         label = wait_for(lambda: popup.evaluate("document.getElementById('catchall-label').textContent"), 5)
         check("the popup has the 'Take every download from this site' switch", bool(label), label)
 
-        # A tab whose page script cannot answer, as one open before dm was
+        # A tab whose page script cannot answer, as one open before EDM was
         # installed (Chromium puts page scripts only into pages loaded
         # since): a page still arriving, whose script is not in yet. The
         # links reader is put in when it is asked for, and the menu works.
         stale = open_tab(base, f"{origin}/arriving.html")
         wait_for(lambda: stale.evaluate("document.links.length") == len(ARRIVING), 10)
         stale_tab = worker.evaluate(f"chrome.tabs.query({{}}).then(t => t.filter(x => x.url === '{origin}/arriving.html').map(x => x.id))")
-        alive = worker.evaluate(f"chrome.tabs.sendMessage({stale_tab[-1]}, {{type: 'dm.links'}})"
+        alive = worker.evaluate(f"chrome.tabs.sendMessage({stale_tab[-1]}, {{type: 'EDM.links'}})"
                                 ".then(() => 'answered', e => String(e))")
         before = len(queued_main())
         worker.evaluate(
-            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-all-links', pageUrl: '{origin}/arriving.html',"
+            f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'edm-all-links', pageUrl: '{origin}/arriving.html',"
             f" frameId: 0}}, {{id: {stale_tab[-1]}}}))")
         got = wait_for(lambda: len(queued_main()) - before >= len(ARRIVING) and len(queued_main()) - before, 20)
         check("'Download all links' works on a page with no page script, by putting one in",
@@ -2398,7 +2398,7 @@ def main():
               f"asked first: {alive}; {len(queued_main()) - before} queued of {len(ARRIVING)} links")
         stale.call("Page.navigate", url="about:blank")
 
-        # The popup lists what dm is fetching (gaps row U18): the host reads what the window
+        # The popup lists what EDM is fetching (gaps row U18): the host reads what the window
         # wrote (`going.json`), and a line a download comes of it.
         going = {"at_ms": int(time.time() * 1000), "running": 1,
                  "downloads": [{"name": "check-going.iso", "percent": 42, "speed": 2 * 1024 * 1024}]}
@@ -2407,7 +2407,7 @@ def main():
         loaded(popup, "/popup.html", "#going")
         going_of = "document.getElementById('going').textContent"
         listed = wait_for(lambda: "check-going.iso · 42%" in (popup.evaluate(going_of) or "") and popup.evaluate(going_of), 15)
-        check("the toolbar popup lists what dm is fetching", bool(listed), listed or popup.evaluate(going_of))
+        check("the toolbar popup lists what EDM is fetching", bool(listed), listed or popup.evaluate(going_of))
         (engine_home / "going.json").unlink(missing_ok=True)
 
         # 8. No app: the browser keeps it.
@@ -2430,16 +2430,16 @@ def main():
                        " && document.getElementById('advanced').textContent.includes('--register')")
         said = wait_for(lambda: popup.evaluate(steps_shown) and popup.evaluate(status_of), 20)
         check("with no app, the toolbar popup says so in two steps and names the fix under them",
-              said == "dm isn't connected to this browser yet.",
+              said == "EDM isn't connected to this browser yet.",
               (said or popup.evaluate(status_of) or "")[:200])
         badge = worker.evaluate("chrome.action.getBadgeText({})")
         check("and the toolbar icon says '!'", badge == "!", repr(badge))
-        # dm registered again while the popup stays open: it connects by itself, unopened.
+        # EDM registered again while the popup stays open: it connects by itself, unopened.
         registration.write_bytes(registered)
         for path, _ in borrowed:
             path.write_text(host_manifest, encoding="utf-8")
         again = wait_for(lambda: (popup.evaluate(status_of) or "").startswith("Connected") and popup.evaluate(status_of), 20)
-        check("once dm can be reached, the open popup says so by itself", bool(again),
+        check("once EDM can be reached, the open popup says so by itself", bool(again),
               (again or popup.evaluate(status_of) or "")[:200])
         badge = wait_for(lambda: worker.evaluate("chrome.action.getBadgeText({})") == "" or None, 10)
         check("and the '!' goes", badge is True, repr(worker.evaluate("chrome.action.getBadgeText({})")))

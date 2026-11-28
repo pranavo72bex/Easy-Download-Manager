@@ -8,7 +8,7 @@
  "files": 1,
  "runs": [
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 1,
    "ok": true,
@@ -158,7 +158,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 2,
    "ok": true,
@@ -304,7 +304,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 3,
    "ok": true,
@@ -454,7 +454,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 4,
    "ok": true,
@@ -604,7 +604,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 5,
    "ok": true,
@@ -754,7 +754,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 6,
    "ok": true,
@@ -904,7 +904,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 7,
    "ok": true,
@@ -1050,7 +1050,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 8,
    "ok": true,
@@ -1200,7 +1200,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 9,
    "ok": true,
@@ -1350,7 +1350,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 10,
    "ok": true,
@@ -1500,7 +1500,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 11,
    "ok": true,
@@ -1646,7 +1646,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 12,
    "ok": true,
@@ -1796,7 +1796,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 13,
    "ok": true,
@@ -1946,7 +1946,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 14,
    "ok": true,
@@ -2096,7 +2096,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 15,
    "ok": true,
@@ -2246,7 +2246,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 16,
    "ok": true,
@@ -2396,7 +2396,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 17,
    "ok": true,
@@ -2546,7 +2546,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 18,
    "ok": true,
@@ -2692,7 +2692,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 19,
    "ok": true,
@@ -2842,7 +2842,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 20,
    "ok": true,
@@ -2992,7 +2992,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 21,
    "ok": true,
@@ -3142,7 +3142,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 22,
    "ok": true,
@@ -3292,7 +3292,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 23,
    "ok": true,
@@ -3442,7 +3442,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 24,
    "ok": true,
@@ -3588,7 +3588,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 25,
    "ok": true,
@@ -3738,7 +3738,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 26,
    "ok": true,
@@ -3888,7 +3888,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 27,
    "ok": true,
@@ -4038,7 +4038,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 28,
    "ok": true,
@@ -4188,7 +4188,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 29,
    "ok": true,
@@ -4338,7 +4338,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 30,
    "ok": true,
@@ -4488,7 +4488,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 31,
    "ok": true,
@@ -4638,7 +4638,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 32,
    "ok": true,
@@ -4788,7 +4788,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 33,
    "ok": true,
@@ -4938,7 +4938,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 34,
    "ok": true,
@@ -5088,7 +5088,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 35,
    "ok": true,
@@ -5238,7 +5238,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 36,
    "ok": true,
@@ -5388,7 +5388,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 37,
    "ok": true,
@@ -5538,7 +5538,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 38,
    "ok": true,
@@ -5688,7 +5688,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 39,
    "ok": true,
@@ -5838,7 +5838,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 40,
    "ok": true,
@@ -5988,7 +5988,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 41,
    "ok": true,
@@ -6138,7 +6138,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 42,
    "ok": true,
@@ -6288,7 +6288,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 43,
    "ok": true,
@@ -6438,7 +6438,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 44,
    "ok": true,
@@ -6588,7 +6588,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 45,
    "ok": true,
@@ -6738,7 +6738,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 46,
    "ok": true,
@@ -6888,7 +6888,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 47,
    "ok": true,
@@ -7038,7 +7038,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 48,
    "ok": true,
@@ -7188,7 +7188,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 49,
    "ok": true,
@@ -7338,7 +7338,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "fast",
    "rep": 50,
    "ok": true,
@@ -7493,7 +7493,7 @@
   "run": "mwqdv2bv",
   "date": "2026-11-21T12:31:52.959Z",
   "apps": [
-   "dm"
+   "EDM"
   ],
   "system": {
    "platform": "darwin",
@@ -7505,7 +7505,7 @@
   },
   "node": "v26.12.1",
   "dmBinary": {
-   "path": "/Users/pranav.jha/Easy-Download-Manager/target/release/dm-gpui",
+   "path": "/Users/pranav.jha/Easy-Download-Manager/target/release/edm-gpui",
    "bytes": 24081712,
    "modified": "2026-11-21T12:26:41.057Z"
   },
@@ -7530,9 +7530,9 @@
   },
   "dmConnections": null,
   "folders": {
-   "work": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench",
-   "dmHome": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home",
-   "dmDownloads": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home/downloads",
+   "work": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/edm-bench",
+   "dmHome": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/edm-bench/edm-home",
+   "dmDownloads": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/edm-bench/edm-home/downloads",
    "refa": null
   }
  }

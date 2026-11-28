@@ -13,7 +13,7 @@
  "files": 1,
  "runs": [
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "flaky",
    "rep": 1,
    "ok": true,
@@ -469,7 +469,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "flaky",
    "rep": 2,
    "ok": true,
@@ -936,7 +936,7 @@
   "run": "mwqg3266",
   "date": "2026-11-21T13:31:23.509Z",
   "apps": [
-   "dm"
+   "EDM"
   ],
   "system": {
    "platform": "darwin",
@@ -948,7 +948,7 @@
   },
   "node": "v26.12.1",
   "dmBinary": {
-   "path": "/Users/pranav.jha/Easy-Download-Manager/target/release/dm-gpui",
+   "path": "/Users/pranav.jha/Easy-Download-Manager/target/release/edm-gpui",
    "bytes": 24081712,
    "modified": "2026-11-21T12:26:41.057Z"
   },
@@ -973,9 +973,9 @@
   },
   "dmConnections": null,
   "folders": {
-   "work": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench",
-   "dmHome": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home",
-   "dmDownloads": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/dm-bench/dm-home/downloads",
+   "work": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/edm-bench",
+   "dmHome": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/edm-bench/edm-home",
+   "dmDownloads": "/var/folders/md/pf3y3mbs6h38d0yjvrfkpygr3mnqly/T/edm-bench/edm-home/downloads",
    "refa": null
   }
  }

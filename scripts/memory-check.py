@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""dm's memory and threads at rest, against a budget (gaps row 137).
+"""EDM's memory and threads at rest, against a budget (gaps row 137).
 
     python scripts/memory-check.py            # the release build
-    DM_BINARY=path\\to\\dm-gpui.exe python scripts/memory-check.py
+    EDM_BINARY=path\\to\\edm-gpui.exe python scripts/memory-check.py
 
-Starts dm with a home of its own (nothing of the person's is read or written),
+Starts EDM with a home of its own (nothing of the person's is read or written),
 waits for its window to settle, then samples it for a while and prints the
 working set, the private bytes, the threads and the handles. Fails when the
 average working set or the private bytes go over the budget
-(`DM_MEMORY_BUDGET_MB`, `DM_PRIVATE_BUDGET_MB`). On Windows it reads the
+(`EDM_MEMORY_BUDGET_MB`, `EDM_PRIVATE_BUDGET_MB`). On Windows it reads the
 process through PowerShell's Get-Process; on macOS the working set is the
 resident size (`ps`), the private bytes the physical footprint (`footprint`),
 and the handles the open files (`lsof`).
 
 What produced the numbers (the commit, rustc, the target, the profile, the GPU and the
-display scale: `provenance.py`) is printed with them, and with `DM_MEMORY_JSON=FILE` the
+display scale: `provenance.py`) is printed with them, and with `EDM_MEMORY_JSON=FILE` the
 samples and it are written there as JSON (gaps row 188).
 """
 import importlib.util
@@ -40,18 +40,18 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or (
-    "D:/dm-target/release/dm-gpui.exe" if sys.platform == "win32"
-    else ROOT / "target/release/dm-gpui"))
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or (
+    "D:/edm-target/release/edm-gpui.exe" if sys.platform == "win32"
+    else ROOT / "target/release/edm-gpui"))
 # A third more than measured at rest: on macOS on 2026-11-06 (112 MB resident, 75 MB
 # footprint, 37 MB of which the window's drawing surfaces), on Windows 11 on
 # 2026-11-07 (working set 64 to 76 MB, private bytes 30.5 to 30.7 MB, 25 or 26
 # threads, 478 to 483 handles, three runs): a regression, not the system's own
 # share, is what fails it.
-WORKING_BUDGET_MB = float(os.environ.get("DM_MEMORY_BUDGET_MB", "150" if sys.platform == "darwin" else "100"))
-PRIVATE_BUDGET_MB = float(os.environ.get("DM_PRIVATE_BUDGET_MB", "100" if sys.platform == "darwin" else "40"))
-SETTLE_S = float(os.environ.get("DM_MEMORY_SETTLE_S", "15"))
-SAMPLES = int(os.environ.get("DM_MEMORY_SAMPLES", "20"))
+WORKING_BUDGET_MB = float(os.environ.get("EDM_MEMORY_BUDGET_MB", "150" if sys.platform == "darwin" else "100"))
+PRIVATE_BUDGET_MB = float(os.environ.get("EDM_PRIVATE_BUDGET_MB", "100" if sys.platform == "darwin" else "40"))
+SETTLE_S = float(os.environ.get("EDM_MEMORY_SETTLE_S", "15"))
+SAMPLES = int(os.environ.get("EDM_MEMORY_SAMPLES", "20"))
 _spec = importlib.util.spec_from_file_location("provenance", ROOT / "scripts" / "provenance.py")
 prov = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(prov)
@@ -82,7 +82,7 @@ def sample_mac(pid):
     handles = max(len(run("lsof", "-n", "-P", "-p", str(pid)).splitlines()) - 1, 0)
     footprint = 0.0
     for line in run("footprint", "-p", str(pid)).splitlines():
-        # "dm-desktop [123]: 64-bit    Footprint: 41 MB (16384 bytes per page)"
+        # "edm-desktop [123]: 64-bit    Footprint: 41 MB (16384 bytes per page)"
         if "Footprint:" in line:
             amount, unit = line.split("Footprint:")[1].split()[:2]
             footprint = float(amount) * {"KB": 2**-10, "MB": 1, "GB": 2**10}.get(unit, 1)
@@ -94,38 +94,38 @@ def main():
     if sys.platform not in ("win32", "darwin"):
         sys.exit("memory-check.py reads the process on Windows and macOS only")
     if not BINARY.exists():
-        sys.exit(f"no dm at {BINARY}: cargo build --release -p {BINARY.stem}")
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-memory-", dir=os.environ.get("DM_MEMORY_TMP")))
-    env = dict(os.environ, DM_HOME=str(home), DM_NO_SECRET_STORE="1")
-    dm = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sys.exit(f"no EDM at {BINARY}: cargo build --release -p {BINARY.stem}")
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-memory-", dir=os.environ.get("EDM_MEMORY_TMP")))
+    env = dict(os.environ, EDM_HOME=str(home), EDM_NO_SECRET_STORE="1")
+    edm = subprocess.Popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         time.sleep(SETTLE_S)
         rows = []
         for _ in range(SAMPLES):
-            got = sample(dm.pid)
+            got = sample(edm.pid)
             if got is None:
-                sys.exit("dm closed while it was measured")
+                sys.exit("EDM closed while it was measured")
             rows.append(got)
             time.sleep(1)
     finally:
-        dm.terminate()
+        edm.terminate()
         try:
-            dm.wait(timeout=10)
+            edm.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            dm.kill()
+            edm.kill()
     working = [r[0] for r in rows]
     private = [r[1] for r in rows]
     threads = [r[2] for r in rows]
     handles = [r[3] for r in rows]
-    print(f"dm at rest, {len(rows)} samples after {SETTLE_S:.0f} s ({BINARY}):")
+    print(f"EDM at rest, {len(rows)} samples after {SETTLE_S:.0f} s ({BINARY}):")
     print(f"  working set  {statistics.mean(working):6.1f} MB average, {max(working):6.1f} MB peak")
     print(f"  private      {statistics.mean(private):6.1f} MB average, {max(private):6.1f} MB peak")
     print(f"  threads      {min(threads)} to {max(threads)}")
     print(f"  handles      {min(handles)} to {max(handles)}")
     made_by = prov.provenance(BINARY, {"rows": 0, "settle_s": SETTLE_S, "samples": len(rows)})
     print(f"  made by      {prov.line(made_by)}")
-    if os.environ.get("DM_MEMORY_JSON"):
-        pathlib.Path(os.environ["DM_MEMORY_JSON"]).write_text(json.dumps({
+    if os.environ.get("EDM_MEMORY_JSON"):
+        pathlib.Path(os.environ["EDM_MEMORY_JSON"]).write_text(json.dumps({
             "provenance": made_by,
             "budget_mb": {"working": WORKING_BUDGET_MB, "private": PRIVATE_BUDGET_MB},
             "samples": [dict(zip(("working_mb", "private_mb", "threads", "handles"), r)) for r in rows],

@@ -1,10 +1,10 @@
 name: Next GPUI
 
-# Whether dm's patched GPUI copies (vendor/gpui-pre-linux and gpui-pre-windows, gaps rows
+# Whether EDM's patched GPUI copies (vendor/gpui-pre-linux and gpui-pre-windows, gaps rows
 # A17 and X5) carry over to the next gpui-pre snapshot. Weekly, crates.io is asked for the newest
 # gpui-pre; where it is newer than the one Cargo.toml pins, `cargo xtask vendor --version`
-# makes both copies from it with dm's patches (no SHA-256 is held for a new version, and the
-# command says so), the pin is moved to it in this run's checkout alone, and dm-gpui is checked on
+# makes both copies from it with EDM's patches (no SHA-256 is held for a new version, and the
+# command says so), the pin is moved to it in this run's checkout alone, and edm-gpui is checked on
 # Linux. The job summary says whether each patch still applies and whether the build passes; the
 # job fails where one does not. Nothing is committed or pushed: moving to the new snapshot is done
 # by hand, as vendor/README.md says.
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   next-gpui:
-    name: The next gpui-pre, with dm's patches
+    name: The next gpui-pre, with EDM's patches
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -27,7 +27,7 @@ jobs:
       - name: Ask crates.io for the newest snapshot
         id: next
         env:
-          UA: dm-vendor-check (github actions)
+          UA: edm-vendor-check (github actions)
         run: |
           set -eu
           held=$(sed -n 's/^gpui = { package = "gpui-pre", version = "=\([^"]*\)" }.*$/\1/p' \
@@ -82,7 +82,7 @@ jobs:
         with:
           save-if: false
 
-      - name: What the window (dm-gpui, GPUI) builds against
+      - name: What the window (edm-gpui, GPUI) builds against
         if: steps.next.outputs.newer == 'true'
         run: |
           sudo apt-get update
@@ -91,7 +91,7 @@ jobs:
             libvulkan-dev
 
       # Each copy alone, so the summary can say which patch no longer applies.
-      - name: Make both GPUI copies from it, with dm's patches
+      - name: Make both GPUI copies from it, with EDM's patches
         id: vendor
         if: steps.next.outputs.newer == 'true'
         env:
@@ -108,7 +108,7 @@ jobs:
             cat "$log"
           done
 
-      - name: Pin dm-gpui to it (this checkout alone)
+      - name: Pin edm-gpui to it (this checkout alone)
         if: steps.next.outputs.newer == 'true' && steps.vendor.outputs.linux == 'applied'
         env:
           HELD: ${{ steps.next.outputs.held }}
@@ -121,13 +121,13 @@ jobs:
 
       # Not --locked: the lock file moves to the new snapshot here. A copy whose version the
       # graph does not ask for is left unused by cargo, which says so; that is a failure too.
-      - name: Check dm-gpui on Linux with it
+      - name: Check edm-gpui on Linux with it
         id: build
         if: steps.next.outputs.newer == 'true' && steps.vendor.outputs.linux == 'applied'
         run: |
           set -u
           log="$RUNNER_TEMP/check.log"
-          if cargo check -p dm-gpui > "$log" 2>&1; then
+          if cargo check -p edm-gpui > "$log" 2>&1; then
             if grep -q 'was not used in the crate graph' "$log"; then
               echo "result=unused" >> "$GITHUB_OUTPUT"
             else
@@ -159,13 +159,13 @@ jobs:
             fi
           }
           {
-            echo "### gpui-pre $NEXT with dm's patches"
+            echo "### gpui-pre $NEXT with EDM's patches"
             echo
             echo "| What | Result |"
             echo "| --- | --- |"
             echo "| patches/gpui-pre-linux.patch | $LINUX |"
             echo "| patches/gpui-pre-windows.patch | $WINDOWS |"
-            echo "| cargo check -p dm-gpui (Linux) | $BUILD |"
+            echo "| cargo check -p edm-gpui (Linux) | $BUILD |"
             echo
             echo "The Windows copy is only applied here; it is built on Windows when it is moved to."
             echo "unused: cargo built the published gpui-pre-linux, not the copy (another crate"
@@ -173,10 +173,10 @@ jobs:
             echo
             tail_of "cargo xtask vendor gpui-pre-linux" "$RUNNER_TEMP/vendor-linux.log"
             tail_of "cargo xtask vendor gpui-pre-windows" "$RUNNER_TEMP/vendor-windows.log"
-            tail_of "cargo check -p dm-gpui" "$RUNNER_TEMP/check.log"
+            tail_of "cargo check -p edm-gpui" "$RUNNER_TEMP/check.log"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$LINUX" != applied ] || [ "$WINDOWS" != applied ] \
             || [ "$BUILD" != passed ]; then
-            echo "gpui-pre $NEXT: a patch no longer applies or dm-gpui does not build" >&2
+            echo "gpui-pre $NEXT: a patch no longer applies or edm-gpui does not build" >&2
             exit 1
           fi

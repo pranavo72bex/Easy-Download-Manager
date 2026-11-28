@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The video panel's hard cases, in Chromium over the DevTools protocol.
@@ -16,8 +16,8 @@ clip letterboxed in a wide player.
     python3 scripts/panel-check.py      (from the repository root;
                                          CHROME_PATH names Chromium)
 
-It reuses chrome-check.py's browser, server and dm set-up, so it needs what
-that needs: the extension built (sh scripts/package.sh) and dm built.
+It reuses chrome-check.py's browser, server and EDM set-up, so it needs what
+that needs: the extension built (sh scripts/package.sh) and EDM built.
 """
 import importlib.util, json, os, pathlib, shutil, signal, subprocess, sys, tempfile, threading, time
 
@@ -68,7 +68,7 @@ PAGES = {
 cc.PANEL_PAGES.update(PAGES)
 
 STATE = """(() => { const xf = document.getElementById('xf');
-  const h = document.querySelector('dm-panel') || (xf && xf.shadowRoot && xf.shadowRoot.querySelector('dm-panel'));
+  const h = document.querySelector('edm-panel') || (xf && xf.shadowRoot && xf.shadowRoot.querySelector('edm-panel'));
   if (!h) return null;
   const r = h.shadowRoot, go = r.querySelector('.go'), x = r.querySelector('.close');
   return { shown: getComputedStyle(h).display !== 'none', dir: getComputedStyle(h).direction,
@@ -90,7 +90,7 @@ def key(tab, name, code, vk, shift=False):
 
 def main():
     chrome = cc.find_chrome()
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-panel-extra-"))
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-panel-extra-"))
     ext, profile = work / "ext", work / "profile"
     (profile / "Default").mkdir(parents=True)
     shutil.copytree(cc.EXT, ext)
@@ -157,15 +157,15 @@ def main():
         check("Tab walks ? and ×", s.get("active") == "close", str(s))
         key(tab, "Enter", "Enter", 13)
         s = tab.evaluate(STATE) or {}
-        items = tab.evaluate("[...document.querySelector('dm-panel').shadowRoot.querySelectorAll('.item')].map(i => i.textContent)")
+        items = tab.evaluate("[...document.querySelector('edm-panel').shadowRoot.querySelectorAll('.item')].map(i => i.textContent)")
         check("Enter on × opens its menu with the focus on its first line",
               s.get("active") == "item" and items and items[0] == "Hide for now", f"{s} {items}")
         key(tab, "ArrowDown", "ArrowDown", 40)
-        focused = tab.evaluate("document.querySelector('dm-panel').shadowRoot.activeElement.textContent")
+        focused = tab.evaluate("document.querySelector('edm-panel').shadowRoot.activeElement.textContent")
         check("ArrowDown moves down the menu", (focused or "").startswith("Never on"), focused)
         key(tab, "Escape", "Escape", 27)
         s = tab.evaluate(STATE) or {}
-        open_ = tab.evaluate("!document.querySelector('dm-panel').shadowRoot.querySelector('.list').hidden")
+        open_ = tab.evaluate("!document.querySelector('edm-panel').shadowRoot.querySelector('.list').hidden")
         check("Escape closes the menu, back on the bar", s.get("active") == "go" and not open_, str(s))
         key(tab, "Escape", "Escape", 27)
         time.sleep(0.5)
@@ -209,18 +209,18 @@ def main():
 
         tab = page("/nowasm.html")
         tab.call("Runtime.enable")
-        has_panel = tab.evaluate("!!document.querySelector('dm-panel')")
+        has_panel = tab.evaluate("!!document.querySelector('edm-panel')")
         print(f"  (info) panel element on a script-src 'none' page: {has_panel}")
         tab_id = cc.wait_for(lambda: worker.evaluate(
             "chrome.tabs.query({active: true, lastFocusedWindow: true}).then(ts => ts[0] && ts[0].id)"), 5)
-        links = worker.evaluate(f"chrome.tabs.sendMessage({tab_id}, {{type: 'dm.links', selected: false}}).then(r => r.links)")
+        links = worker.evaluate(f"chrome.tabs.sendMessage({tab_id}, {{type: 'EDM.links', selected: false}}).then(r => r.links)")
         check("the page's links are answered by the plain page script",
               links and len(links) == 2 and links[0].endswith("/files/alt.bin"), str(links))
         # Alt-click: the content script's message reaches the worker, which
         # remembers the URL; read it back by Alt-clicking and asking the
         # worker's own listener through a page-message spy.
         worker.evaluate("""globalThis.__skips = []; chrome.runtime.onMessage.addListener((m) => {
-            if (m && m.type === 'dm.skip') globalThis.__skips.push(m.src); return false; }); true""")
+            if (m && m.type === 'EDM.skip') globalThis.__skips.push(m.src); return false; }); true""")
         r = tab.evaluate("(() => { const b = document.getElementById('l').getBoundingClientRect(); return [b.left + 5, b.top + 5]; })()")
         for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
             p = {"type": kind, "x": r[0], "y": r[1], "button": "left", "modifiers": 1}

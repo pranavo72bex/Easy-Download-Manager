@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""How long from a click in the browser to dm's first request for the file.
+"""How long from a click in the browser to EDM's first request for the file.
 
-Plays the browser: starts the dm binary as a native messaging host, sends the
+Plays the browser: starts the EDM binary as a native messaging host, sends the
 `download.start` the extension sends for a click, and times how long until a
-local file server sees dm ask for the file. Twice over:
+local file server sees EDM ask for the file. Twice over:
 
-  cold  no dm running, so the host starts one (`--desktop --headless`)
-  warm  that dm still running, so the hand-off is only filed and read
+  cold  no EDM running, so the host starts one (`--desktop --headless`)
+  warm  that EDM still running, so the hand-off is only filed and read
 
-Each case is run several times and the median is printed. Needs a built dm
+Each case is run several times and the median is printed. Needs a built EDM
 and a display (Xvfb will do):
 
-    cargo build --release -p dm-gpui
-    xvfb-run -a python3 scripts/launch-latency.py target/release/dm-gpui
+    cargo build --release -p edm-gpui
+    xvfb-run -a python3 scripts/launch-latency.py target/release/edm-gpui
 """
 
 import http.server
@@ -75,7 +75,7 @@ class Server(http.server.BaseHTTPRequestHandler):
 
 
 def ring(home):
-    """Rings dm's inbox bell, as dm's own writers do: it looks at once, not at its next look,
+    """Rings EDM's inbox bell, as EDM's own writers do: it looks at once, not at its next look,
     seconds away (gaps row S18)."""
     import socket
     try:
@@ -98,12 +98,12 @@ def read_frame(pipe):
     return json.loads(pipe.read(n))
 
 
-def click(dm, env, url, n):
+def click(edm, env, url, n):
     """Times one hand-off: host started, request sent, answer read."""
     before = len(Server.seen)
     clicked = time.monotonic()
     host = subprocess.Popen(
-        [dm, "--native-host"],
+        [edm, "--native-host"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         env=env,
@@ -129,13 +129,13 @@ def click(dm, env, url, n):
     while len(Server.seen) == before and time.monotonic() < deadline:
         time.sleep(0.001)
     if len(Server.seen) == before:
-        raise SystemExit(f"dm never asked for the file (host said {answer})")
+        raise SystemExit(f"EDM never asked for the file (host said {answer})")
     first = Server.seen[before][0]
     return (answered - clicked) * 1000, (first - clicked) * 1000
 
 
 def main():
-    dm = os.path.abspath(sys.argv[1])
+    edm = os.path.abspath(sys.argv[1])
     runs = int(sys.argv[2]) if len(sys.argv) > 2 else 7
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Server)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -143,15 +143,15 @@ def main():
 
     cold, warm = [], []
     for n in range(runs):
-        home = tempfile.mkdtemp(prefix="dm-latency-")
-        env = dict(os.environ, DM_HOME=home)
+        home = tempfile.mkdtemp(prefix="edm-latency-")
+        env = dict(os.environ, EDM_HOME=home)
         os.makedirs(os.path.join(home), exist_ok=True)
         with open(os.path.join(home, "settings.json"), "w", encoding="utf-8") as f:
             json.dump({"download_dir": os.path.join(home, "out")}, f)
         try:
-            cold.append(click(dm, env, f"{base}/cold{n}.bin", n * 2))
-            time.sleep(1.5)  # the first download finishes; dm stays
-            warm.append(click(dm, env, f"{base}/warm{n}.bin", n * 2 + 1))
+            cold.append(click(edm, env, f"{base}/cold{n}.bin", n * 2))
+            time.sleep(1.5)  # the first download finishes; EDM stays
+            warm.append(click(edm, env, f"{base}/warm{n}.bin", n * 2 + 1))
         finally:
             # Asked to end through its inbox, as an uninstall asks it.
             inbox = os.path.join(home, "inbox")
@@ -159,7 +159,7 @@ def main():
             open(os.path.join(inbox, "quit"), "w", encoding="utf-8").close()
             ring(home)
             time.sleep(1.5)
-            subprocess.run(["pkill", "-f", f"{dm} --desktop"], check=False)
+            subprocess.run(["pkill", "-f", f"{edm} --desktop"], check=False)
             shutil.rmtree(home, ignore_errors=True)
 
     for name, rows in (("cold", cold), ("warm", warm)):

@@ -1,14 +1,14 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Loads dm's extension into Brave and looks at what a page with a video gets.
+"""Loads EDM's extension into Brave and looks at what a page with a video gets.
 
 Run by ext-check.sh inside the image. For each manifest variant ("old" keeps
 use_dynamic_url, "fixed" is the one in the repository) it opens a page with a
 <video> from a local server, moves the pointer over it, and reports whether
-the panel's WebAssembly loaded (a <dm-panel> element appears) and every
+the panel's WebAssembly loaded (a <edm-panel> element appears) and every
 console message about the extension's address.
 """
 import base64, http.server, json, os, pathlib, shutil, socket, socketserver, struct, subprocess, sys, threading, time, urllib.request, hashlib
@@ -113,14 +113,14 @@ def run(name, scenario="plain"):
             try: return json.load(urllib.request.urlopen("http://127.0.0.1:9333/json/version", timeout=2))
             except Exception: time.sleep(1)
     if scenario == "private":
-        # dm allowed in Private windows (a setting in its Details page), the video opened in one
+        # EDM allowed in Private windows (a setting in its Details page), the video opened in one
         b = launch("about:blank"); ver = debugger(); ws = WS(ver["webSocketDebuggerUrl"]); time.sleep(5)
         try: ws.call("Browser.close", wait=10)
         except Exception: pass
         b.wait(30); subprocess.run("pkill -f brave", shell=True); time.sleep(2)
         pf = pathlib.Path(prof) / "Default/Preferences"; p = json.loads(pf.read_text(encoding="utf-8"))
         for k, v in p.get("extensions", {}).get("settings", {}).items():
-            if "dm" in json.dumps(v.get("manifest", {}).get("name", "")) or v.get("path", "").startswith("/root/ext"): v["incognito"] = True
+            if "EDM" in json.dumps(v.get("manifest", {}).get("name", "")) or v.get("path", "").startswith("/root/ext"): v["incognito"] = True
         pf.write_text(json.dumps(p), encoding="utf-8")
         sp = pathlib.Path(prof) / "Default/Secure Preferences"
         if sp.exists():
@@ -174,13 +174,13 @@ def run(name, scenario="plain"):
         for _ in range(int(os.environ.get("TRIES", 12))):
             ws.call("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": 300 + _ * 5, "y": 200}, session=s)
             ws.drain(1)
-            v = ws.call("Runtime.evaluate", {"expression": "document.querySelector('dm-panel') !== null"}, session=s)
+            v = ws.call("Runtime.evaluate", {"expression": "document.querySelector('edm-panel') !== null"}, session=s)
             if v and v.get("result", {}).get("result", {}).get("value"): found = True; break
         for e in ws.events:
             p = e.get("params", {})
             if e.get("method") == "Network.requestWillBeSent" and p["request"]["url"].startswith("chrome-extension://"): msgs.append("request " + p["request"]["url"])
             txt = p.get("entry", {}).get("text") or " ".join(str(a.get("value", a.get("description", ""))) for a in p.get("args", []))
-            if txt and (os.environ.get("ALL") or "Unsafe attempt" in txt or "chrome-extension" in txt or "dm:" in txt): msgs.append(txt[:200])
+            if txt and (os.environ.get("ALL") or "Unsafe attempt" in txt or "chrome-extension" in txt or "EDM:" in txt): msgs.append(txt[:200])
         return loaded, msgs, found
     finally:
         b.terminate()

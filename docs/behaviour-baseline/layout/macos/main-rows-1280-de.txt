@@ -1,7 +1,7 @@
-# dm's window, scene main-rows-1280-de (macos, 1280x720, de, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene main-rows-1280-de (macos, 1280x720, de, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "Aufgaben" 118 8 181 29
 "Datei" 197 8 236 29
 "Downloads" 252 8 323 29
@@ -31,10 +31,10 @@
 "Haupt-Warteschlange" 40 351.5 168 372.5
 "3" 176 353 183 371
 "Prüf-Warteschlange" 40 379.5 175 400.5
-"dm zum Browser hinzufügen:" 236 95.5 439 116.5
-"Microsoft Edge" 462 95.5 572 116.5
-"Firefox" 610 95.5 665 116.5
-"Chrome und andere" 703 95.5 836 116.5
+"EDM zum Browser hinzufügen:" 236 95.5 447 116.5
+"Microsoft Edge" 470 95.5 580 116.5
+"Firefox" 618 95.5 673 116.5
+"Chrome und andere" 711 95.5 844 116.5
 "Nicht jetzt" 1167 95.5 1253 116.5
 "Dateiname" 212 129.5 272 147.5
 "Größe" 650 129.5 683 147.5

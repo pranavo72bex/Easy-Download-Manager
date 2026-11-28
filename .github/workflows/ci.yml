@@ -1,10 +1,10 @@
 name: CI
 
-# The browser extension: Rust (crates/dm-catcher/) compiled to WebAssembly, a loader
+# The browser extension: Rust (crates/edm-catcher/) compiled to WebAssembly, a loader
 # and two manifests (extension/). Its deciding parts are tested on the
 # runner; the WebAssembly is built and zipped for both browsers; and the
 # built extension is loaded into Chrome for Testing and watched handing a
-# download to a real dm. The desktop app has its own workflow.
+# download to a real EDM. The desktop app has its own workflow.
 on:
   push:
     branches: [main]
@@ -18,7 +18,7 @@ jobs:
   bots-skills:
     # What the free-model bots read (docs/ai-skills/, .claude/skills/) is checked on every push:
     # vendored files at their pinned SHA-256, no hidden or direction-changing character, no
-    # line written to steer a model, no link in dm's own pages, nothing executable
+    # line written to steer a model, no link in EDM's own pages, nothing executable
     # (scripts/ai-skills-check.py; docs/ai-skills/README.md).
     # And the bots' guardrails themselves (scripts/ai-selftest.sh): each refusal tried on a
     # throwaway repository, so a guardrail that stops working fails here, before a bot
@@ -51,19 +51,19 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: Test what it decides
-        working-directory: crates/dm-catcher
+        working-directory: crates/edm-catcher
         run: cargo test
 
       # Twice: the host build sees only the deciding parts, the wasm32 build
       # the browser side as well.
       - name: Refuse warnings
-        working-directory: crates/dm-catcher
+        working-directory: crates/edm-catcher
         run: |
           cargo clippy --all-targets -- -D warnings
           cargo clippy --target wasm32-unknown-unknown -- -D warnings
 
       - name: Check formatting
-        working-directory: crates/dm-catcher
+        working-directory: crates/edm-catcher
         run: cargo fmt -- --check
 
       # Installs the wasm-bindgen CLI matching Cargo.lock, builds the
@@ -78,7 +78,7 @@ jobs:
           path: dist/*.zip
 
   contract-coverage:
-    # What the extension and the app say to each other (gaps row A22): dm-protocol, the
+    # What the extension and the app say to each other (gaps row A22): edm-protocol, the
     # extension's deciding parts and the native host, each file held to 95% of its lines
     # (docs/contract-coverage-floor.txt, the maintainer, 2026-11-15). An app update must never
     # stop an extension a store has not yet updated, so code added to the contract untested
@@ -97,13 +97,13 @@ jobs:
       - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
         with:
           tool: cargo-llvm-cov
-      - name: Install what dm-shell links
+      - name: Install what edm-shell links
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk libfontconfig-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
       - name: Measure, and hold each file to the floor
         run: python3 scripts/contract-coverage.py
 
   browser:
-    name: In Chrome for Testing, handing off to dm
+    name: In Chrome for Testing, handing off to EDM
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -113,7 +113,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
-      - name: Linux libraries dm links and Chrome needs
+      - name: Linux libraries EDM links and Chrome needs
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb \
@@ -121,17 +121,17 @@ jobs:
             libatk1.0-0 libatk-bridge2.0-0 libcups2 libpango-1.0-0 libcairo2
           sudo apt-get install -y libasound2t64 || sudo apt-get install -y libasound2
           # What the window draws with where there is no GPU: Mesa's software Vulkan
-          # (lavapipe), as store-check.yml has it. Without it the dm the native host starts
+          # (lavapipe), as store-check.yml has it. Without it the EDM the native host starts
           # for a page's links never opened, and none was queued (gaps row C1; the egui
           # window drew with OpenGL, which llvmpipe gave it).
           sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libgl1-mesa-dri libegl1
-          # What the window (dm-gpui, GPUI) builds against.
+          # What the window (edm-gpui, GPUI) builds against.
           sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
             libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
 
-      - name: Build dm and the extension
+      - name: Build EDM and the extension
         run: |
-          cargo build -p dm-gpui
+          cargo build -p edm-gpui
           sh scripts/package.sh
 
       - name: Load it and watch a hand-off

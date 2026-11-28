@@ -1,16 +1,16 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-# dm as someone new meets it, with real X11 input, in a Linux container:
+# EDM as someone new meets it, with real X11 input, in a Linux container:
 #
 #   sh scripts/linux-newcomer-check.sh          # screenshots into ./human-shots/newcomer
-#   DM_SHOTS=/some/folder sh scripts/linux-newcomer-check.sh
+#   EDM_SHOTS=/some/folder sh scripts/linux-newcomer-check.sh
 #
 # Runs scripts/linux/newcomer.py under Xvfb with a window manager (openbox),
-# xdotool and the accessibility bus, on a fresh dm home: the browser bar, a
+# xdotool and the accessibility bus, on a fresh EDM home: the browser bar, a
 # file added by hand, a broken link, words that are no link, a real YouTube
 # page with nothing installed (needs the network), Options › Browser and
 # not now. Screenshots are copied out of a Docker volume, since Docker
@@ -19,33 +19,33 @@ set -e
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/linux/window.sh
 . scripts/linux/window.sh
-docker volume rm dm-newcomer-shots >/dev/null 2>&1 || true
-docker build -q -t dm-linux-check scripts/linux >/dev/null
+docker volume rm edm-newcomer-shots >/dev/null 2>&1 || true
+docker build -q -t edm-linux-check scripts/linux >/dev/null
 status=0
 git ls-files -z --cached --others --exclude-standard \
   | tar --null -T - -cf - \
-  | docker run --rm -i -e DM_BINARY="/target/debug/$binary" \
-      -v dm-linux-target:/target \
-      -v dm-newcomer-shots:/shots \
+  | docker run --rm -i -e EDM_BINARY="/target/debug/$binary" \
+      -v edm-linux-target:/target \
+      -v edm-newcomer-shots:/shots \
       -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
-      dm-linux-check sh -c '
+      edm-linux-check sh -c '
         set -e
         mkdir -p /work && cd /work && tar -xf -
         apt-get update >/dev/null
         apt-get install -y --no-install-recommends openbox xdotool x11-utils wmctrl dbus-x11 \
           at-spi2-core python3-pyatspi libglib2.0-bin imagemagick >/dev/null
-        cargo build -q -p "$(basename "$DM_BINARY")"
+        cargo build -q -p "$(basename "$EDM_BINARY")"
         export DISPLAY=:81
         Xvfb :81 -screen 0 1280x800x24 >/dev/null 2>&1 &
         sleep 1
         openbox >/dev/null 2>&1 &
         dbus-launch --exit-with-session python3 scripts/linux/newcomer.py
       ' || status=$?
-SHOTS="${DM_SHOTS:-$PWD/human-shots/newcomer}"
+SHOTS="${EDM_SHOTS:-$PWD/human-shots/newcomer}"
 mkdir -p "$SHOTS"
-docker rm -f dm-newcomer-shots-copy >/dev/null 2>&1 || true
-docker create --name dm-newcomer-shots-copy -v dm-newcomer-shots:/shots dm-linux-check true >/dev/null
-docker cp dm-newcomer-shots-copy:/shots/. "$SHOTS" >/dev/null 2>&1 || true
-docker rm -f dm-newcomer-shots-copy >/dev/null 2>&1 || true
+docker rm -f edm-newcomer-shots-copy >/dev/null 2>&1 || true
+docker create --name edm-newcomer-shots-copy -v edm-newcomer-shots:/shots edm-linux-check true >/dev/null
+docker cp edm-newcomer-shots-copy:/shots/. "$SHOTS" >/dev/null 2>&1 || true
+docker rm -f edm-newcomer-shots-copy >/dev/null 2>&1 || true
 echo "screenshots: $SHOTS"
 exit $status

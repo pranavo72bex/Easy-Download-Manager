@@ -11,13 +11,13 @@ step.
    to the morning hour, for example 07:00. Hours that end before they start
    run overnight.
 5. Under **Every week, on the days ticked**, tick the nights you want.
-6. Under **When the scheduled downloads are done**, choose what dm does
-   after: **Do nothing**, **Exit dm**, **Sleep**, **Hibernate** or **Turn off
+6. Under **When the scheduled downloads are done**, choose what EDM does
+   after: **Do nothing**, **Exit EDM**, **Sleep**, **Hibernate** or **Turn off
    computer**.
 7. Click **OK**.
 8. Add your downloads with **Add for later** in
    [Download details](download-details.md), in the **Main queue**.
-9. Leave dm running (it can stay in the tray). At the start hour the queue
+9. Leave EDM running (it can stay in the tray). At the start hour the queue
    starts by itself; at the stop hour what is still running stops, and goes
    on the next night.
 

@@ -1,24 +1,24 @@
 {
   "extName": {
-    "message": "dm — Gerenciador de downloads"
+    "message": "EDM — Gerenciador de downloads"
   },
   "extDescription": {
-    "message": "Entrega downloads e vídeos ao app dm, que os baixa. Sem o app, o navegador fica com eles."
+    "message": "Entrega downloads e vídeos ao app EDM, que os baixa. Sem o app, o navegador fica com eles."
   },
   "menuLink": {
-    "message": "Baixar o link com o dm"
+    "message": "Baixar o link com o EDM"
   },
   "menuMedia": {
-    "message": "Baixar a mídia com o dm"
+    "message": "Baixar a mídia com o EDM"
   },
   "menuAllLinks": {
-    "message": "Baixar todos os links com o dm"
+    "message": "Baixar todos os links com o EDM"
   },
   "menuSelectedLinks": {
-    "message": "Baixar os links selecionados com o dm"
+    "message": "Baixar os links selecionados com o EDM"
   },
   "popupLooking": {
-    "message": "Procurando o app dm…"
+    "message": "Procurando o app EDM…"
   },
   "popupCatch": {
     "message": "Capturar downloads"
@@ -80,22 +80,22 @@
     "message": "Nenhum login para entregar desta página"
   },
   "popupOpen": {
-    "message": "Abrir o dm"
+    "message": "Abrir o EDM"
   },
   "popupGetApp": {
-    "message": "Obter o app dm"
+    "message": "Obter o app EDM"
   },
   "popupNoAnswer": {
-    "message": "O app dm não respondeu"
+    "message": "O app EDM não respondeu"
   },
   "popupOpening": {
-    "message": "Abrindo o dm…"
+    "message": "Abrindo o EDM…"
   },
   "popupIsOpen": {
-    "message": "O dm está aberto"
+    "message": "O EDM está aberto"
   },
   "popupConnected": {
-    "message": "Conectado ao dm $VERSION$",
+    "message": "Conectado ao EDM $VERSION$",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -103,7 +103,7 @@
     }
   },
   "popupConnectedOld": {
-    "message": "Conectado ao dm $VERSION$ · atualize o app dm: até lá o navegador fica com os downloads",
+    "message": "Conectado ao EDM $VERSION$ · atualize o app EDM: até lá o navegador fica com os downloads",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -130,13 +130,13 @@
     }
   },
   "popupNotConnected": {
-    "message": "O dm ainda não está conectado a este navegador."
+    "message": "O EDM ainda não está conectado a este navegador."
   },
   "popupStepGet": {
-    "message": "1. Ainda não tem o app dm neste computador? Baixe, instale e abra uma vez."
+    "message": "1. Ainda não tem o app EDM neste computador? Baixe, instale e abra uma vez."
   },
   "popupStepOpen": {
-    "message": "2. Já instalado? Abra o dm (se já estiver aberto, abra de novo). Esta janela se conecta sozinha."
+    "message": "2. Já instalado? Abra o EDM (se já estiver aberto, abra de novo). Esta janela se conecta sozinha."
   },
   "popupAdvanced": {
     "message": "Avançado: $COMMAND$",
@@ -187,7 +187,7 @@
     "message": "Limpar concluídos"
   },
   "popupNotAnswering": {
-    "message": "O dm não respondeu ($REASON$). Abra o dm (se já estiver aberto, abra de novo); esta janela tenta de novo sozinha. Se ainda não responder: $COMMAND$",
+    "message": "O EDM não respondeu ($REASON$). Abra o EDM (se já estiver aberto, abra de novo); esta janela tenta de novo sozinha. Se ainda não responder: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"
@@ -207,13 +207,13 @@
     "message": "Vídeo protegido"
   },
   "panelProtectedSaid": {
-    "message": "Este vídeo é protegido contra cópia, então só o próprio player do site pode reproduzi-lo. O dm não baixa vídeo protegido."
+    "message": "Este vídeo é protegido contra cópia, então só o próprio player do site pode reproduzi-lo. O EDM não baixa vídeo protegido."
   },
   "panelThroughApp": {
-    "message": "esta página, pelo app dm"
+    "message": "esta página, pelo app EDM"
   },
   "panelHelp": {
-    "message": "O dm baixa este vídeo com o app dm, onde você escolhe o nome e a pasta. Um link clicado com a tecla de manter pressionada (Alt, a menos que alterada nas Opções do dm) fica no navegador."
+    "message": "O EDM baixa este vídeo com o app EDM, onde você escolhe o nome e a pasta. Um link clicado com a tecla de manter pressionada (Alt, a menos que alterada nas Opções do EDM) fica no navegador."
   },
   "panelDrag": {
     "message": "Arraste para mover"
@@ -242,22 +242,22 @@
     "message": "Lendo as qualidades…"
   },
   "panelReadingSaid": {
-    "message": "O dm está lendo as qualidades de vídeo desta página; isso pode levar até meio minuto."
+    "message": "O EDM está lendo as qualidades de vídeo desta página; isso pode levar até meio minuto."
   },
   "panelTimedOut": {
-    "message": "O dm não respondeu a tempo. Tente de novo ou clique com o botão direito no vídeo e escolha “Baixar a mídia com o dm”."
+    "message": "O EDM não respondeu a tempo. Tente de novo ou clique com o botão direito no vídeo e escolha “Baixar a mídia com o EDM”."
   },
   "panelSending": {
-    "message": "Enviando ao dm…"
+    "message": "Enviando ao EDM…"
   },
   "panelNotTaken": {
-    "message": "O dm não pôde pegá-lo"
+    "message": "O EDM não pôde pegá-lo"
   },
   "panelUpdated": {
-    "message": "O dm foi atualizado: recarregue esta página para usá-lo"
+    "message": "O EDM foi atualizado: recarregue esta página para usá-lo"
   },
   "panelSent": {
-    "message": "Enviado ao dm"
+    "message": "Enviado ao EDM"
   },
   "panelInBrowser": {
     "message": "Baixando no navegador"
@@ -289,19 +289,19 @@
     }
   },
   "panelAppReading": {
-    "message": "O app dm está lendo esta página para pegar o vídeo"
+    "message": "O app EDM está lendo esta página para pegar o vídeo"
   },
   "panelAppHas": {
-    "message": "O app dm está com ele"
+    "message": "O app EDM está com ele"
   },
   "panelAppDownloading": {
-    "message": "O app dm está baixando"
+    "message": "O app EDM está baixando"
   },
   "panelNoAnswer": {
-    "message": "O dm não respondeu"
+    "message": "O EDM não respondeu"
   },
   "panelFailed": {
-    "message": "O dm não respondeu. Tente de novo ou clique com o botão direito no vídeo e escolha “Baixar a mídia com o dm”."
+    "message": "O EDM não respondeu. Tente de novo ou clique com o botão direito no vídeo e escolha “Baixar a mídia com o EDM”."
   },
   "panelHls": {
     "message": "Stream HLS, melhor qualidade"
@@ -310,7 +310,7 @@
     "message": "Baixar"
   },
   "toastSentMany": {
-    "message": "$COUNT$ downloads enviados ao dm",
+    "message": "$COUNT$ downloads enviados ao EDM",
     "description": "The one toast for several downloads handed to the app together.",
     "placeholders": {
       "count": {

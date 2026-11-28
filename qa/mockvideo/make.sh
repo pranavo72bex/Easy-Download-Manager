@@ -1,7 +1,7 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # The mock video site: a plain <video> page, an HLS stream, an HLS stream
@@ -27,7 +27,7 @@ H
 cat > "$site/nomedia.html" <<H
 <!doctype html><html><head><title>Nothing here</title></head><body><p>No video.</p></body></html>
 H
-# A watch address with no extension, as video sites have: dm does not save
+# A watch address with no extension, as video sites have: EDM does not save
 # such a page as a document (it names no document); it is refused as a page.
 cp "$site/video.html" "$site/watch"
 ls -la "$site" "$site/hls" | head -30

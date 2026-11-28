@@ -1,6 +1,6 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # `cargo xtask <job>`: the project's own checks, from the repository's root,
@@ -10,7 +10,7 @@ xtask = "run --quiet -p xtask --"
 
 # The C runtime linked into the Windows binary rather than loaded from
 # VCRUNTIME140.dll, which a clean Windows does not have and the installer
-# does not bring: without it dm would not start there at all. The same on
+# does not bring: without it EDM would not start there at all. The same on
 # Windows on Arm (gaps row R3), whose installer brings no runtime either.
 # Control Flow Guard (gaps row H13): an indirect call may only land where a function begins;
 # Rust leaves it off unless asked, and `cargo xtask hardening-check` fails a binary without it.

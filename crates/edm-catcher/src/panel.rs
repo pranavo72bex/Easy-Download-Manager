@@ -1,0 +1,271 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! The "Download video" panel's markup and the parts of its behaviour that
+//! need no page: what it looks like, what a key does, and whether a player
+//! is visible enough to offer. The page script (`content.rs`, wasm only)
+//! draws it and asks these; they are tested on the host.
+
+use crate::words::{self, Word};
+
+/// The panel's buttons that [`BODY`] names in English, and the word each is
+/// named by in the browser's language once drawn: its selector, the
+/// attributes that carry the name, and the word.
+pub const NAMED: &[(&str, &[&str], Word)] = &[
+    (".grip", &["title"], words::PANEL_DRAG),
+    (".help", &["aria-label", "title"], words::PANEL_WHAT),
+    (".close", &["aria-label", "title"], words::PANEL_HIDE),
+];
+
+/// The panel's style, inside its shadow root.
+///
+/// `:host { all: initial }` does not reset `direction`, which is inherited
+/// from the page: on a right-to-left page the bar came out mirrored, the ×
+/// on the left. The host is held to left-to-right, as EDM draws it.
+/// A message with no break in it (a long address) wraps anywhere rather
+/// than running out of the bar.
+pub const STYLE: &str = r#"
+:host { all: initial; direction: ltr; unicode-bidi: isolate;
+  /* The app's own colours, radius and type, dark over a player by default
+     and light where the browser is: the panel had an orange of its own. */
+  --surface: rgba(31, 31, 31, .95); --surface-solid: rgba(31, 31, 31, .98);
+  --text: #ffffff; --text2: #d6d6d6; --weak: #adadad; --line: rgba(255,255,255,.18);
+  --hover: rgba(255,255,255,.10); --accent: #479ef5; --on-accent: #0a0a0a;
+  --success: #54b054; --error: #ee7b85; --radius: 4px; }
+@media (prefers-color-scheme: light) {
+  :host { --surface: rgba(255, 255, 255, .96); --surface-solid: rgba(255, 255, 255, .99);
+    --text: #242424; --text2: #424242; --weak: #616161; --line: rgba(0,0,0,.18);
+    --hover: rgba(0,0,0,.06); --accent: #0f6cbd; --on-accent: #ffffff;
+    --success: #0e700e; --error: #c50f1f; }
+}
+* { box-sizing: border-box; margin: 0; font-family: system-ui, -apple-system, Roboto, sans-serif; }
+.panel { width: 240px; color: var(--text); direction: ltr; }
+.wrap {
+  display: flex; align-items: stretch; height: 32px; border-radius: var(--radius); overflow: hidden;
+  background: var(--surface); color: var(--text); user-select: none;
+  border: 1px solid var(--line); box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  font-size: 13px; line-height: 1;
+}
+.wrap.done { border-color: var(--success); }
+.wrap.dead { border-color: var(--error); }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.grip { width: 14px; flex: none; display: flex; align-items: center; justify-content: center;
+  color: var(--weak); font-size: 12px; letter-spacing: -4px; cursor: grab; border-right: 1px solid var(--line); }
+.grip:hover { background: var(--hover); color: var(--text); }
+.grip:active { cursor: grabbing; }
+.go { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px; text-align: left; }
+.go:hover, .go:focus-visible { background: var(--hover); }
+.mark { width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--accent); color: var(--on-accent);
+  display: flex; align-items: center; justify-content: center; }
+.mark svg { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 2.6;
+  stroke-linecap: round; stroke-linejoin: round; }
+.wrap.done .mark { background: var(--success); }
+.wrap.dead .mark { background: var(--error); }
+.title { flex: 1; min-width: 12em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caret { flex: none; font-size: 12px; color: var(--text2); }
+.help, .close { width: 28px; flex: none; color: var(--weak); font-size: 13px; border-left: 1px solid var(--line); }
+.help:hover, .close:hover, .help:focus-visible, .close:focus-visible { background: var(--hover); color: var(--text); }
+.list { margin-top: 4px; border-radius: var(--radius); overflow: hidden; background: var(--surface-solid);
+  border: 1px solid var(--line); box-shadow: 0 8px 20px rgba(0,0,0,.4); max-height: 300px; overflow-y: auto;
+  width: 460px; max-width: 90vw; margin-left: -220px; }
+.item { display: block; width: 100%; padding: 5px 10px; text-align: left; font-size: 12px; white-space: normal; color: var(--text);
+  overflow-wrap: anywhere; border-top: 1px solid var(--line); }
+.item:first-child { border-top: 0; }
+.part { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; color: var(--text2);
+  border-bottom: 1px solid var(--line); }
+.part input { width: 64px; min-width: 0; padding: 4px 6px; font-size: 13px; color: var(--text); background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); }
+.part input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+.item:hover, .item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
+.sub { margin-top: 4px; padding: 8px 8px; border-radius: var(--radius); background: var(--surface);
+  color: var(--text2); font-size: 12px; line-height: 1.4; max-width: 100%; max-height: 160px; overflow-y: auto;
+  white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  clip-path: inset(50%); white-space: nowrap; }
+[hidden] { display: none !important; }
+/* On a narrow video: the download mark and the close mark alone, as reference A's bar. */
+.panel.compact { width: 72px; }
+.panel.compact .title, .panel.compact .caret, .panel.compact .help, .panel.compact .grip { display: none; }
+.panel.compact .go { justify-content: center; padding: 0 4px; }
+.panel.compact .list { margin-left: -388px; }
+"#;
+
+/// The panel's elements. The bar's button is named by its words (the mark
+/// and the ▾ are hidden from screen readers), so what it is called changes
+/// with what it says; `.live` says each result aloud.
+pub const BODY: &str = r#"<div class="panel" role="group" aria-label="EDM">
+<div class="wrap">
+<span class="grip" aria-hidden="true" title="Drag to move">&#8942;&#8942;</span><button class="go" type="button"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v12M6.5 9.5 12 15l5.5-5.5M5 20h14"/></svg></span><span class="title"></span><span class="caret" aria-hidden="true" hidden>&#9662;</span></button>
+<button class="help" type="button" aria-label="What is this?" title="What is this?">?</button>
+<button class="close" type="button" aria-label="Hide" aria-haspopup="menu" title="Hide">&#215;</button>
+</div>
+<div class="list" role="menu" hidden></div>
+<div class="sub" hidden></div>
+<div class="live" role="status" aria-live="polite" aria-atomic="true"></div>
+</div>"#;
+
+/// A key pressed in the panel, as far as the panel cares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Key {
+    /// The Escape key.
+    Escape,
+    /// The Down arrow.
+    Down,
+    /// The Up arrow.
+    Up,
+    /// The Home key.
+    Home,
+    /// The End key.
+    End,
+    /// The Tab key.
+    Tab,
+    /// Shift and Tab together.
+    ShiftTab,
+    /// Any other key.
+    Other,
+}
+
+impl Key {
+    /// From a `KeyboardEvent`'s `key` and whether Shift was held.
+    pub fn of(key: &str, shift: bool) -> Key {
+        match key {
+            "Escape" | "Esc" => Key::Escape,
+            "ArrowDown" | "Down" => Key::Down,
+            "ArrowUp" | "Up" => Key::Up,
+            "Home" => Key::Home,
+            "End" => Key::End,
+            "Tab" if shift => Key::ShiftTab,
+            "Tab" => Key::Tab,
+            _ => Key::Other,
+        }
+    }
+}
+
+/// Where the focus is in the panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    /// The bar's button.
+    Go,
+    /// The help button.
+    Help,
+    /// The close button.
+    Close,
+    /// A line of the open list (qualities, or the × menu), by position.
+    Item(usize),
+}
+
+/// What a key does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Act {
+    /// Close the open list and put the focus back on the bar.
+    CloseList,
+    /// Hide the panel and put the focus back on the player.
+    Hide,
+    /// Moves the focus to this place.
+    Focus(Focus),
+    /// Back to the player, the key's own work stopped (Shift+Tab off the
+    /// bar) or let go on from there (Tab off the last button), so Tab
+    /// carries on through the page as if the panel sat right after the
+    /// player.
+    ToPlayer {
+        /// Whether the key's own work is stopped (Shift+Tab off the bar).
+        stop: bool,
+    },
+    /// Nothing: the browser does what it does.
+    Nothing,
+}
+
+/// What `key` does with the focus at `at` and a list of `lines` lines open
+/// (zero when none is). Enter and Space are a button's own and are not
+/// handled here.
+pub fn act(key: Key, at: Focus, lines: usize) -> Act {
+    let last = lines.saturating_sub(1);
+    match (key, at) {
+        (Key::Escape, _) if lines > 0 => Act::CloseList,
+        (Key::Escape, _) => Act::Hide,
+        (Key::Down, Focus::Item(i)) => Act::Focus(Focus::Item(if i >= last { 0 } else { i + 1 })),
+        (Key::Up, Focus::Item(i)) => Act::Focus(Focus::Item(if i == 0 { last } else { i - 1 })),
+        (Key::Home, Focus::Item(_)) => Act::Focus(Focus::Item(0)),
+        (Key::End, Focus::Item(_)) => Act::Focus(Focus::Item(last)),
+        (Key::Down, _) if lines > 0 => Act::Focus(Focus::Item(0)),
+        (Key::Up, _) if lines > 0 => Act::Focus(Focus::Item(last)),
+        (Key::ShiftTab, Focus::Go) => Act::ToPlayer { stop: true },
+        // Off the last of the bar's buttons, with no list below it.
+        (Key::Tab, Focus::Close) if lines == 0 => Act::ToPlayer { stop: false },
+        (Key::Tab, Focus::Item(i)) if i >= last => Act::ToPlayer { stop: false },
+        _ => Act::Nothing,
+    }
+}
+
+/// Whether a player is visible enough to be offered, by its computed
+/// `opacity` and `visibility`: a transparent or hidden `<video>` (a
+/// background loop faded out, a preloaded clip parked out of sight) is
+/// nothing a person sees to download.
+pub fn looks_visible(opacity: &str, visibility: &str) -> bool {
+    let opaque = opacity.trim().parse::<f64>().map_or(true, |o| o > 0.1);
+    let visibility = visibility.trim();
+    opaque && (visibility.is_empty() || visibility == "visible")
+}
+
+/// The point to hit-test for whether a player is what is seen there: the
+/// middle of the part of it inside the viewport, or `None` when no part is.
+pub fn centre_seen(rect: (f64, f64, f64, f64), viewport: (f64, f64)) -> Option<(f64, f64)> {
+    let (left, top, width, height) = rect;
+    let (view_w, view_h) = viewport;
+    // `NAN.max(0.0)` is 0: an odd layout's NaN is caught before it hides.
+    if ![left, top, width, height, view_w, view_h]
+        .iter()
+        .all(|v| v.is_finite())
+    {
+        return None;
+    }
+    let x0 = left.max(0.0);
+    let y0 = top.max(0.0);
+    let x1 = (left + width).min(view_w);
+    let y1 = (top + height).min(view_h);
+    (x1 > x0 && y1 > y0).then(|| ((x0 + x1) / 2.0, (y0 + y1) / 2.0))
+}
+
+/// Whether a layer at a video's middle, of `layer` square pixels, is the
+/// size of a player's own layer: no larger than the player's box (the
+/// video's closest positioned ancestor, when it has one) or, without one,
+/// than the video, with room for its frame. A dialog over the page is not.
+/// A vertical clip letterboxed in a wide player is judged by the player.
+pub fn layer_fits(video: f64, player: Option<f64>, layer: f64) -> bool {
+    let room = player.filter(|p| p.is_finite()).unwrap_or(0.0).max(video);
+    room > 0.0 && layer.is_finite() && layer <= room * 2.5
+}
+
+/// Whether a frame's whole page is a player's own: a frame (`in_frame`) whose viewport, of
+/// `viewport` square pixels, is the size of a player's layer by `layer_fits`. An embedded
+/// player's frame holds the player and nothing else, so a layer anywhere in it is the player's
+/// (YouTube's embed keeps its controls under the frame's body, gaps row Y12); a page in a frame
+/// as large as a page is judged as any page.
+pub fn frame_is_player(in_frame: bool, video: f64, player: Option<f64>, viewport: f64) -> bool {
+    in_frame && layer_fits(video, player, viewport)
+}
+
+/// Whether `outer` is `inner` or one of its ancestors, by `parent` — the
+/// page's composed tree, where a shadow root's child goes up to its host.
+pub fn composed_within<N: PartialEq>(
+    inner: N,
+    outer: &N,
+    parent: impl Fn(&N) -> Option<N>,
+    limit: usize,
+) -> bool {
+    let mut at = Some(inner);
+    for _ in 0..limit {
+        match at {
+            Some(node) if &node == outer => return true,
+            Some(node) => at = parent(&node),
+            None => return false,
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests;

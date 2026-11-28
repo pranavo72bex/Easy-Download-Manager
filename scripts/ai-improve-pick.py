@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The next row of docs/gaps.md a bot can take: `python3 scripts/ai-improve-pick.py [SKIP…]`.
 
-docs/gaps.md is the maintainer's ranked work list: its rows are what dm should do next, in the
+docs/gaps.md is the maintainer's ranked work list: its rows are what EDM should do next, in the
 order the maintainer set (its sections, top first). A bot takes a row that is OPEN or PARTIAL
 and that needs nothing only a person can give:
 

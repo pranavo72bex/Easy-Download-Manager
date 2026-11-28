@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""A portable dm keeps everything beside itself.
+"""A portable EDM keeps everything beside itself.
 
-    python3 scripts/portable-check.py path/to/dm-gpui[.exe]
+    python3 scripts/portable-check.py path/to/edm-gpui[.exe]
 
 Copies the program into a folder of its own with an empty file named
 `portable` beside it (what the Windows portable zip holds), starts it with no
-window and no `DM_HOME`, on a computer whose usual places for a program's data
+window and no `EDM_HOME`, on a computer whose usual places for a program's data
 (home, AppData, XDG) are all a scratch folder, and checks that:
 
-  * a `dm-data` folder appears beside the program, with its control port in it;
-  * a link added is written to the list in `dm-data`;
-  * nothing of dm's was written to the usual places.
+  * a `edm-data` folder appears beside the program, with its control port in it;
+  * a link added is written to the list in `edm-data`;
+  * nothing of EDM's was written to the usual places.
 
 Standard library only, so it runs on a bare CI machine. Exits non-zero, saying
 what failed.
@@ -43,8 +43,8 @@ source = pathlib.Path(sys.argv[1]).resolve()
 if not source.is_file():
     sys.exit(f"{source} is not a file")
 
-work = pathlib.Path(tempfile.mkdtemp(prefix="dm-portable-"))
-program_dir = work / "dm-portable"
+work = pathlib.Path(tempfile.mkdtemp(prefix="edm-portable-"))
+program_dir = work / "edm-portable"
 decoy = work / "usual-places"
 program_dir.mkdir()
 decoy.mkdir()
@@ -54,7 +54,7 @@ shutil.copy2(source, program)
 # one under test (a software OpenGL, on a CI runner) is not needed headless.
 (program_dir / "portable").write_bytes(b"")
 
-env = {k: v for k, v in os.environ.items() if k != "DM_HOME"}
+env = {k: v for k, v in os.environ.items() if k != "EDM_HOME"}
 for name in ("HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "XDG_DATA_HOME",
              "XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"):
     env[name] = str(decoy)
@@ -70,7 +70,7 @@ def check(what, ok, detail=""):
 
 app = subprocess.Popen([str(program), "--headless", "--control", "0"], env=env, cwd=work,
                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-data = program_dir / "dm-data"
+data = program_dir / "edm-data"
 try:
     port_file = data / "control.port"
     for _ in range(200):
@@ -79,7 +79,7 @@ try:
         if app.poll() is not None:
             break
         time.sleep(0.1)
-    check("a dm-data folder appears beside the program", data.is_dir())
+    check("a edm-data folder appears beside the program", data.is_dir())
     check("its control port is written there", port_file.exists() and port_file.read_text(encoding="utf-8").strip() != "",
           (app.stderr.read().decode(errors="replace")[-300:] if app.poll() is not None else ""))
     if port_file.exists() and (data / "control.token").exists():
@@ -99,7 +99,7 @@ try:
             if listed.exists() and "portable-check.bin" in listed.read_text(encoding="utf-8"):
                 break
             time.sleep(0.1)
-        check("the list is written in dm-data", listed.exists() and "portable-check.bin" in listed.read_text(encoding="utf-8"))
+        check("the list is written in edm-data", listed.exists() and "portable-check.bin" in listed.read_text(encoding="utf-8"))
 finally:
     app.terminate()
     try:
@@ -107,11 +107,11 @@ finally:
     except subprocess.TimeoutExpired:
         app.kill()
 
-# Nothing of dm's in the usual places: its own folder name, or any file it made.
+# Nothing of EDM's in the usual places: its own folder name, or any file it made.
 strays = [str(p.relative_to(decoy)) for p in decoy.rglob("*") if p.is_file()]
 check("nothing was written to the usual places", not strays, ", ".join(strays[:5]))
 
 shutil.rmtree(work, ignore_errors=True)
 if failures:
     sys.exit(f"portable check failed: {', '.join(failures)}")
-print("a portable dm keeps what is its own beside it")
+print("a portable EDM keeps what is its own beside it")

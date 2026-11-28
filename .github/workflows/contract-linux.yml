@@ -2,7 +2,7 @@ name: Contract on Linux
 
 # The behaviour contract's rows (docs/behaviour-contract.md) on CI's Linux runner, as
 # scripts/linux-human-qa.sh runs them in Docker on any machine (gaps row R5): a build of the
-# checkout installed in a Debian 12 container, human-qa.py driving dm's real window on an X
+# checkout installed in a Debian 12 container, human-qa.py driving EDM's real window on an X
 # display, Chromium in Edge's place, the screen pictured every ten seconds. Its words, its record
 # and the pictures are the run's artifact, and scripts/human-qa-report.py writes the rows held,
 # failed and not checked into the run's summary.
@@ -48,7 +48,7 @@ jobs:
       # No rust-cache: linux-human-qa.sh mounts ~/.cargo/registry into its container, which
       # writes there as root.
 
-      # dm's debug build lands in a Docker volume on the runner's own disk.
+      # EDM's debug build lands in a Docker volume on the runner's own disk.
       - name: Room on the disk for the container's build
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
@@ -57,7 +57,7 @@ jobs:
       - name: The extension (dist/chrome), as linux-human-qa.sh asks for it
         run: sh scripts/package.sh
 
-      # Exactly as on a person's machine: dm built in the Debian image linux-check.sh uses,
+      # Exactly as on a person's machine: EDM built in the Debian image linux-check.sh uses,
       # then human-qa.py in Dockerfile.human-qa's image. A failed row ends this step red and
       # the job goes on.
       - name: Every row, as linux-human-qa.sh runs them (reported, not gating)
@@ -65,7 +65,7 @@ jobs:
         continue-on-error: true
         timeout-minutes: 150
         env:
-          DM_SHOTS: ${{ runner.temp }}/human-qa
+          EDM_SHOTS: ${{ runner.temp }}/human-qa
           PYTHONUNBUFFERED: "1"
         run: sh scripts/linux-human-qa.sh
 

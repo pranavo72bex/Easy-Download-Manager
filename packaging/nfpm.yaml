@@ -4,16 +4,16 @@
 #   VERSION=0.1.0 ARCH=amd64 nfpm package -f packaging/nfpm.yaml -p rpm -t dist/
 #
 # Run from the repository root; ARCH is nfpm's name (amd64, arm64).
-name: dm
+name: EDM
 version: ${VERSION}
 arch: ${ARCH}
 platform: linux
 section: net
 priority: optional
-maintainer: dm <noreply@users.noreply.github.com>
+maintainer: EDM <noreply@users.noreply.github.com>
 description: |
   Multi-connection downloads that resume.
-  dm splits a file across several connections, resumes what was
+  EDM splits a file across several connections, resumes what was
   interrupted, and takes over the downloads you start in a browser.
 homepage: https://github.com/pranavo72bex/Easy-Download-Manager
 license: GPL-3.0-or-later
@@ -44,7 +44,7 @@ depends:
   # libsecret-tools.
   - /usr/bin/secret-tool
 
-# A font for names in Chinese, Japanese and Korean: dm draws in the
+# A font for names in Chinese, Japanese and Korean: EDM draws in the
 # computer's own fonts (gap 116), and a system with none showed such names
 # blank (gap 45). Recommended, as it is large;
 # Fedora's name, then openSUSE's.
@@ -53,17 +53,17 @@ recommends:
   - noto-sans-cjk-fonts
 
 contents:
-  - src: target/release/nfpm/dm
-    dst: /usr/bin/dm
+  - src: target/release/nfpm/EDM
+    dst: /usr/bin/EDM
     file_info:
       mode: 0755
-  - src: packaging/dm.desktop
-    dst: /usr/share/applications/dm.desktop
+  - src: packaging/EDM.desktop
+    dst: /usr/share/applications/EDM.desktop
   - src: assets/app-icons/icon.png
-    dst: /usr/share/icons/hicolor/512x512/apps/dm.png
+    dst: /usr/share/icons/hicolor/512x512/apps/EDM.png
   - src: assets/app-icons/128x128.png
-    dst: /usr/share/icons/hicolor/128x128/apps/dm.png
+    dst: /usr/share/icons/hicolor/128x128/apps/EDM.png
   - src: LICENSE
-    dst: /usr/share/licenses/dm/LICENSE
+    dst: /usr/share/licenses/EDM/LICENSE
   - src: NOTICE
-    dst: /usr/share/licenses/dm/NOTICE
+    dst: /usr/share/licenses/EDM/NOTICE

@@ -1,0 +1,779 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! The side panel, as a macOS source list (Finder's, Mail's): a heading for
+//! each group, each place with how many it holds, the chosen one drawn in
+//! the system's selection colour. The places, their counts and their order
+//! come from `edm_shell::app::places`: All Downloads (All,
+//! each kind, a person's own categories), Unfinished, Finished, and Queues.
+//! Its right edge dragged makes it wider or narrower, kept across launches
+//! (`Settings::sidebar_width`), and a name longer than it has room for is cut
+//! with an ellipsis and read whole on hover (gaps row U12).
+
+use edm_core::Category;
+use edm_desktop_base::i18n::{name, t};
+use edm_shell::app::places::Place;
+use edm_shell::settings::SIDEBAR_WIDTH;
+use gpui::{div, prelude::*, Context, Role, SharedString, Window};
+
+use crate::window::list::Downloads;
+use crate::window::screen::Screen;
+use crate::window::theme::Theme;
+use crate::window::zoom::px;
+
+mod follows;
+
+/// How wide the strip at the panel's right edge is that a press there drags, in points.
+const EDGE: f32 = 5.0;
+
+/// What a place's row gives to all but its name, in points: its margins and padding (`mx_2`,
+/// `px_2`: 8 each side), its picture (16) and the gap after it (8), and a gap before its count.
+const ROW_BESIDE_NAME: f32 = 16.0 + 16.0 + PLACE_ICON + 8.0 + 8.0;
+
+/// Whether a name `name` pixels wide, beside a count `count` pixels wide, is cut in a panel
+/// `wide` points across (at 100%) at the scale `factor`: then it is offered whole in a tooltip.
+/// The widths are the laid-out text's (`drawn_width`), not guessed from its letters: a guess
+/// missed names of wide letters (capitals, a W or an M, some scripts) that the panel cut. A
+/// pixel's leeway, and the panel's 1-pixel edge line, err toward offering it.
+fn cut(name: f32, count: f32, wide: f32, factor: f32) -> bool {
+    let room = (wide - ROW_BESIDE_NAME) * factor - 1.0 - count;
+    name > room - 1.0
+}
+
+/// How wide `text` is drawn at `size` points (at 100%) in the window's interface font, in pixels
+/// on screen: laid out by the system's text shaper, which keeps what it laid out from one frame
+/// to the next, so a panel's dozen names cost little.
+pub(crate) fn drawn_width(text: &str, size: f32, window: &Window, cx: &gpui::App) -> f32 {
+    if text.is_empty() {
+        return 0.0;
+    }
+    // One line, as the row draws it: a line break typed into a category's name is a space.
+    let line: SharedString = text.replace(['\n', '\r'], " ").into();
+    let mut style = window.text_style();
+    style.font_family = gpui_component::ActiveTheme::theme(cx).font_family.clone();
+    let run = style.to_run(line.len());
+    let shaped = window
+        .text_system()
+        .shape_line(line, px(size), &[run], None);
+    f32::from(shaped.width)
+}
+
+/// A place's picture beside its name, as Finder's and Mail's sidebars have one: each kind its
+/// row's own (`kind_picture`), and a picture of what the others hold. All drawn in one colour,
+/// the system's accent, as a source list's are (the maintainer: "monocolor").
+fn picture(place: &Place) -> &'static str {
+    match place {
+        Place::All => "icons/place-all.svg",
+        Place::Kind(kind) => crate::window::list::kind_path(Some(*kind)),
+        Place::Custom(_) => "icons/place-folder.svg",
+        Place::Unfinished => "icons/place-unfinished.svg",
+        Place::Finished => "icons/place-finished.svg",
+        Place::Queue(_) => "icons/place-queue.svg",
+    }
+}
+
+/// The kinds' group's heading, and the one it had (kept in `shut_groups` by its English).
+const CATEGORIES: &str = "Categories";
+const OLD_CATEGORIES: &str = "All downloads";
+
+/// Every place the panel lists, in order, with its heading where a group
+/// starts.
+fn places(view: &Downloads) -> Vec<(Option<&'static str>, Place, SharedString)> {
+    let settings = &view.known.drawn;
+    let mut all = vec![(
+        // "Categories", the word View › Categories and "Add or edit categories…" use: "All
+        // downloads" said again what the title and All under it said (the maintainer,
+        // 2026-11-27, "refine it").
+        Some(CATEGORIES),
+        Place::All,
+        SharedString::from(t("All")),
+    )];
+    // Only the kinds that hold a download, and the one shown (the maintainer, 2026-11-27: "more
+    // minimilistic … functional so that user do not have to dig"): an empty kind's place showed
+    // nothing; each comes into the panel with its first download.
+    let categories = settings.categories();
+    for c in Category::ALL {
+        let place = Place::Kind(c);
+        if view.list.place != place && view.list.places.count(&place, &view.rows, &categories) == 0
+        {
+            continue;
+        }
+        let word = edm_shell::app::names::category_word(c);
+        let label = name(&edm_desktop_base::format::titled(&word));
+        all.push((None, place, label.into()));
+    }
+    for custom in &settings.custom_categories {
+        let custom = custom.name.trim();
+        if !custom.is_empty() {
+            all.push((
+                None,
+                Place::Custom(custom.to_string()),
+                custom.to_string().into(),
+            ));
+        }
+    }
+    all.push((Some(""), Place::Unfinished, t("Unfinished").into()));
+    all.push((None, Place::Finished, t("Finished").into()));
+    // As the last read found them, not from every row at each frame.
+    for (i, queue) in view.known.queue_list.iter().cloned().enumerate() {
+        let heading = (i == 0).then_some("Queues");
+        let label = name(&queue);
+        all.push((heading, Place::Queue(queue), label.into()));
+    }
+    all
+}
+
+/// The place chosen's name as the panel lists it, for the phone's top bar (gaps row N7); none
+/// for All, every download, where the bar says "All downloads".
+pub(crate) fn place_name(view: &Downloads) -> Option<SharedString> {
+    if view.list.place == Place::All {
+        return None;
+    }
+    places(view)
+        .into_iter()
+        .find(|(_, place, _)| *place == view.list.place)
+        .map(|(_, _, label)| label)
+}
+
+/// The chosen place's picture, as its row in the panel draws it: for an empty place's notice
+/// in the list (`table::empty`).
+pub(crate) fn place_picture(view: &Downloads) -> &'static str {
+    picture(&view.list.place)
+}
+
+/// A place's row in the side panel, in points: a saved search's and a followed list's too.
+/// 28, as Finder's sidebar and the list's rows, on a computer; a finger's 48 on a phone, where
+/// 28 left the drawer's places cramped at the phone's 15-point words and under a finger's size
+/// (better-accessibility, 2.5.8).
+pub(crate) const PLACE_ROW: f32 = if crate::platform::ON_A_PHONE {
+    crate::widgets::space::TOUCH
+} else {
+    28.0
+};
+
+/// A place's picture: the body's 16 on a computer, a phone's 20 beside its 15-point words.
+pub(crate) const PLACE_ICON: f32 = if crate::platform::ON_A_PHONE {
+    crate::widgets::native::ICON_LARGE
+} else {
+    crate::widgets::native::ICON
+};
+
+/// The drawer's width on a phone, in points: as a phone's navigation drawer takes, where the
+/// computer's 200-point panel stood under half the screen.
+const PHONE_DRAWER: f32 = 300.0;
+
+/// The side panel.
+pub fn sidebar(
+    view: &Downloads,
+    theme: Theme,
+    screen: &Screen,
+    window: &mut Window,
+    cx: &mut Context<Downloads>,
+) -> impl IntoElement {
+    let categories = view.known.drawn.categories();
+    let wide = view.panel_width();
+    div()
+        .id("sidebar-panel")
+        .relative()
+        .w(px(wide))
+        .flex_none()
+        .h_full()
+        .bg(crate::window::theme::frame(theme.sidebar))
+        // On the window's right where it is mirrored, its border and edge on its left (gaps
+        // row U35).
+        .map(|panel| {
+            if crate::window::mirror::rtl() {
+                panel.border_l_1()
+            } else {
+                panel.border_r_1()
+            }
+        })
+        .border_color(theme.separator)
+        // Its edge dragged: the pointer's distance from the panel's left is its width, held
+        // between the least and the most as it moves (from its right where mirrored).
+        .on_drag_move::<ResizingPanel>(cx.listener(
+            |view, event: &gpui::DragMoveEvent<ResizingPanel>, _, cx| {
+                let wide = if crate::window::mirror::rtl() {
+                    f32::from(event.bounds.right() - event.event.position.x)
+                } else {
+                    f32::from(event.event.position.x - event.bounds.left())
+                };
+                view.resize_panel(wide / crate::window::zoom::factor(), cx);
+            },
+        ))
+        // Let go anywhere, over the panel or not: the last width kept.
+        .on_mouse_up(
+            gpui::MouseButton::Left,
+            cx.listener(|view, _, _, cx| view.finish_panel_resize(cx)),
+        )
+        .on_mouse_up_out(
+            gpui::MouseButton::Left,
+            cx.listener(|view, _, _, cx| view.finish_panel_resize(cx)),
+        )
+        .child(
+            div()
+                .id("sidebar")
+                .role(Role::List)
+                .aria_label(t("Places"))
+                .size_full()
+                .overflow_y_scroll()
+                .track_scroll(&view.list.panel_scroll)
+                .py_2()
+                .flex()
+                .flex_col()
+                .children({
+                    // A group shut from its heading shows its heading alone (gaps row U42).
+                    let mut group = "";
+                    let mut rows = Vec::new();
+                    for (i, (heading, place, label)) in places(view).into_iter().enumerate() {
+                        if let Some(h) = heading {
+                            group = h;
+                        }
+                        let shut = view.group_shut(group);
+                        if shut && heading.is_none() {
+                            continue;
+                        }
+                        rows.push(
+                            place_row(
+                                view,
+                                theme,
+                                screen,
+                                window,
+                                cx,
+                                &categories,
+                                i,
+                                heading,
+                                place,
+                                label,
+                                shut,
+                            )
+                            .into_any_element(),
+                        );
+                    }
+                    rows
+                })
+                .children(projects(view, theme, screen, cx)),
+        )
+        // Its bar where places lie past its foot, inside its resizing edge: a place under the
+        // status bar was found only where a row happened to show half (`docs/ui-design.md`
+        // rule 7). Shown as the list's is, and always while there is more to scroll to.
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .map(|bar| {
+                    if crate::window::mirror::rtl() {
+                        bar.left(px(EDGE))
+                    } else {
+                        bar.right(px(EDGE))
+                    }
+                })
+                .w(gpui_base::Scrollbar::width())
+                .child(
+                    gpui_base::Scrollbar::vertical(&view.list.panel_scroll)
+                        .viewport_from_layout()
+                        .mode(if view.list.panel_scroll.max_offset().y > gpui::px(0.0) {
+                            gpui_base::ScrollbarMode::Always
+                        } else {
+                            crate::window::list::scrollbar_mode()
+                        }),
+                ),
+        )
+        .child(
+            div()
+                .id("sidebar-edge")
+                .absolute()
+                .top_0()
+                .map(|edge| {
+                    if crate::window::mirror::rtl() {
+                        edge.left_0()
+                    } else {
+                        edge.right_0()
+                    }
+                })
+                .h_full()
+                .w(px(EDGE))
+                .cursor(gpui::CursorStyle::ResizeLeftRight)
+                // A press here drags the edge and is not a place's click.
+                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                    cx.stop_propagation();
+                })
+                .on_drag(ResizingPanel, |dragged, _, _, cx| cx.new(|_| *dragged)),
+        )
+}
+
+/// A group's heading: small, in the secondary colour, a little bolder, as a source list's
+/// section heading; a click shuts the group or opens it again (gaps row U42). The group under no
+/// heading (Unfinished, Finished) has none to click.
+fn group_heading(
+    heading: &'static str,
+    shut: bool,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> gpui::Stateful<gpui::Div> {
+    div()
+        .id(gpui::ElementId::Name(format!("group-{heading}").into()))
+        .px_4()
+        .pt_3()
+        .pb_1()
+        .flex()
+        .map(crate::window::mirror::row)
+        .items_center()
+        .gap_1()
+        .text_size(px(crate::widgets::native::SMALL_TEXT))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(theme.muted)
+        .when(!heading.is_empty(), |d| {
+            d.role(Role::Button)
+                .aria_label(t(heading))
+                .aria_expanded(!shut)
+                .map(|d| reachable(d, theme))
+                .cursor_pointer()
+                .child(screen.label(t(heading)))
+                // An arrow drawn as the panel's other icons are, not a character of the font
+                // (`⌄` and `›` sit at odd heights): up while the group is open, to close it, and
+                // down while it is shut, to open it (the maintainer).
+                .child(
+                    gpui::svg()
+                        .path(if shut {
+                            "icons/chevron-down.svg"
+                        } else {
+                            "icons/chevron-up.svg"
+                        })
+                        // The heading's text size, its ink in the middle of the line.
+                        .size(px(12.0))
+                        .flex_none()
+                        .text_color(theme.muted),
+                )
+                .on_click(cx.listener(move |view, _, _, cx| {
+                    view.toggle_group(heading);
+                    cx.notify();
+                }))
+        })
+}
+
+/// The Grabber's saved searches, under their heading: a click opens the Grabber filled in
+/// with one (gaps rows U40, U41). The playlists and feeds followed are listed after them
+/// (gaps row W10, `follows`).
+fn projects(
+    view: &Downloads,
+    theme: Theme,
+    screen: &Screen,
+    cx: &mut Context<Downloads>,
+) -> Option<gpui::AnyElement> {
+    const HEADING: &str = "Grabber projects";
+    let searches = &view.known.drawn.site_searches;
+    if searches.is_empty() && view.known.drawn.follows.is_empty() {
+        return None;
+    }
+    let shut = view.group_shut(HEADING);
+    let rows = (!shut).then(|| {
+        searches
+            .iter()
+            .enumerate()
+            .map(|(i, search)| {
+                let search = search.clone();
+                let name: SharedString = search.name.clone().into();
+                let page: SharedString = search.page.clone().into();
+                div()
+                    .id(("project", i))
+                    .role(Role::ListItem)
+                    .aria_label(name.clone())
+                    .map(|d| reachable(d, theme))
+                    .mx_2()
+                    .px_2()
+                    .h(px(PLACE_ROW))
+                    .rounded(px(crate::widgets::native::RADIUS))
+                    .flex()
+                    .map(crate::window::mirror::row)
+                    .items_center()
+                    .gap_2()
+                    .text_size(px(crate::widgets::native::TEXT))
+                    .hover(|s| s.bg(theme.stripe))
+                    .active(move |s| s.bg(theme.pressed_soft()))
+                    .tooltip(move |window, cx| {
+                        gpui_component::tooltip::Tooltip::new(page.clone()).build(window, cx)
+                    })
+                    .child(
+                        gpui::svg()
+                            .path("icons/place-folder.svg")
+                            .size(px(PLACE_ICON))
+                            .flex_none()
+                            .text_color(theme.accent_text),
+                    )
+                    .child(screen.label(name))
+                    .on_click(cx.listener(move |_, _, _, cx| {
+                        crate::dialogs::grabber::open_with(cx.entity().downgrade(), &search, cx);
+                    }))
+            })
+            .collect::<Vec<_>>()
+    });
+    let followed = if shut {
+        Vec::new()
+    } else {
+        follows::rows(view, theme, screen, cx)
+    };
+    Some(
+        div()
+            .child(group_heading(HEADING, shut, theme, screen, cx))
+            .children(rows.into_iter().flatten())
+            .children(followed)
+            .into_any_element(),
+    )
+}
+
+/// One place's row, under its group's heading where a group starts.
+#[allow(clippy::too_many_arguments)]
+fn place_row(
+    view: &Downloads,
+    theme: Theme,
+    screen: &Screen,
+    window: &Window,
+    cx: &mut Context<Downloads>,
+    categories: &edm_core::Categories,
+    i: usize,
+    heading: Option<&'static str>,
+    place: Place,
+    label: SharedString,
+    shut: bool,
+) -> impl IntoElement {
+    let count = view.list.places.count(&place, &view.rows, categories);
+    let chosen = place == view.list.place;
+    let icon = picture(&place);
+    let whole = cut(
+        drawn_width(&label, crate::widgets::native::TEXT, window, cx),
+        drawn_width(
+            &count.to_string(),
+            crate::widgets::native::SMALL_TEXT,
+            window,
+            cx,
+        ),
+        view.panel_width(),
+        crate::window::zoom::factor(),
+    )
+    .then(|| label.clone());
+    let heading = heading.map(|h| group_heading(h, shut, theme, screen, cx));
+    if shut {
+        return div().children(heading);
+    }
+    div().children(heading).child(
+        div()
+            .id(("place", i))
+            .role(Role::ListItem)
+            .aria_label(label.clone())
+            .aria_selected(chosen)
+            .map(|d| reachable(d, theme))
+            .mx_2()
+            .px_2()
+            .h(px(PLACE_ROW))
+            .rounded(px(crate::widgets::native::RADIUS))
+            .flex()
+            // Its picture and name on the right, its count on the left, where the window is
+            // mirrored (gaps row U35).
+            .map(crate::window::mirror::row)
+            .items_center()
+            .justify_between()
+            // Between a long name's ellipsis and the count; unseen while the name fits.
+            .gap_2()
+            .text_size(px(crate::widgets::native::TEXT))
+            // A finger's press shown as it lands, in the phone's drawer (gaps row V25).
+            .map(|d| crate::widgets::press::first(d, crate::widgets::native::RADIUS, theme))
+            // The chosen place a soft fill with the accent's bar at its edge, quieter than the
+            // chosen row of the list (gaps row E6).
+            .when(chosen, |d| {
+                d.relative()
+                    .bg(theme.chosen_soft())
+                    .child(chosen_bar(theme))
+            })
+            .when(!chosen, |d| {
+                d.hover(|s| s.bg(theme.stripe))
+                    .active(move |s| s.bg(theme.pressed_soft()))
+            })
+            // A name the panel cuts, read whole on hover.
+            .when_some(whole, |d, whole| {
+                d.tooltip(move |window, cx| {
+                    gpui_component::tooltip::Tooltip::new(whole.clone()).build(window, cx)
+                })
+            })
+            .on_click({
+                let place = place.clone();
+                cx.listener(move |view, _, _, cx| {
+                    view.choose(place.clone());
+                    cx.notify();
+                })
+            })
+            // Its menu as a sheet, held on a phone (gaps row N23).
+            .when(view.layout.narrow.laid_out, |row| {
+                let place = place.clone();
+                row.relative()
+                    .child(crate::window::narrow::cards::held_layer(
+                        cx,
+                        move |view, cx| view.open_place_sheet(place.clone(), cx),
+                    ))
+            })
+            // Its menu (gaps row U12).
+            .on_mouse_down(
+                gpui::MouseButton::Right,
+                cx.listener(move |view, event: &gpui::MouseDownEvent, window, cx| {
+                    view.menus.place_menu_opener = window.focused(cx);
+                    view.open_place_menu(place.clone(), event.position);
+                    // Its first item has the keys (gaps row E50).
+                    view.place_menu_takes_keys(cx);
+                    cx.notify();
+                }),
+            )
+            .child(
+                div()
+                    .flex()
+                    .map(crate::window::mirror::row)
+                    .items_center()
+                    .gap_2()
+                    .min_w_0()
+                    .child(
+                        gpui::svg()
+                            .path(icon)
+                            .size(px(PLACE_ICON))
+                            .flex_none()
+                            // The accent's text shade, chosen or not: the side panel's
+                            // pictures are a source list's, all in one colour (the
+                            // maintainer: "monocolor"; `docs/ui-design.md` rule 2).
+                            .text_color(theme.accent_text),
+                    )
+                    // One line, cut with an ellipsis where the panel is too narrow for it.
+                    .child(
+                        div()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_ellipsis()
+                            .child(screen.label(label)),
+                    ),
+            )
+            .child(
+                div()
+                    .flex_none()
+                    .text_size(px(crate::widgets::native::SMALL_TEXT))
+                    // On the chosen place's soft fill, in the text's colour: the secondary
+                    // one read under 4.5 to 1 there (`the_soft_choice_keeps_its_words_readable`).
+                    .text_color(if chosen { theme.text } else { theme.muted })
+                    // No number beside an empty place (gaps row E6).
+                    .when(count > 0, |d| d.child(screen.label(count.to_string()))),
+            ),
+    )
+}
+
+/// The accent's bar at a chosen entry's leading edge, over its soft fill (`Theme::chosen_soft`):
+/// the side panel's place and Options' page drawn one way. Its entry is `relative`.
+pub(crate) fn chosen_bar(theme: Theme) -> gpui::Div {
+    div()
+        .absolute()
+        .top(px(5.0))
+        .bottom(px(5.0))
+        .map(|bar| {
+            if crate::window::mirror::rtl() {
+                bar.right_0()
+            } else {
+                bar.left_0()
+            }
+        })
+        .w(px(3.0))
+        .rounded_full()
+        .bg(theme.accent_text)
+}
+
+/// A source list's row, as a dialog lists its pages or queues (Options, the Scheduler): the
+/// side panel's place height, a picture then words on one line, the chosen one the soft fill
+/// with the accent's bar, another answering the pointer; reached by Tab, its place ringed.
+pub(crate) fn source_row(
+    row: gpui::Stateful<gpui::Div>,
+    chosen: bool,
+    icon: &'static str,
+    theme: Theme,
+) -> gpui::Stateful<gpui::Div> {
+    reachable(row.aria_selected(chosen), theme)
+        .relative()
+        .h(px(PLACE_ROW))
+        .px(px(crate::widgets::space::M))
+        .rounded(px(crate::widgets::native::RADIUS))
+        .flex()
+        .map(crate::window::mirror::row)
+        .items_center()
+        .gap(px(crate::widgets::space::M))
+        .cursor_pointer()
+        // A finger's press shown as it lands (gaps row V25).
+        .map(|d| crate::widgets::press::first(d, crate::widgets::native::RADIUS, theme))
+        .when(chosen, |d| {
+            d.bg(theme.chosen_soft()).child(chosen_bar(theme))
+        })
+        .when(!chosen, |d| {
+            d.hover(move |s| s.bg(theme.stripe))
+                .active(move |s| s.bg(theme.pressed_soft()))
+        })
+        .child(
+            gpui::svg()
+                .path(icon)
+                .size(px(PLACE_ICON))
+                .flex_none()
+                // The accent's text shade, as the side panel's places (`picture`).
+                .text_color(theme.accent_text),
+        )
+}
+
+/// A source list row's words: one line, cut with an ellipsis where the list is too narrow.
+pub(crate) fn row_words(words: impl IntoElement) -> gpui::Div {
+    div()
+        .min_w_0()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_ellipsis()
+        .child(words)
+}
+
+/// The panel's edge being dragged. Nothing is drawn under the pointer but the panel itself;
+/// the left-right cursor stays on while it is, wherever the pointer goes.
+#[derive(Clone, Copy)]
+pub struct ResizingPanel;
+
+impl Render for ResizingPanel {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        gpui::canvas(
+            |_, _, _| (),
+            |_, _, window, _| window.set_window_cursor_style(gpui::CursorStyle::ResizeLeftRight),
+        )
+    }
+}
+
+impl Downloads {
+    /// The side panel's width as drawn, in points at 100%: the one being dragged, else the one
+    /// kept.
+    pub(crate) fn panel_width(&self) -> f32 {
+        if crate::platform::ON_A_PHONE {
+            return PHONE_DRAWER;
+        }
+        SIDEBAR_WIDTH.held(
+            self.layout
+                .panel_resizing
+                .unwrap_or(self.known.drawn.sidebar_width),
+        )
+    }
+
+    /// The panel's edge dragged to `wide` points (at 100%): drawn at once, kept a few times a
+    /// second meanwhile and when let go, as a column's edge is (`table.rs`).
+    pub(crate) fn resize_panel(&mut self, wide: f32, cx: &mut Context<Self>) {
+        let wide = SIDEBAR_WIDTH.held(wide);
+        if self.layout.panel_resizing == Some(wide) {
+            return;
+        }
+        self.layout.panel_resizing = Some(wide);
+        let due = self
+            .layout
+            .resize_kept
+            .is_none_or(|at| at.elapsed() >= crate::window::table::RESIZE_KEPT_EVERY);
+        if due {
+            self.layout.resize_kept = Some(std::time::Instant::now());
+            self.keep_panel_width(wide);
+        }
+        cx.notify();
+    }
+
+    /// The drag let go: its last width kept, and drawn from the settings again.
+    pub(crate) fn finish_panel_resize(&mut self, cx: &mut Context<Self>) {
+        let Some(wide) = self.layout.panel_resizing.take() else {
+            return;
+        };
+        self.keep_panel_width(wide);
+        self.layout.resize_kept = None;
+        self.read();
+        cx.notify();
+    }
+
+    fn keep_panel_width(&self, wide: f32) {
+        self.backend
+            .keep_look(|settings| settings.sidebar_width = wide);
+    }
+
+    /// Whether the side panel's group under `heading` is shut (gaps row U42).
+    pub(crate) fn group_shut(&self, heading: &str) -> bool {
+        // Shut under its old heading, "All downloads", it stays shut as "Categories".
+        let old = (heading == CATEGORIES).then_some(OLD_CATEGORIES);
+        // Kept by its heading's English, matched whatever its case: a group shut as "All
+        // Downloads" stays shut now that its heading reads "All downloads" (gaps row E13).
+        !heading.is_empty()
+            && self
+                .known
+                .drawn
+                .shut_groups
+                .iter()
+                .any(|g| g.eq_ignore_ascii_case(heading) || old.is_some_and(|o| g == o))
+    }
+
+    /// The group under `heading` shut, or opened again, and kept for the next launch.
+    pub(crate) fn toggle_group(&mut self, heading: &str) {
+        let shut = self.group_shut(heading);
+        let heading = heading.to_string();
+        self.backend.keep_look(move |settings| {
+            if shut {
+                settings.shut_groups.retain(|g| {
+                    !g.eq_ignore_ascii_case(&heading)
+                        && !(heading == CATEGORIES && g == OLD_CATEGORIES)
+                });
+            } else if !settings.shut_groups.contains(&heading) {
+                settings.shut_groups.push(heading);
+            }
+        });
+        self.read();
+    }
+}
+
+/// A place, a group's heading or a saved search reached by Tab and pressed by Space or Return,
+/// its place ringed, as `native::button` is: choosing a place was the pointer's alone.
+pub(crate) fn reachable(row: gpui::Stateful<gpui::Div>, theme: Theme) -> gpui::Stateful<gpui::Div> {
+    row.tab_index(0)
+        .focus_visible(move |s| s.border_2().border_color(theme.ring(false)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A name is offered whole where its laid-out width passes the room the panel leaves it:
+    /// the panel's width less the row's margins, picture and gaps, its edge line and the count's
+    /// width; wider at a larger text size, and a wider count leaves less room.
+    #[test]
+    fn a_long_name_is_offered_whole_where_the_panel_cuts_it() {
+        // At 200 points and 100%: 200 - 64 - 1 (the edge line) - 7 (a figure) = 128 to draw in.
+        let count = 7.0;
+        assert!(!cut(120.0, count, SIDEBAR_WIDTH.default, 1.0));
+        assert!(!cut(126.9, count, SIDEBAR_WIDTH.default, 1.0));
+        assert!(
+            cut(127.5, count, SIDEBAR_WIDTH.default, 1.0),
+            "within a pixel: offered"
+        );
+        assert!(cut(180.0, count, SIDEBAR_WIDTH.default, 1.0));
+        // A name cut at the least width fits at the most.
+        assert!(cut(150.0, count, SIDEBAR_WIDTH.least, 1.0));
+        assert!(!cut(150.0, count, SIDEBAR_WIDTH.most, 1.0));
+        // At 120% the margins and the name grow together; the same name, drawn 20% wider,
+        // still fits.
+        assert!(!cut(120.0 * 1.2, count * 1.2, SIDEBAR_WIDTH.default, 1.2));
+        // A count of more figures leaves less room for the same name.
+        assert!(!cut(115.0, count, SIDEBAR_WIDTH.default, 1.0));
+        assert!(cut(115.0, 4.0 * count, SIDEBAR_WIDTH.default, 1.0));
+    }
+
+    /// The panel's bounds as the drag holds them: 150 to 400, whole points, today's 200 the
+    /// default.
+    #[test]
+    fn the_panels_edge_is_held_between_its_least_and_most() {
+        assert_eq!(SIDEBAR_WIDTH.default, 200.0, "the window as it always was");
+        assert_eq!(SIDEBAR_WIDTH.held(0.0), 150.0);
+        assert_eq!(SIDEBAR_WIDTH.held(-40.0), 150.0);
+        assert_eq!(SIDEBAR_WIDTH.held(260.4), 260.0);
+        assert_eq!(SIDEBAR_WIDTH.held(9_000.0), 400.0);
+        assert_eq!(SIDEBAR_WIDTH.held(f32::NAN), 200.0);
+    }
+}

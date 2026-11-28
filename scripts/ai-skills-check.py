@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Whether the skills the bots read are clean: `python3 scripts/ai-skills-check.py`.
@@ -20,7 +20,7 @@ CI. Fails (exit 1, each problem said) when:
   user", "you are now …", a request to send or reveal a secret, a token or a key);
 - a file is a link, executable, or of a kind a skill has no need of (only Markdown, CSV, TSV
   and licence texts);
-- one of dm's own pages (docs/ai-skills/*.md, not vendor/) holds a web address: a page tells,
+- one of EDM's own pages (docs/ai-skills/*.md, not vendor/) holds a web address: a page tells,
   it never sends a model somewhere;
 - `.mcp.json`, or `mcpServers` in `.claude/settings.json`, names a server that is not a program
   of this repository's own (gaps row H39): a remote registry, a URL, or a command fetched to run
@@ -154,7 +154,7 @@ def main():
                     if STEERING.search(line):
                         problems.append(f"{path}:{n}: a line written to steer a model: {line.strip()[:120]}")
                     if rel.startswith("docs/ai-skills/") and not rel.startswith(VENDOR + "/") and URL.search(line):
-                        problems.append(f"{path}:{n}: a web address in one of dm's own pages")
+                        problems.append(f"{path}:{n}: a web address in one of EDM's own pages")
     for key in manifest:
         if key not in seen_vendor:
             problems.append(f"{VENDOR}/{key}: in the manifest but missing")

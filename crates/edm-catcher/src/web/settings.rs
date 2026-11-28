@@ -1,0 +1,225 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! What is kept in the extension's storage between the worker's naps: the app's catch rules and the sites switched on or off.
+
+use super::*;
+
+/// Where the app's catch rules are kept between the worker's naps.
+pub(super) const RULES_KEY: &str = "EDM.catch";
+
+/// Keeps the app's catch rules where a worker woken by a download can read
+/// them at once. Asking the app means starting its host, which takes long
+/// enough for a small download to finish in the browser first.
+pub(super) async fn remember_rules(rules: &CatchRules) {
+    let Ok(value) = serde_json::to_value(rules) else {
+        return;
+    };
+    // The menu items chosen in Options, made again where the choice changed.
+    let was = remembered_rules()
+        .await
+        .map(|kept| kept.hidden_menus)
+        .unwrap_or_default();
+    if was != rules.hidden_menus {
+        make_menus_without(&rules.hidden_menus).await;
+    }
+    let item = to_js(&serde_json::json!({ RULES_KEY: value }));
+    if let Err(why) = call("storage.local", "set", &[item]).await {
+        log("debug", &format!("the catch rules were not kept: {why}"));
+    }
+}
+
+/// Where the site rules the app served in its hello are kept between the worker's naps.
+pub(super) const SERVED_KEY: &str = "EDM.rules";
+
+thread_local! {
+    /// Whether the kept site rules were looked for in this worker's life.
+    static SERVED_RESTORED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Keeps the site rules the app last served (or that it served none), so a worker woken by a
+/// download decides with them at once.
+pub(super) async fn remember_served(rules: Option<&edm_protocol::Rules>) {
+    SERVED_RESTORED.with(|r| r.set(true));
+    let Ok(value) = serde_json::to_value(rules) else {
+        return;
+    };
+    let item = to_js(&serde_json::json!({ SERVED_KEY: value }));
+    if let Err(why) = call("storage.local", "set", &[item]).await {
+        log("debug", &format!("the site rules were not kept: {why}"));
+    }
+}
+
+/// Puts the kept site rules back into force once per worker life, unless the app has served
+/// some since. Nothing kept, or a document this side does not read, leaves the built-in tables.
+pub(super) async fn ensure_served() {
+    if decide::rules::installed() || SERVED_RESTORED.with(|r| r.replace(true)) {
+        return;
+    }
+    let Ok(got) = call("storage.local", "get", &[JsValue::from_str(SERVED_KEY)]).await else {
+        return;
+    };
+    // The app may have answered while this was read: what it served is newer.
+    if decide::rules::installed() {
+        return;
+    }
+    if let Ok(rules) =
+        serde_json::from_value::<Option<edm_protocol::Rules>>(from_js(&field(&got, SERVED_KEY)))
+    {
+        decide::rules::install(rules);
+    }
+}
+
+/// Where the right-click menu the app last served is kept (`Hello::menus`).
+pub(super) const MENUS_KEY: &str = "EDM.menus";
+
+/// Keeps the menu the app served (or that it served none: an older app's extension makes its
+/// own), and makes the browser's menu again where it changed.
+pub(super) async fn remember_menus(menus: Option<&[edm_protocol::MenuItem]>) {
+    if remembered_menus().await.as_deref() == menus {
+        return;
+    }
+    let Ok(value) = serde_json::to_value(menus) else {
+        return;
+    };
+    let item = to_js(&serde_json::json!({ MENUS_KEY: value }));
+    if let Err(why) = call("storage.local", "set", &[item]).await {
+        log("debug", &format!("the served menu was not kept: {why}"));
+    }
+    make_menus().await;
+}
+
+/// The menu the app last served, if it served one.
+pub(super) async fn remembered_menus() -> Option<Vec<edm_protocol::MenuItem>> {
+    let got = call("storage.local", "get", &[JsValue::from_str(MENUS_KEY)])
+        .await
+        .ok()?;
+    serde_json::from_value::<Option<Vec<edm_protocol::MenuItem>>>(from_js(&field(&got, MENUS_KEY)))
+        .ok()
+        .flatten()
+}
+
+/// The catch rules the app last sent, if any were kept.
+pub(super) async fn remembered_rules() -> Option<CatchRules> {
+    let got = call("storage.local", "get", &[JsValue::from_str(RULES_KEY)])
+        .await
+        .ok()?;
+    serde_json::from_value(from_js(&field(&got, RULES_KEY))).ok()
+}
+
+/// Whether the toolbar popup's switch lets downloads be caught.
+pub(super) async fn catching() -> bool {
+    let Ok(got) = call(
+        "storage.local",
+        "get",
+        &[JsValue::from_str(decide::CATCHING_KEY)],
+    )
+    .await
+    else {
+        return true;
+    };
+    field(&got, decide::CATCHING_KEY).as_bool() != Some(false)
+}
+
+/// Whether the toolbar popup has every download from the download's site
+/// taken, whatever the app's rules say about its type or size: the site it
+/// was asked for on, served from, or started from.
+pub(super) async fn forced_for(found: &Catchable) -> bool {
+    let Ok(got) = call(
+        "storage.local",
+        "get",
+        &[JsValue::from_str(decide::CATCH_ALL_KEY)],
+    )
+    .await
+    else {
+        return false;
+    };
+    let list: Vec<String> =
+        serde_json::from_value(from_js(&field(&got, decide::CATCH_ALL_KEY))).unwrap_or_default();
+    decide::forced_download(&list, found)
+}
+
+/// The sites the toolbar popup has capturing paused for.
+pub(super) async fn paused_sites() -> Vec<String> {
+    let Ok(got) = call(
+        "storage.local",
+        "get",
+        &[JsValue::from_str(decide::PAUSED_KEY)],
+    )
+    .await
+    else {
+        return Vec::new();
+    };
+    serde_json::from_value(from_js(&field(&got, decide::PAUSED_KEY))).unwrap_or_default()
+}
+
+/// The browser's cookies for `url`, as the header it would send, where the
+/// toolbar popup has that switched on for the site; empty otherwise, and
+/// empty on any failure. `store` is the cookie store (Firefox's container)
+/// the download or tab belongs to, whose cookies are its sign-in.
+pub(super) async fn cookies_for(url: &str, store: Option<&str>) -> String {
+    listed_sign_in(url, store, false, false).await.0
+}
+
+/// The cookies the browser itself sent `url`'s host from `tab`
+/// (`decide::cookies_named`), with the values its store holds now, as the
+/// header it would send: what a panel choice of another site's file carries.
+/// Empty where it sent none, and on any failure.
+pub(super) async fn sent_sign_in(tab: Option<i64>, url: &str, store: Option<&str>) -> String {
+    let names = sent_cookies(tab, url).await;
+    if names.is_empty() {
+        return String::new();
+    }
+    let query = to_js(&decide::cookie_query(url, store));
+    let Ok(listed) = call("cookies", "getAll", &[query]).await else {
+        return String::new();
+    };
+    let cookies: Vec<decide::BrowserCookie> =
+        serde_json::from_value(from_js(&listed)).unwrap_or_default();
+    decide::cookie_header(&decide::cookies_named(&cookies, &names))
+}
+
+/// [`listed_sign_in`] for one download: the app's "every site" switch
+/// counts.
+pub(super) async fn sign_in_for(url: &str, store: Option<&str>, video: bool) -> (String, bool) {
+    let everywhere = remembered_rules()
+        .await
+        .is_some_and(|rules| rules.sign_in_everywhere);
+    listed_sign_in(url, store, video, everywhere).await
+}
+
+/// The cookies a hand-off of `url` carries (`decide::cookies_sent`), and
+/// whether they are for that download alone. A video page (`video`) sends
+/// its session whether or not the site is listed, and so does any site
+/// with the app's "every site" switch on (`everywhere`).
+pub(super) async fn listed_sign_in(
+    url: &str,
+    store: Option<&str>,
+    video: bool,
+    everywhere: bool,
+) -> (String, bool) {
+    let Ok(got) = call(
+        "storage.local",
+        "get",
+        &[JsValue::from_str(decide::COOKIES_SITES_KEY)],
+    )
+    .await
+    else {
+        return (String::new(), false);
+    };
+    let sites: Vec<String> =
+        serde_json::from_value(from_js(&field(&got, decide::COOKIES_SITES_KEY)))
+            .unwrap_or_default();
+    let Some(once) = decide::cookies_sent(&sites, url, video, everywhere) else {
+        return (String::new(), false);
+    };
+    let query = to_js(&decide::cookie_query(url, store));
+    let Ok(listed) = call("cookies", "getAll", &[query]).await else {
+        return (String::new(), false);
+    };
+    let cookies: Vec<decide::BrowserCookie> =
+        serde_json::from_value(from_js(&listed)).unwrap_or_default();
+    (decide::cookie_header(&cookies), once)
+}

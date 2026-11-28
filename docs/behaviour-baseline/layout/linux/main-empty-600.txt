@@ -1,7 +1,7 @@
-# dm's window, scene main-empty-600 (linux, 600x600, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene main-empty-600 (linux, 600x600, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 600x600]
+[main "EDM" 600x600]
 "Tasks" 48 7 90 29.5
 "File" 106 7 140 29.5
 "Downloads" 156 7 232 29.5
@@ -22,7 +22,7 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add dm to your browser:" 236 99.5 430 122
+"Add EDM to your browser:" 236 99.5 430 122
 "Microsoft Edge" 453 99.5 571 122
 "Firefox" 251 141.5 310 164
 "Chrome and others" 348 141.5 491 164

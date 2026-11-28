@@ -1,6 +1,6 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Drives the real desktop binary and reports what it did.
@@ -8,7 +8,7 @@
     python3 scripts/app-check.py
 
 What the unit tests cannot see: the app as a process. It launches a debug
-build with its own DM_HOME, and checks the things that only exist once the
+build with its own EDM_HOME, and checks the things that only exist once the
 binary is running — the single-instance lock, a second launch handing its
 links to the first, a browser's native-messaging hand-off landing in the
 running app, and a download that goes all the way to the folder the
@@ -35,11 +35,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # Where cargo put the client: its own target directory unless one was named.
 TARGET = pathlib.Path(os.environ["CARGO_TARGET_DIR"]) if os.environ.get("CARGO_TARGET_DIR") else ROOT / "target"
-# The window dm ships, on every system: GPUI (docs/gaps.md G9).
-CLIENT = "dm-gpui"
+# The window EDM ships, on every system: GPUI (docs/gaps.md G9).
+CLIENT = "edm-gpui"
 EXE = CLIENT + (".exe" if WINDOWS else "")
 # Or the binary a package installed, so what is shipped is what is driven.
-BINARY = pathlib.Path(os.environ["DM_BINARY"]) if os.environ.get("DM_BINARY") else TARGET / "debug" / EXE
+BINARY = pathlib.Path(os.environ["EDM_BINARY"]) if os.environ.get("EDM_BINARY") else TARGET / "debug" / EXE
 PAYLOAD = bytes(range(256)) * 4096  # 1 MiB, distinctive
 
 failures = []
@@ -52,7 +52,7 @@ def check(what, actual, expected=True):
         failures.append(what)
 
 
-# The dm being waited on, so a wait can tell "not yet" from "dead": an app
+# The EDM being waited on, so a wait can tell "not yet" from "dead": an app
 # that opened its window and then died — a tray library it could not load —
 # looked like a hand-off that never arrived, with the reason on a stderr the
 # timeout never got round to printing.
@@ -67,13 +67,13 @@ def wait_for(what, condition, seconds=15):
             return value
         if APP is not None and APP.poll() is not None:
             err = APP.stderr.read().decode(errors="replace").strip()
-            raise RuntimeError(f"dm exited with code {APP.returncode} while waiting for: {what}\n"
+            raise RuntimeError(f"EDM exited with code {APP.returncode} while waiting for: {what}\n"
                                + ("  it said:\n    " + err.replace("\n", "\n    ") if err else "  it said nothing"))
         time.sleep(0.1)
     raise TimeoutError(what + said_by_rows())
 
 
-#: The home of the dm being checked, for what its rows say when a wait fails.
+#: The home of the EDM being checked, for what its rows say when a wait fails.
 HOME = None
 
 
@@ -94,7 +94,7 @@ HITS = {}
 
 class Serve(BaseHTTPRequestHandler):
     def handle(self):
-        # dm closes a connection it no longer needs (a range given up, a
+        # EDM closes a connection it no longer needs (a range given up, a
         # download stopped); the server hearing that is not a failure.
         try:
             super().handle()
@@ -188,7 +188,7 @@ def read_frames(data):
 def lock_is_held(home):
     with open(home / "instance.lock", "a+", encoding="utf-8") as f:
         if WINDOWS:
-            # dm holds the whole file with LockFileEx; a byte of it is
+            # EDM holds the whole file with LockFileEx; a byte of it is
             # enough to see that, and is given back at once.
             f.seek(0)
             try:
@@ -229,10 +229,10 @@ def unchecked(what, why):
 
 
 def is_main_title(title):
-    """dm's main window by its title: "dm", or while downloads run how far and how fast before
-    " — dm", "37% · 4.1 MB/s — dm" (gaps row U16; `dm_desktop_base::taskbar::is_main_title`).
-    No dialog's title ends so: "About dm" has no dash."""
-    return title == "dm" or title.endswith(" — dm")
+    """EDM's main window by its title: "EDM", or while downloads run how far and how fast before
+    " — EDM", "37% · 4.1 MB/s — EDM" (gaps row U16; `edm_desktop_base::taskbar::is_main_title`).
+    No dialog's title ends so: "About EDM" has no dash."""
+    return title == "EDM" or title.endswith(" — EDM")
 
 
 def windows_of(name):
@@ -241,7 +241,7 @@ def windows_of(name):
         script = f'tell application "System Events" to count windows of process "{name}"'
         got = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
         return int(got.stdout.strip()) if got.returncode == 0 and got.stdout.strip().isdigit() else None
-    # X11 (Xvfb in the container): the mapped top-level windows titled as dm's main window is.
+    # X11 (Xvfb in the container): the mapped top-level windows titled as EDM's main window is.
     if shutil.which("xwininfo") and os.environ.get("DISPLAY"):
         # In UTF-8, so a title's dash is printed as it is, not escaped.
         got = subprocess.run(["xwininfo", "-root", "-tree"], capture_output=True, text=True, timeout=10, encoding="utf-8",
@@ -250,8 +250,8 @@ def windows_of(name):
             return None
         mapped = 0
         for line in got.stdout.splitlines():
-            # Titled so: `0x400001 "dm": ("dm" "dm")`, or "37% · 4.1 MB/s — dm" while a download
-            # runs. Not any line with "dm" in it: every dm window's class is dm too, a dialog's
+            # Titled so: `0x400001 "EDM": ("EDM" "EDM")`, or "37% · 4.1 MB/s — EDM" while a download
+            # runs. Not any line with "EDM" in it: every EDM window's class is EDM too, a dialog's
             # as well.
             found = re.match(r'\s*(0x[0-9a-fA-F]+) "(.*)": \(', line)
             if not found or not is_main_title(found.group(2)):
@@ -302,12 +302,12 @@ def stop(app, home):
         app.kill()
     err = app.stderr.read().decode(errors="replace")
     if err.strip():
-        print("  dm said on stderr:\n    " + err.strip().replace("\n", "\n    "))
+        print("  EDM said on stderr:\n    " + err.strip().replace("\n", "\n    "))
     wait_for("the lock was not released on exit", lambda: not lock_is_held(home), 10)
 
 
 def stop_any(home):
-    """Ends a dm the host started, which is nobody's child here."""
+    """Ends an EDM the host started, which is nobody's child here."""
     if WINDOWS:
         subprocess.run(["taskkill", "/F", "/IM", BINARY.name], capture_output=True)
     else:
@@ -317,21 +317,21 @@ def stop_any(home):
                 os.kill(int(pid), 15)
             except ProcessLookupError:
                 pass
-    wait_for("the dm the host started did not exit", lambda: not lock_is_held(home), 15)
+    wait_for("the EDM the host started did not exit", lambda: not lock_is_held(home), 15)
 
 
 def main():
     print("building the client")
     cargo = shutil.which("cargo") or str(pathlib.Path.home() / ".cargo" / "bin" / "cargo")
-    if not os.environ.get("DM_BINARY"):
+    if not os.environ.get("EDM_BINARY"):
         subprocess.run([cargo, "build", "-p", CLIENT], cwd=ROOT, check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     global HOME
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-home-"))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-home-"))
     HOME = home
     downloads = home / "Downloads"
-    env = {**os.environ, "DM_HOME": str(home)}
+    env = {**os.environ, "EDM_HOME": str(home)}
     # Three attempts, not the ten a person gets: a check that a failure is a
     # failure would otherwise wait out minutes of half-minute retries.
     # No "Download complete" window: it opens when a batch finishes, at whatever
@@ -341,7 +341,7 @@ def main():
                 "allow_mcp": True, "show_complete": False}
     (home / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
     # The PATH a Dock or login launch has: no Homebrew, no ~/.local/bin. The
-    # tools dm runs are found by their usual homes, or they are not found.
+    # tools EDM runs are found by their usual homes, or they are not found.
     # On Windows, the System32 a Start-menu or browser launch is sure of.
     if WINDOWS:
         root = os.environ.get("SystemRoot", r"C:\Windows")
@@ -355,10 +355,10 @@ def main():
     url = lambda name: f"http://127.0.0.1:{port}/{name}"
 
     try:
-        print("one dm, links handed to it, a browser hand-off, downloads sorted where the settings say")
+        print("one EDM, links handed to it, a browser hand-off, downloads sorted where the settings say")
         app = launch(env)
         wait_for("the app never took its lock", lambda: (home / "instance.lock").exists() and lock_is_held(home))
-        check("a running dm holds the instance lock", lock_is_held(home))
+        check("a running EDM holds the instance lock", lock_is_held(home))
         shown = wait_for("the window never showed", lambda: windows_of(BINARY.name) or None, 10) \
             if windows_of(BINARY.name) is not None else None
         if shown is None:
@@ -370,7 +370,7 @@ def main():
         check("a second launch exits rather than opening beside the first", second.returncode, 0)
         queued = wait_for("the link from the second launch never reached the queue",
                           lambda: [r for r in rows(home) if r["url"].endswith("/second.zip")])
-        check("the running dm queued the second launch's link", len(queued), 1)
+        check("the running EDM queued the second launch's link", len(queued), 1)
         # Taken after the link, on the same pass or the next: waited for,
         # not looked at once the link is seen.
         marker = home / "inbox" / "show"
@@ -379,13 +379,13 @@ def main():
         except TimeoutError:
             consumed = False
         check("the show marker was consumed", consumed)
-        check("only one dm is running", lock_is_held(home))
+        check("only one EDM is running", lock_is_held(home))
 
         replies, err = hand_off(env, url("handed.zip"))
         check("the host answers hello", [r["type"] for r in replies][:1], ["engine.hello"])
         check("the host accepts the download", [r["type"] for r in replies][1:2], ["download.started"])
         check("the host wrote nothing but frames", err, b"")
-        check("the host did not start a second dm", lock_is_held(home))
+        check("the host did not start a second EDM", lock_is_held(home))
         handed = wait_for("the hand-off never reached the queue",
                           lambda: [r for r in rows(home) if r["url"].endswith("/handed.zip")])
         check("the hand-off carries the page it came from", handed[0]["referrer"], "https://page.example/")
@@ -418,13 +418,13 @@ def main():
         # the browser's caught player requests, not from reading the page.
         check("a player page that is not YouTube's is refused with a reason", page["state"]["kind"], "failed")
         stop(app, home)
-        check("the lock is released when dm exits", not lock_is_held(home))
+        check("the lock is released when EDM exits", not lock_is_held(home))
 
-        print("a hand-off with no dm running starts one")
+        print("a hand-off with no EDM running starts one")
         replies, _ = hand_off(env, url("cold.zip"), "cold")
         check("the host accepts the download", [r["type"] for r in replies][1:2], ["download.started"])
-        wait_for("the host did not start a dm", lambda: lock_is_held(home), 20)
-        check("a dm was started to take it", lock_is_held(home))
+        wait_for("the host did not start an EDM", lambda: lock_is_held(home), 20)
+        check("an EDM was started to take it", lock_is_held(home))
         cold = wait_for("the cold hand-off never completed",
                         lambda: [r for r in rows(home)
                                  if r["url"].endswith("/cold.zip") and r["state"]["kind"] == "completed"], 30)
@@ -503,19 +503,19 @@ def main():
                  lambda: [r for r in rows(home) if r["url"].endswith("/tray.zip") and r["state"]["kind"] == "completed"])
         check("in the tray, a download finishes", True)
         second = subprocess.run([BINARY], env=env, timeout=20, capture_output=True)
-        check("opening dm again hands over and ends", second.returncode, 0)
+        check("opening EDM again hands over and ends", second.returncode, 0)
         wait_for("the window never came out of the tray", lambda: windows_of(BINARY.name) in (None, 1))
         shown = windows_of(BINARY.name)
         if shown is None:
-            unchecked("opening dm again shows the tray's window", "the desktop will not count windows here")
+            unchecked("opening EDM again shows the tray's window", "the desktop will not count windows here")
         else:
-            check("opening dm again shows the tray's window", shown, 1)
+            check("opening EDM again shows the tray's window", shown, 1)
         shot = call("ui.screenshot", name="from-the-tray")
         check("and it is drawn", shot.get("error"), None)
         conn.close()
         stop(app, home)
 
-        print("the command line, handed to a running dm")
+        print("the command line, handed to a running EDM")
         app = launch(env)
         wait_for("the app never took its lock", lambda: lock_is_held(home))
         chosen = home / "chosen"
@@ -534,7 +534,7 @@ def main():
         stop(app, home)
 
         print("the control protocol drives the running window")
-        # A dm ended hard (as Windows' terminate is) leaves its port file;
+        # An EDM ended hard (as Windows' terminate is) leaves its port file;
         # the new one's is waited for, not the old one read.
         (home / "control.port").unlink(missing_ok=True)
         app = launch(env, "--control", "0")
@@ -742,7 +742,7 @@ def main():
         (home / "control.port").unlink(missing_ok=True)
         app = launch(env, "--headless", "--control", "0")
         port_file = home / "control.port"
-        wait_for("the headless dm never wrote its port", lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip())
+        wait_for("the headless EDM never wrote its port", lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip())
         token = (home / "control.token").read_text(encoding="utf-8").strip()
         conn = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=30)
         replies = conn.makefile("r", encoding="utf-8")
@@ -761,11 +761,11 @@ def main():
         mcp_in = "\n".join([
             json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
             json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                        "params": {"name": "dm_add_downloads", "arguments": {"urls": [url("agent.zip")]}}}),
+                        "params": {"name": "edm_add_downloads", "arguments": {"urls": [url("agent.zip")]}}}),
         ]) + "\n"
         mcp = subprocess.run([BINARY, "mcp"], env=env, input=mcp_in.encode(), capture_output=True, timeout=30)
         answers = [json.loads(l) for l in mcp.stdout.decode().splitlines() if l.strip()]
-        check("the MCP server introduces itself", answers[0]["result"]["serverInfo"]["name"] if answers else None, "dm")
+        check("the MCP server introduces itself", answers[0]["result"]["serverInfo"]["name"] if answers else None, "EDM")
         check("and an agent's tool call adds a download", len(answers) == 2 and not answers[1]["result"].get("isError"), True)
         wait_for("the agent's download never finished",
                  lambda: [r for r in rows(home) if r["url"].endswith("/agent.zip") and r["state"]["kind"] == "completed"], 30)
@@ -780,28 +780,28 @@ def main():
                                       input=(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}) + "\n").encode())
         names = {t["name"] for t in json.loads(listed_tools.stdout.decode())["result"]["tools"]}
         check("the MCP server offers every tool", sorted(names), sorted(
-            ["dm_list_commands", "dm_run_command", "dm_add_downloads", "dm_list_downloads", "dm_select",
-             "dm_pause", "dm_resume", "dm_cancel", "dm_move", "dm_queue", "dm_set_speed_limit",
-             "dm_screen", "dm_click", "dm_type", "dm_press_key", "dm_inspect", "dm_screenshot"]))
-        check("dm_list_downloads lists the agent's download", "agent.zip" in tool("dm_list_downloads")["content"][0]["text"], True)
-        check("dm_list_commands lists commands", "file.stop_download" in tool("dm_list_commands")["content"][0]["text"], True)
-        check("dm_set_speed_limit sets a preset", tool("dm_set_speed_limit", preset="low").get("isError"), None)
-        check("and unlimited puts it back", tool("dm_set_speed_limit", preset="unlimited").get("isError"), None)
-        check("a wrong preset is an error the model reads", tool("dm_set_speed_limit", preset="warp").get("isError"), True)
+            ["edm_list_commands", "edm_run_command", "edm_add_downloads", "edm_list_downloads", "edm_select",
+             "edm_pause", "edm_resume", "edm_cancel", "edm_move", "edm_queue", "edm_set_speed_limit",
+             "edm_screen", "edm_click", "edm_type", "edm_press_key", "edm_inspect", "edm_screenshot"]))
+        check("edm_list_downloads lists the agent's download", "agent.zip" in tool("edm_list_downloads")["content"][0]["text"], True)
+        check("edm_list_commands lists commands", "file.stop_download" in tool("edm_list_commands")["content"][0]["text"], True)
+        check("edm_set_speed_limit sets a preset", tool("edm_set_speed_limit", preset="low").get("isError"), None)
+        check("and unlimited puts it back", tool("edm_set_speed_limit", preset="unlimited").get("isError"), None)
+        check("a wrong preset is an error the model reads", tool("edm_set_speed_limit", preset="warp").get("isError"), True)
         first_id = [r for r in rows(home) if r["state"]["kind"] == "completed"][0]["id"]
-        check("an exact speed limit is set in KB/s", tool("dm_set_speed_limit", kb=500).get("isError"), None)
-        check("and read back", '"speed_limit_kb":500' in tool("dm_set_speed_limit", kb=500)["content"][0]["text"], True)
-        check("and removed with 0", tool("dm_set_speed_limit", kb=0).get("isError"), None)
-        check("dm_queue stops and starts the main queue",
-              (tool("dm_queue", action="stop").get("isError"), tool("dm_queue", action="start").get("isError")), (None, None))
-        check("dm_queue refuses a wrong action", tool("dm_queue", action="x").get("isError"), True)
-        check("dm_cancel names what it skipped", "already settled" in tool("dm_cancel", ids=[first_id])["content"][0]["text"], True)
-        check("dm_pause names a row that is not running", "not running" in tool("dm_pause", ids=[first_id])["content"][0]["text"], True)
-        check("dm_resume with nothing to resume does not crash", "content" in tool("dm_resume"), True)
-        check("dm_pause names an id that is not there", "no such download" in tool("dm_pause", ids=[999999])["content"][0]["text"], True)
-        check("dm_run_command will not open a file", tool("dm_run_command", id="file.open").get("isError"), True)
-        check("a human tool on a headless dm says there is no screen to read", tool("dm_screen").get("isError") is None, True)
-        check("dm_inspect reads the window back", "content" in tool("dm_inspect"), True)
+        check("an exact speed limit is set in KB/s", tool("edm_set_speed_limit", kb=500).get("isError"), None)
+        check("and read back", '"speed_limit_kb":500' in tool("edm_set_speed_limit", kb=500)["content"][0]["text"], True)
+        check("and removed with 0", tool("edm_set_speed_limit", kb=0).get("isError"), None)
+        check("edm_queue stops and starts the main queue",
+              (tool("edm_queue", action="stop").get("isError"), tool("edm_queue", action="start").get("isError")), (None, None))
+        check("edm_queue refuses a wrong action", tool("edm_queue", action="x").get("isError"), True)
+        check("edm_cancel names what it skipped", "already settled" in tool("edm_cancel", ids=[first_id])["content"][0]["text"], True)
+        check("edm_pause names a row that is not running", "not running" in tool("edm_pause", ids=[first_id])["content"][0]["text"], True)
+        check("edm_resume with nothing to resume does not crash", "content" in tool("edm_resume"), True)
+        check("edm_pause names an id that is not there", "no such download" in tool("edm_pause", ids=[999999])["content"][0]["text"], True)
+        check("edm_run_command will not open a file", tool("edm_run_command", id="file.open").get("isError"), True)
+        check("a human tool on a headless EDM says there is no screen to read", tool("edm_screen").get("isError") is None, True)
+        check("edm_inspect reads the window back", "content" in tool("edm_inspect"), True)
 
         # The command line's verbs, as another client of the same port.
         def cli(*args):
@@ -820,13 +820,13 @@ def main():
         check("a number that is not there exits 1", cli("status", "999999").returncode, 1)
         check("misuse exits 2", cli("pause").returncode, 2)
         typo = subprocess.run([str(BINARY), "lst"], env=env, capture_output=True, timeout=20)
-        check("a mistyped command exits 2 and says so, rather than opening dm", (typo.returncode, b"not a link" in typo.stderr), (2, True))
+        check("a mistyped command exits 2 and says so, rather than opening EDM", (typo.returncode, b"not a link" in typo.stderr), (2, True))
         check("list --help prints usage and exits 0", (cli("list", "--help").returncode, b"Usage" in cli("list", "--help").stdout), (0, True))
         stop(app, home)
         gone = cli("list")
-        check("with no dm running the command line exits 3", gone.returncode, 3)
+        check("with no EDM running the command line exits 3", gone.returncode, 3)
 
-        # The setting that lets it find a dm started in the ordinary way.
+        # The setting that lets it find an EDM started in the ordinary way.
         print("the command line, found by the setting and not by --control")
         (home / "control.port").unlink(missing_ok=True)
         settings_now = json.loads((home / "settings.json").read_text(encoding="utf-8"))
@@ -834,14 +834,14 @@ def main():
         app = launch(env, "--headless")
         wait_for("the port the setting opens", lambda: (home / "control.port").exists(), 30)
         found = cli("list")
-        check("with allow_command_line on, a dm started with no --control is listed", found.returncode, 0)
+        check("with allow_command_line on, an EDM started with no --control is listed", found.returncode, 0)
         stop(app, home)
         # The AI-assistant setting: opens the port by itself, and answers an
         # assistant only while it is on.
         def assistant():
             body = "\n".join([json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
                               json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                                          "params": {"name": "dm_list_downloads", "arguments": {}}})]) + "\n"
+                                          "params": {"name": "edm_list_downloads", "arguments": {}}})]) + "\n"
             out = subprocess.run([BINARY, "mcp"], env=env, input=body.encode(), capture_output=True, timeout=30)
             return json.loads(out.stdout.decode().splitlines()[1])["result"]
         for allowed in (True, False):
@@ -869,7 +869,7 @@ def main():
         app = launch(env, "--headless")
         time.sleep(3)
         check("with it off, there is no port to find", (home / "control.port").exists(), False)
-        check("and the command line says to start dm with the setting or --control", b"--control" in cli("list").stderr, True)
+        check("and the command line says to start EDM with the setting or --control", b"--control" in cli("list").stderr, True)
         stop(app, home)
 
         # A link saved in the watched folder is added, and its file put aside.

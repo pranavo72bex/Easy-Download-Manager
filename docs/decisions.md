@@ -1,14 +1,14 @@
 # Implementation decisions
 
-Decisions that shape dm and are not obvious from the code, newest first. Each says what was decided and why, so a later change
+Decisions that shape EDM and are not obvious from the code, newest first. Each says what was decided and why, so a later change
 can see what it is undoing.
 
 ## 2026-11-22: The phone's process ends with `_exit`; clippy on Android allows one lint
 
-- dm-android ends its process with `libc::_exit` (`engine::end_process`), never
+- edm-android ends its process with `libc::_exit` (`engine::end_process`), never
   `std::process::exit`. The latter runs the C exit handlers, which tear down the Java runtime's
   statics while its own threads (the JIT's, SharedPreferences') still run: on a phone 4 reopens in
-  10 from the notification left a SIGSEGV in the old process. Everything dm keeps is saved before
+  10 from the notification left a SIGSEGV in the old process. Everything EDM keeps is saved before
   the call (the window's quit, or the windowless run's stop), so nothing is lost by skipping the
   handlers; Android's own `Process.killProcess` is no gentler.
 - CI's clippy for the phone allows `missing_const_for_thread_local` (the recommended option in
@@ -37,20 +37,20 @@ From a code review and a cleanup pass over the GPUI work of 2026-11-10:
   frame, which, asked for again, puts the frame there and the window a title bar lower at each
   start (review, 2026-11-11). It opens in the middle of the main display, where the desktop may
   place it otherwise.
-- Bringing dm's window forward (the Dock, a second launch, the port) brings a dialog open over it
+- Bringing EDM's window forward (the Dock, a second launch, the port) brings a dialog open over it
   forward after it, rather than burying it under the main window. `human-qa.py` still waits a
   moment after asking for the window before opening Add URL: macOS brings the app forward on its
   own time, and without the wait the GPUI window's B01, B25, B42 and B44 failed again (tried,
   2026-11-11). The script selects the field before typing an address again, rather than looking
   for any address on screen.
 - `make install`, `make qa` and the Makefile's `BINARY` build the window each system ships; a test
-  holds dm-gpui's version to dm-desktop's, which the release tools read.
+  holds edm-gpui's version to edm-desktop's, which the release tools read.
 - The question window is as wide as its buttons at each system's measures. The menus are built by
   name, not taken out of a list by position; the probe reads the screen once a click; the macOS
-  palette takes `dark` as the others do and its test uses `dm_desktop_base::contrast`; one PNG
+  palette takes `dark` as the others do and its test uses `edm_desktop_base::contrast`; one PNG
   writer for Windows' and X11's pictures; one helper for the links in dropped files.
 
-Not done, for later: one binary name for both windows (`dm`) so scripts need no per-system crate;
+Not done, for later: one binary name for both windows (`EDM`) so scripts need no per-system crate;
 a shared PNG writer and tray-icon decoder for both windows; the macOS pasteboard readers shared
 by both windows; Linux's `--hidden` window drawn once before it is put away (GPUI's X11 windows
 ignore `show: false`); a reused X connection.
@@ -69,28 +69,28 @@ platform"; "make the overall architecture scalable, maintainable and easy to fol
   own dialog (13 pt text, 24 pt controls, 20 pt margins), Windows 11's WinUI ones (14 px text,
   32 px controls, 24 px margins, 120 px buttons, 4 px corners, the default button first and
   Cancel last) and GNOME's (14 px text, 34 px controls, 18 px margins, 6 px corners).
-- What is dropped on a window waits in one place for both windows, `dm_desktop_base::drops`, and
+- What is dropped on a window waits in one place for both windows, `edm_desktop_base::drops`, and
   Windows' OLE drop target (a browser's link as well as files) moved there out of the egui crate,
   with its tests: the GPUI window puts it on each of its windows on Windows, and its macOS drag
   methods feed the same queue.
 - What is said when the system makes no tray icon is one sentence for both windows
-  (`dm_desktop_base::tray::unavailable`): the GPUI window said the toolkit's error alone.
-- `human-qa.py` brings dm's window in front before Add URL, as a person does: behind the browser,
+  (`edm_desktop_base::tray::unavailable`): the GPUI window said the toolkit's error alone.
+- `human-qa.py` brings EDM's window in front before Add URL, as a person does: behind the browser,
   the egui window drew no frames, and its clicks waited for one (B10 and B63 failed so).
 
-## 2026-11-10: On macOS dm ships the GPUI window (G9 for macOS)
+## 2026-11-10: On macOS EDM ships the GPUI window (G9 for macOS)
 
 D5 recommended switching the default window once release packages held 64 of 64 on all three
 systems. The maintainer's later words of 2026-11-10 ("first migrate on macos, all steps, then we
 will move for linux"; "complete the migration") take every step on macOS first, so on macOS the
 GPUI window is now the one built and shipped: `make app`, `make build-macos` and `make run` build
-dm-gpui there (`WINDOW` in the Makefile), the release workflow's macOS job packages and
+edm-gpui there (`WINDOW` in the Makefile), the release workflow's macOS job packages and
 smoke-tests it (`matrix.crate`), and `human-qa.py` and `app-check.py` drive it by default. It
 was proved first from its own release .dmg: `smoke.py`, and `human-qa.py` 64 of 64. Linux and
 Windows keep the egui window until theirs hold the contract in GPUI, and egui is removed only
 then, in a change of its own. Nothing reaches `main` before the full gate (Windows' and Linux's
-runs included). An installed dm's browser registrations and login item name the old binary,
-`dm.app/Contents/MacOS/dm-desktop`; the new one re-points both at its first start (the browsers'
+runs included). An installed EDM's browser registrations and login item name the old binary,
+`EDM.app/Contents/MacOS/edm-desktop`; the new one re-points both at its first start (the browsers'
 manifests as they go stale, `register::ensure_if_claimed`; a login item whose program is gone,
 `autostart::takes_over`). `make app-egui` still builds the egui bundle for comparing.
 
@@ -102,16 +102,16 @@ system's own computer: `syswindow.rs` (was `appkit.rs`) does what GPUI cannot as
 system its own way. Windows: put away into the tray with `ShowWindow(SW_HIDE)` and shown again (it
 was only minimized), moved with `SetWindowPos` for `ui.move_window`, pictured with `PrintWindow`
 for `ui.screenshot` (a PNG). Linux on X11: unmapped into the tray and mapped back, moved and pictured (`GetImage`) through a
-connection of dm's own to the X server (`x11rb`; each request waited on, since one left in the
+connection of EDM's own to the X server (`x11rb`; each request waited on, since one left in the
 buffer as the connection closed was lost); on Wayland minimized, and the port says it can neither
 place nor picture the window. GPUI's X11 windows are shown however they were asked to open, so a
 login launch's window is put away after its first frame. GPUI's X11 and Wayland windows do not say
-their title back, so every dm window opens through `screen::open_window`, which keeps its title as
+their title back, so every EDM window opens through `screen::open_window`, which keeps its title as
 its name for the port. The top
 bar is the title bar on macOS and Windows (with Windows' own buttons); on Linux the desktop draws
 its title bar (server-side decorations) and the top bar is the row under it, as a code editor's is
 with the system's title bar, since a program drawing its own on Linux must draw its frame, shadow
-and resize edges too. The tray shows dm's own icon on Windows and Linux (the template picture is
+and resize edges too. The tray shows EDM's own icon on Windows and Linux (the template picture is
 macOS's). Checked here: macOS's build, tests and `human-qa.py`; Windows by `windows-check.sh
 clippy` (Docker, the whole workspace); Linux in `linux-check.sh`'s Debian container: clippy, and
 the GPUI binary under Xvfb with no GPU passing `smoke.py` and `app-check.py` in full. Running them
@@ -126,13 +126,13 @@ window's five menus by title (Tasks, File, Downloads, View, Help; Exit last in T
 Downloads, About in Help, as in the egui window), and the search box, centred on the window where
 the menus leave room. A title opens its menu as the system draws one (an `NSMenu` on macOS,
 Windows' own, a drawn one on Linux: gpui-component's `NativeMenu`), with the menu bar's items and
-ticks (`menus::window_menus`). On macOS the system's menu bar keeps them too, with dm's app menu,
+ticks (`menus::window_menus`). On macOS the system's menu bar keeps them too, with EDM's app menu,
 Edit and Window. On Windows the bar is the title bar and ends with the window's buttons, whose
 clicks the system takes (`WindowControlArea`, so Snap layouts work). B25's GPUI pictures were
 drawn again for it. The port opens a title's menu as it reads one (and a dialog's words of the
 same name, Options' Downloads tab, still go to the dialog).
 
-## 2026-11-10: dm brings no font: the system's interface font, and its monospaced one
+## 2026-11-10: EDM brings no font: the system's interface font, and its monospaced one
 
 At the maintainer's word ("use system fonts or os fonts, no need to provide fonts explicitly"):
 the GPUI window draws every word in the system's interface font (`.SystemUIFont`: San Francisco,
@@ -153,7 +153,7 @@ begun. `human-qa.py` types an address again only after two seconds without it on
 
 The egui window keeps its frame across launches (eframe's `persist_window`); the GPUI window
 opened in the middle at 900 by 600 every time, which a Mac program does not. It keeps its frame
-in `window.json` in dm's home as it quits (a `DM_HOME` run its own, so a test or a check starts as
+in `window.json` in EDM's home as it quits (a `EDM_HOME` run its own, so a test or a check starts as
 a fresh install does) and opens there next time, unless that frame's title bar is on no display
 now (one unplugged since) or it is smaller than the window's least size: then in the middle.
 Zoomed comes back zoomed; full screen comes back as the window it was in, not as a Space of its
@@ -165,29 +165,29 @@ The egui window's View menu holds controls a menu bar cannot: a checkbox with mo
 move-down arrows beside each column and each toolbar button, and a zoom with a percentage. The
 GPUI window has the same choices as the system's menu items: View › Columns ticks each column
 shown (the file name always stays), Customize toolbar the style (Icons and text, Small buttons,
-Text only, now drawn as chosen; `dm_desktop_base::toolbar`, moved out of the egui crate) and each
+Text only, now drawn as chosen; `edm_desktop_base::toolbar`, moved out of the egui crate) and each
 button shown, Language each language with the one in force ticked, and Sort by the sort in force.
 A column is moved as a macOS table's are, by dragging its heading onto another (after it from the
 left, before it from the right), and a toolbar button the same way. View › Text size is not in the
 GPUI window: GPUI has no zoom, and every size there is in points (gaps row G7).
 
-## 2026-11-10: `--headless` is a loop of its own in dm-desktop-base, with no GPUI
+## 2026-11-10: `--headless` is a loop of its own in edm-desktop-base, with no GPUI
 
 The GPUI binary had no `--headless`, which `smoke.py` (the release workflow), `app-check.py`,
-the site checks and a server need. GPUI has a headless platform, but dm's list view cannot exist
+the site checks and a server need. GPUI has a headless platform, but EDM's list view cannot exist
 without a window (its text field, its window's wake loop), and a GPUI application on macOS is
-still an application. So `dm-gpui --headless` starts no GPUI at all: `dm_desktop_base::headless`
-runs the application's rules (`dm_shell::app`) in a loop of its own, woken by the engine and the
-control port and once a second by its clock, as the egui binary's headless mode runs `DmApp` with
+still an application. So `edm-gpui --headless` starts no GPUI at all: `edm_desktop_base::headless`
+runs the application's rules (`edm_shell::app`) in a loop of its own, woken by the engine and the
+control port and once a second by its clock, as the egui binary's headless mode runs `EdmApp` with
 no window. It settles what a window would ask as egui's does: hand-offs go straight in
 (`Asking::Nobody`), Exit when done is at once, Resume on held rows waits and says so, Exit over
-the port ends dm, `ui.screenshot` is refused, `ui.texts` is empty. Two differences, both for a
+the port ends EDM, `ui.screenshot` is refused, `ui.texts` is empty. Two differences, both for a
 script's sake: a step (`ui.click`, `ui.type`, `ui.key`, `ui.scroll`) is refused at once, saying
 there is no window, where egui's queued it for frames that never came; and `command.run` of a
 command that needs a window (a dialog, the clipboard) is refused, naming it, where egui's opened
 the dialog unseen. With nobody to see it, the weekly update check is not made and the clipboard
-is not watched. `app-check.py` (98 of 98) and `smoke.py` pass with dm-gpui, and
-`dm-gpui/tests/quit.rs` signals it headless as `dm-desktop/tests/quit.rs` does.
+is not watched. `app-check.py` (98 of 98) and `smoke.py` pass with edm-gpui, and
+`edm-gpui/tests/quit.rs` signals it headless as `edm-desktop/tests/quit.rs` does.
 
 ## 2026-11-10: The GPUI window carries out When done, and its menus tick as the egui window's
 
@@ -214,23 +214,23 @@ Minimize, Zoom and Bring All to Front are new there, in each system's own words 
 
 GPUI's macOS window registers for dragged files alone, so a link dragged from a browser (an
 address, not a file) never reached it. As the egui window does with winit's, `drops.rs` gives
-GPUI's window class (`GPUIWindow`) dm's own `draggingEntered:`, `draggingUpdated:` and
+GPUI's window class (`GPUIWindow`) EDM's own `draggingEntered:`, `draggingUpdated:` and
 `performDragOperation:`: a drag that carries a link and no files is taken (its URL, else its text,
 read for links) and the window woken as at any change; every other drag goes on to GPUI's own
 method unchanged, files included, which reach the window as `ExternalPaths` and are read for the
-links they hold (`dm_shell::app::links::links_at`: a `.torrent` is itself the download). Each
-class is given dm's methods once: given twice, a method would keep dm's own as GPUI's and call
+links they hold (`edm_shell::app::links::links_at`: a `.torrent` is itself the download). Each
+class is given EDM's methods once: given twice, a method would keep EDM's own as GPUI's and call
 itself. The floating drop target (View › Drop target) is a small always-on-top window of its own
 (`droptarget.rs`): it takes drops the same way, shows how far the downloads are along its foot and
-how fast on hover, moves when dragged, brings the window back on a double-click, and has Show dm and
+how fast on hover, moves when dragged, brings the window back on a double-click, and has Show EDM and
 Hide the drop target on its right-click menu, as the egui window's card has. The GPUI app is
 bundled beside the egui window's (`make app-gpui`, `target/release/bundle-gpui/`), with the
-same name, id, icons and the types it opens, until GPUI is the window dm ships (Phase E).
+same name, id, icons and the types it opens, until GPUI is the window EDM ships (Phase E).
 
 ## 2026-11-10: `human-qa.py` drives the GPUI window as a person does, through the same port
 
 The control port answers every `ui.*` method in the GPUI window as it does in the egui window,
-so `human-qa.py` runs against either (`DM_BINARY`): `ui.inspect` names the dialogs open (by the
+so `human-qa.py` runs against either (`EDM_BINARY`): `ui.inspect` names the dialogs open (by the
 dialog's name: a progress window is "Download progress" whatever its title says), the status
 line, the problems, and each row by the name the list shows and its status in English;
 `ui.texts` holds only the words in view (a click aimed at words scrolled out of a page's view
@@ -246,19 +246,19 @@ port's (the menus, the rows' words, the dialogs' names) and three of the window'
 Completed said nothing; Options did not hold the window, which B42 asks of it; Resume did not
 open the progress window as the egui window's does), all put right. B25's pictures are the GPUI
 window's own: they are kept under `docs/behaviour-baseline/gpui/`, beside the egui window's, until
-GPUI is the window dm ships (D3, D5).
+GPUI is the window EDM ships (D3, D5).
 
 ## 2026-11-10: The GPUI window's tray is a status item; its close buttons do what Cancel does
 
 GPUI has no tray, so the GPUI window takes D4's fallback, `tray-icon`, as the egui window does:
-the status item in the menu bar with the egui window's menu (Show dm, Start Queue, Stop All, the
+the status item in the menu bar with the egui window's menu (Show EDM, Start Queue, Stop All, the
 speed limiter ticked while a limit is in force, Speed with its presets and Settings… (B52), the
-Scheduler, Exit dm) and its tooltip (`dm_desktop_base::tray`, both windows). Its picture is a
-template image drawn by dm (an arrow into a tray), as the system's own status items are, so it
+Scheduler, Exit EDM) and its tooltip (`edm_desktop_base::tray`, both windows). Its picture is a
+template image drawn by EDM (an arrow into a tray), as the system's own status items are, so it
 takes the menu bar's colour; the egui window's coloured icon was not. The close button follows
 Options › "When I close the window": into the tray (the window put away with `orderOut:`, not
 closed, so it comes back as it was), Exit, or asked once ("Keep running in the tray?", a sheet);
-with no tray it ends dm, asked first while downloads run. The window comes back from the tray,
+with no tray it ends EDM, asked first while downloads run. The window comes back from the tray,
 from the Dock icon, from a second launch and from the browser's button (the inbox's `show`,
 which the GPUI window had ignored); a login launch starts in the tray, with no window shown.
 File › Close (⌘W), as every macOS program has it, does what the close button does.
@@ -270,7 +270,7 @@ closed that way left the hand-off unanswered, and every later hand-off waited be
 
 ## 2026-11-10: GPUI's Options is macOS's settings layout over the shared rules; a sidebar button
 
-Options' rules are `dm_desktop_base::options` for both windows: its six pages (B43) and what
+Options' rules are `edm_desktop_base::options` for both windows: its six pages (B43) and what
 each page's Restore defaults puts back, the lists typed as words, and OK, which reads the lists
 into the draft, refuses a proxy with nowhere to connect to (on Advanced, at its proxy) and a
 category made or renamed that cannot be a folder on every computer (on Folders), and keeps only
@@ -306,9 +306,9 @@ another handler for Hide (so a Help page would have opened once a build).
 
 What OK does in Update download link, Move to queue, Move/Rename and File properties (a fresh
 address and the retry of a download that failed for want of it; the queue picked or named, in
-dm's own name; each file moved, then renamed, and a name already taken said; a torrent's files
+EDM's own name; each file moved, then renamed, and a name already taken said; a torrent's files
 and priorities, the note, the address with its sign-in, and the retry with a sign-in given) is
-`dm_desktop_base::row_edits`, which both windows call, so they cannot differ. In the GPUI
+`edm_desktop_base::row_edits`, which both windows call, so they cannot differ. In the GPUI
 window each is a window of its own, as Add URL is, and keeps the system's ways where the egui
 window had none: Move/Rename opens with the name without its ending chosen, as Finder's rename
 does (typing replaces the name and keeps the kind); Move to queue opens with the keyboard in
@@ -324,32 +324,32 @@ between Note and Check against, so Tab put the keyboard where nothing could be t
 
 The maintainer, 2026-11-10, looking at the GPUI window: "search is missing and also top bar is
 missing. take reference from vscode and make similar way." The GPUI window's top row is a title
-bar of its own (`dm-gpui/src/titlebar.rs`): the system's traffic lights at its left and, centred
+bar of its own (`edm-gpui/src/titlebar.rs`): the system's traffic lights at its left and, centred
 on the window, the search box that narrows the list as one types (name, address or note, the
 egui window's top-row box and its words), its magnifier at the left as the editor's command
 centre and the system's search fields draw it, "N shown" and a clear mark once it holds words;
 ⌘F puts the keyboard in it with its words chosen, Return finds the first row it leaves, Escape
 clears it and gives the keyboard back to the list, Find next and previous go round the rows it
-leaves (`dm_desktop_base::find`, both windows). The toolbar is a row of its own under it, no
+leaves (`edm_desktop_base::find`, both windows). The toolbar is a row of its own under it, no
 longer in the title bar. Dropped: the toolbar in the title bar beside the traffic lights (the
 unified style of Finder), which left the search nowhere and the window no top bar.
 
-## 2026-11-10: The ways dm runs without a window are one module for both windows
+## 2026-11-10: The ways EDM runs without a window are one module for both windows
 
-`dm_desktop_base::modes::without_window` runs the browser's host, the warm page reader,
+`edm_desktop_base::modes::without_window` runs the browser's host, the warm page reader,
 `--version`, `--help` (its text byte for byte as before), the command-line client, MCP,
 `--register` and `--unregister`, and refuses a typo, for both windows' `main`; macOS's "open with"
-Apple events (`dm_desktop_base::opened`) likewise. The GPUI window had none of them, so a browser
+Apple events (`edm_desktop_base::opened`) likewise. The GPUI window had none of them, so a browser
 could hand it nothing (`--native-host` opened a window). Notifications stay each window's own, as
 the decision on `Desktop` below says (notify-rust is a window crate's): the GPUI window's notifier
-is `dm-gpui/src/notify.rs`, and it claims dm's bundle id for them after gpui-component has started
+is `edm-gpui/src/notify.rs`, and it claims EDM's bundle id for them after gpui-component has started
 its own notification centre, since claiming it first made macOS look for a bundle a bare binary
-does not have, and dm stopped at launch.
+does not have, and EDM stopped at launch.
 
 ## 2026-11-10: GPUI dialogs take AppKit's measures and macOS's order of buttons
 
 The maintainer, 2026-11-10, looking at the GPUI dialogs: "margin padding is also off. fix it on
-macos too". Every GPUI dialog and sheet is built from one set of measures (`dm-gpui/src/native.rs`),
+macos too". Every GPUI dialog and sheet is built from one set of measures (`edm-gpui/src/native.rs`),
 AppKit's regular controls: 13-point system text, 11 for what is said under a control and an
 alert's informative text; a text field, a push button and a pop-up all 22 points tall; 20 points
 from the window's edges, 8 between rows and from a label to its control, 12 between buttons. A
@@ -368,9 +368,9 @@ push buttons and fields 24 points tall, OK and Cancel 80 points wide, 12 between
 window's edges, corners of 5 points, a dark dialog's background #2e2c2b (tinted by the wallpaper)
 and its push button white at 8% with no edge, the default button #007aff.
 
-A question is asked as a sheet on dm's main window only, once that window is in front
+A question is asked as a sheet on EDM's main window only, once that window is in front
 (`Downloads::sheet`): GPUI begins a sheet on whichever window AppKit calls main, so "Already in the
-list", asked as Add URL closed, went with Add URL, and a question raised while dm was in the
+list", asked as Add URL closed, went with Add URL, and a question raised while EDM was in the
 background (a 404 while the person is in the browser) was never shown, and every later question
 waited behind it. A question waits, in order, and is asked when the main window is activated, as
 a Mac program's alert waits for its person to come back.
@@ -380,7 +380,7 @@ a Mac program's alert waits for its person to come back.
 Under the maintainer's native word of 2026-11-10. A picker in a GPUI dialog (Download details'
 Category, Delete file after and queue; Add URL's Recent) is a pop-up button whose click opens the
 system's own menu, the chosen item ticked: gpui-component's `NativeMenu`, an `NSMenu` on macOS and
-Windows' own menu there, drawn by GPUI on Linux (`dm-gpui/src/popup.rs`). Dropped: a list drawn by
+Windows' own menu there, drawn by GPUI on Linux (`edm-gpui/src/popup.rs`). Dropped: a list drawn by
 GPUI inside the window, which a person on a Mac meets as a web page's menu, clipped at the window's
 edge. The cost: the system's menu is modal, so while one is open the control port waits, as the
 app does; `human-qa.py` needs a way to choose in a pop-up without opening it before it drives
@@ -394,14 +394,14 @@ view's rows for the name's clash; when it closed, the entity had no window, `upd
 the loop ended, so the main window stopped reading the queue. Quit is an action of the
 application's (`menus::Quit`, heard from any window in front), the list's commands (`menus::Run`)
 the main window's, as on a Mac Quit reaches the application from any window while a list's
-commands belong to its window; and Exit closes every dialog before it ends dm, since AppKit holds
+commands belong to its window; and Exit closes every dialog before it ends EDM, since AppKit holds
 `terminate:` while a sheet is up.
 
 ## 2026-11-10: On macOS the GPUI window asks its questions as sheets
 
 At the maintainer's word of 2026-11-10 ("focus on native improvements … it should feel native to
 users"). A question (Remove, Delete file, Cancel download, the server's name, a page for a file, a
-404, Exit while downloading) is asked on macOS as a sheet on the dm window: GPUI's
+404, Exit while downloading) is asked on macOS as a sheet on the EDM window: GPUI's
 `WindowKind::Dialog` is NSWindow's `beginSheet`, which is how macOS's own programs ask, holds that
 window until answered, and comes back with it when it is brought forward. The dialogs that are
 work rather than a question (Add URL, Download details, Options, the Scheduler, Properties) stay
@@ -440,34 +440,34 @@ At the maintainer's word of 2026-11-09 (take the recommended option). Of the lis
 `docs/migration/CURRENT_UI_ARCHITECTURE.md` 4.2, three stay where they are, each for a reason a
 second window would share: settings coordination is already the application's
 (`Backend::set_settings_from`, with the script rule `Settings::keep_programs_of`), and what is
-left of `DmApp::apply_settings` is the window's (its sentences for a kept program, the language
+left of `EdmApp::apply_settings` is the window's (its sentences for a kept program, the language
 it draws in, re-placing its rows, its own timers); notifications and sounds are which words and
 which sound, the presentation's by the row's own wording ("wording, sounds and which dialog opens
 stay in the window"); and a dialog's draft (Download all links' list and ticks, Properties' edits)
 is view state, its rules moved (`links::looks_like_page` and the rest, `rules::replacing`). The
 rows' verbs a dialog calls (`backend.pause`, `retry`, `resume`) are the application's API already.
-Every other entry moved, one rule per type or function, each with a dm-shell test.
+Every other entry moved, one rule per type or function, each with a edm-shell test.
 
 ## 2026-11-10: `Desktop` is the base crate's, and the window supplies what its crates do
 
 At the maintainer's word of 2026-11-09 (take the recommended option). The survey counted egui
 in `platform.rs`'s `Desktop` but not the crates `cargo xtask layers` lists as GUI beside it:
 `arboard` (the clipboard), `rfd` (the file choosers) and `notify-rust` (notifications away from
-Windows). Rather than let the toolkit-free crate use them, `dm_desktop_base::desktop::Desktop<W>`
+Windows). Rather than let the toolkit-free crate use them, `edm_desktop_base::desktop::Desktop<W>`
 is the application's `Platform` from everything else (the login item, with `login.rs` moved too;
 the Trash; notifications held while the person is busy; the sounds; opening and showing files;
 When done; Windows' own toasts; Linux's file-manager and portal look-ups), and takes those four
-from a `WindowServices` the window implements (dm-desktop's `EguiWindow`). A GPUI window
-supplies its own (its clipboard and path prompts; a notifier). `drag_out` stays in dm-desktop,
-needing the window's handle. Dropped: allowing those crates in `dm-desktop-base` (a crate
+from a `WindowServices` the window implements (edm-desktop's `EguiWindow`). A GPUI window
+supplies its own (its clipboard and path prompts; a notifier). `drag_out` stays in edm-desktop,
+needing the window's handle. Dropped: allowing those crates in `edm-desktop-base` (a crate
 "without a toolkit" pulling in a toolkit's file dialogs), and leaving `Desktop` in the binary
 (a second window would copy 300 lines of system calls).
 
-## 2026-11-10: G2's code moves are gated per batch; `dm-desktop-base` is the toolkit-free crate
+## 2026-11-10: G2's code moves are gated per batch; `edm-desktop-base` is the toolkit-free crate
 
 At the maintainer's word of 2026-11-09 (take the recommended option). G2 moves the desktop
-program's modules that draw nothing into `crates/dm-desktop-base`, which `cargo xtask
-layers` forbids every window crate; `dm_desktop` keeps each at its old path with a `pub use`, so
+program's modules that draw nothing into `crates/edm-desktop-base`, which `cargo xtask
+layers` forbids every window crate; `edm_desktop` keeps each at its old path with a `pub use`, so
 no caller, test or script changes. Each batch of the survey in `docs/gaps.md` is a commit (the
 first, `quiet`, came with the crate; a batch's manifests share lines, so a commit per module
 would be hand-split and its middle states never built), held to the gate's steps 1 and 2 (fmt, clippy, `cargo test --workspace`; `scripts/windows-check.sh clippy`); the two
@@ -480,7 +480,7 @@ A row that fails sends the batch back module by module. The gate's step 2 is
 
 ## 2026-11-10: A file a range where the download folder is on another disk
 
-At the maintainer's word of 2026-11-10 (gaps row 166), asked whether dm may stage a download as
+At the maintainer's word of 2026-11-10 (gaps row 166), asked whether EDM may stage a download as
 reference A does where its download folder is on another disk than its parts folder: each range is
 now written front to back into a plain file of its own (`range-0000`, `range-0001`…, beside the
 ranges' ledgers in the parts folder), and the finish appends them into the download folder in file
@@ -491,18 +491,18 @@ the reason the part files went in 2026-10 (every byte written twice) does not ho
 Windows one sparse staged file was the slower thing to write and to copy: in a probe of eight
 threads writing 16 KiB at a time, 512 MiB took 1.8 to 1.95 s into one sparse file and 0.42 s into
 eight plain ones, and 1.6 s against 1.1 s to copy. Measured the same day beside reference A
-(`bench.mjs`, dm's home on the SSD, C:, both apps saving to the hard disk, D:; every file checked
+(`bench.mjs`, EDM's home on the SSD, C:, both apps saving to the hard disk, D:; every file checked
 whole): 512 MiB in 2.09 to 2.87 s from the first request (2.3 to 2.9 s from the address given),
-reference A 3.14 to 4.88 s (3.7 to 6.0); after the last byte dm 0.72 to 0.96 s, reference A 0.80 to
-1.09 s. With the one staged file, forced in the same session, dm took 5.56 to 6.05 s, 2.9 to 3.3 s
+reference A 3.14 to 4.88 s (3.7 to 6.0); after the last byte EDM 0.72 to 0.96 s, reference A 0.80 to
+1.09 s. With the one staged file, forced in the same session, EDM took 5.56 to 6.05 s, 2.9 to 3.3 s
 of it after the last byte. 64 MiB at 1 MiB/s a connection, 8.58 and 8.60 s against 8.95 and 9.31.
 What decides is what an earlier run left (`files::stage_by_range`): a resume goes on in the layout
-its bytes are in, a staged file or an earlier dm's part files keeping the staged file; a download
+its bytes are in, a staged file or an earlier EDM's part files keeping the staged file; a download
 not fetched by ranges, or of no known length, keeps it too. A range's ledger still says how much of
 it is on disk; on a resume it is held to the length of the range's file, which a power cut can leave
 shorter than the ledger (`ranged::adopt_ranges`). The resume's check of a range's end, the seams and
 the overlaps read the range's own file (`Job::held`, `assemble::bytes_at`); a preview of a partly
-fetched video is its first range's file. `DM_STAGE_BY_RANGE=1` or `0` decides instead, for tests
+fetched video is its first range's file. `EDM_STAGE_BY_RANGE=1` or `0` decides instead, for tests
 (`tests/by_range.rs` runs each of its tests again in a process of its own with it) and for measuring
 the two. Not done: the parts staged on the download folder's disk (slower on a hard disk, in the
 entry below); appending a range to the finished file while the others are still fetched, as most
@@ -536,17 +536,17 @@ to plain JavaScript; a prototype of one of `document.js`'s hooks, built with bin
 by hand), came to 110 KB of JavaScript (19 KB gzipped) and 1.1 MB of memory in every page and
 frame before any of their logic, against 22 and 30 KB for the scripts themselves. Not done either: generating their rules into them at
 packaging rather than holding them by a test, which changes what the extension loads; and the
-two panels' wording made one ("dm did not answer…" against "dm did not answer in time…"), a
+two panels' wording made one ("EDM did not answer…" against "EDM did not answer in time…"), a
 change a person sees.
 
 ## 2026-11-10: Completed before the flush; the end of a part checked once a run; connections a ceiling
 
-Measured beside reference A on Windows on 2026-11-09 (gaps rows 166 to 168), dm was slower in
+Measured beside reference A on Windows on 2026-11-09 (gaps rows 166 to 168), EDM was slower in
 three cases; the maintainer said "fix the download speed problem" on 2026-11-10 and, asked, chose
 the first option offered for each of the two that undo a decision.
 
 Completed before the flush (row 166, undoing the sync before Completed of 2026-11-08 below). A
-file saved to another drive than dm's home spent most of its finish waiting for the flush to a
+file saved to another drive than EDM's home spent most of its finish waiting for the flush to a
 hard disk: 512 MiB took 10 to 12.7 s where reference A took 5.7 to 6.4 s. The finished file is
 now in place (renamed, or across drives copied by the system's own copy: CopyFileEx on Windows,
 `std::fs::copy`) and its digest checked before the row says Completed, and it goes to the disk
@@ -561,8 +561,8 @@ its own thread (`app/sync.rs` `saved_sizes`), so the window froze for the flush;
 double-click on the file would have waited the same. Asked again, the maintainer chose the
 write-behind that day over a flush put off about 30 s (still a lock on a slow stick) and over the
 flush before Completed. Measured the same day on the 2026-11-09 setup: 512 MiB in 5.4 and 6.4 s
-from the first request (10.0 and 12.7 s before), reference A 3.5 and 4.4 s; saved on dm's own
-drive, Completed 0.09 s after the last byte. What is left is the copy (row 166): dm's of its one
+from the first request (10.0 and 12.7 s before), reference A 3.5 and 4.4 s; saved on EDM's own
+drive, Completed 0.09 s after the last byte. What is left is the copy (row 166): EDM's of its one
 staged file took 1.4 to 3.2 s whether by Windows' copy or a 4 MiB buffered one (six traced runs),
 reference A appends its eight part files at about 450 MB/s; in a probe of eight threads writing
 16 KiB at a time, eight plain files were written in 0.42 s and one sparse file in 1.8 to 1.95 s,
@@ -571,9 +571,9 @@ to 3.8 s with what the system still had to write. Given up for it: a power cut i
 file's last blocks unwritten, as reference A's can. Not done: staging the
 parts on the download folder's drive, which makes the finish a rename but was slower on a hard
 disk (13.6 to 14.9 s, eight connections writing all over it); keeping the flush with only the
-faster copy, which would have left dm 1.5 to 2 times slower there.
+faster copy, which would have left EDM 1.5 to 2 times slower there.
 
-Tried and dropped later the same day, at the maintainer's word to make dm faster than reference A
+Tried and dropped later the same day, at the maintainer's word to make EDM faster than reference A
 and to verify it: copying the file to its folder's drive while it downloads, so little is left to
 copy after the last byte. First each range's bytes at their own place in a sparse copy: whole
 0.16 to 0.47 s after the last byte in a probe, but a file that was sparse while it was written
@@ -587,19 +587,19 @@ server at 180 MB/s outruns the hard disk, so the copying during the download slo
 by about a second and still left 1.3 to 1.9 s after the last byte; at 18 MB/s the two tied
 (28.9 and 29.3 s against 28.3 and 29.3 s). Not tried: reference A's layout, a plain file a range
 appended together at the end, which would make the finish on one drive a copy where it is now a
-rename (Completed 0.09 s after the last byte, dm's file opened at once).
+rename (Completed 0.09 s after the last byte, EDM's file opened at once).
 
 The end of a part checked once a run (row 167). The 64 KiB a part's end is fetched again and
 compared with on a resume (`RESUME_CHECK`, 2026-10-15) was asked for on every reconnect within
 one run as well, where nothing written can have been lost: on a server cutting connections every
-megabyte or so it was most of what dm fetched twice. A range's end is now checked once in a run,
+megabyte or so it was most of what EDM fetched twice. A range's end is now checked once in a run,
 on its first attempt, when its ledger came from an earlier one (`Live::trusted`); a resume, after
 a pause, a restart or a power cut, checks as before. A file changed during the run is still
 caught by the validator (`If-Range`), the total in `Content-Range`, each range's checked last
 bytes and the seams. Measured the same day (64 MiB at 8 MiB/s, each connection cut after 0.25 to
-3 MiB): dm 8.50 and 8.63 s, 1.1% fetched twice (4.8 to 6.7% before); reference A 8.34 and 8.27 s.
+3 MiB): EDM 8.50 and 8.63 s, 1.1% fetched twice (4.8 to 6.7% before); reference A 8.34 and 8.27 s.
 
-Connections a ceiling (row 168; contract rows B06 and B08 edited). dm opened every connection
+Connections a ceiling (row 168; contract rows B06 and B08 edited). EDM opened every connection
 it was allowed; allowed 16, on a server sharing 8 MiB/s among them and cutting each, that took
 10.1 and 11.1 s where reference A, opening 8 or fewer, took 8.4 and 8.2. A download now opens at
 most 8 at once (`OPENED_AT_ONCE`) and plans its ranges for them; past 8, `ranged::grow` lets in
@@ -610,8 +610,8 @@ and takes the last ones back, after the pieces they hold, when they did not, try
 the default of 8 nothing changes. Not done: trying connections past 8 one at a time each time,
 slower to reach 16 on a server that holds each connection down; opening them all and closing the
 ones that add nothing, which is what cost the time. Measured the same day with both set to 16: on
-a server holding each connection to 1 MiB/s dm opened 16 and took 6.58 and 6.87 s, reference A
-6.74 and 6.65; on the cutting server dm had at most 10 open and took 8.46 and 8.42 s, reference A
+a server holding each connection to 1 MiB/s EDM opened 16 and took 6.58 and 6.87 s, reference A
+6.74 and 6.65; on the cutting server EDM had at most 10 open and took 8.46 and 8.42 s, reference A
 8.26 and 8.27.
 
 ## 2026-11-08: A finished file is synced once; a server with no version is not taken for a changed one
@@ -631,7 +631,7 @@ under the validator is now a disagreement.
 
 A video chosen in the panel (and a video page handed over) carried its host's cookies for that
 download, whatever host the page's player named: a page could name another site's file and have
-dm fetch it with that site's sign-in (security review, 2026-11-07, row 159 c). Asked to choose
+EDM fetch it with that site's sign-in (security review, 2026-11-07, row 159 c). Asked to choose
 on 2026-11-08 between the tab's own site, the listed sites, and the hosts the tab's player
 fetched from, the maintainer answered "implement it and verify it" without naming one, so
 the one that keeps every site working was taken: the session now goes to the page itself, its
@@ -658,43 +658,43 @@ not renewed either; the app's own wait for the browser's next hand-off of the sa
 tab: YouTube's player never asks for it whole (each request names a byte range), so it is not
 in the request log.
 
-## 2026-11-07: dm posts its own toasts on Windows
+## 2026-11-07: EDM posts its own toasts on Windows
 
 notify-rust's Windows toasts each hang a click and a dismissal handler that are never taken
 off, and Windows keeps three handles for each for the life of the process (BUGLOG BUG-012).
-dm now makes the toast itself through WinRT (`dm-desktop` `toast.rs`), as notify-rust made it
+EDM now makes the toast itself through WinRT (`edm-desktop` `toast.rs`), as notify-rust made it
 (the same XML, PowerShell's app id), and takes the handlers off once the toast is clicked or
 dismissed; at most eight toasts are heard at once, as eight threads waited before. notify-rust
 stays for Linux and macOS. Not done: a fix to notify-rust or tauri-winrt-notification
-upstream, which dm would wait on, and a toast that opens its file through the shell by
+upstream, which EDM would wait on, and a toast that opens its file through the shell by
 protocol activation with no handler at all, which would change what a click on an executable
-does. An app id of dm's own (its toasts say PowerShell) is a change a person sees, not part
+does. An app id of EDM's own (its toasts say PowerShell) is a change a person sees, not part
 of this fix.
 
 ## 2026-11-07: The staged file is sparse on Windows
 
-dm writes every range into one staged file at its own offset and makes that file as long as
+EDM writes every range into one staged file at its own offset and makes that file as long as
 the download first (2026-10, "Written in place, finishing is a rename"). On NTFS a file made
 long that way is not sparse: the first write far into it makes Windows write zeros up to it,
 so a 4.5 GiB download spent minutes writing zeros (BUGLOG BUG-011). The file is made sparse
 before its length is set (`FSCTL_SET_SPARSE`). Not done: writing each range to a part file of
-its own and joining them (reference A's way, and dm's before 2026-10): every byte would be
-written twice again. Not done: `SetFileValidData`, which needs a privilege dm does not have and
+its own and joining them (reference A's way, and EDM's before 2026-10): every byte would be
+written twice again. Not done: `SetFileValidData`, which needs a privilege EDM does not have and
 would expose whatever the disk held before. A finished file stays marked sparse; with every
 byte written it takes the same room as any other.
 
-## 2026-11-07: A 429 to the browser's name moves that server to dm's own
+## 2026-11-07: A 429 to the browser's name moves that server to EDM's own
 
-dm sends Internet Explorer's name first, as reference A does (2026-11-01), and moved to its own
+EDM sends Internet Explorer's name first, as reference A does (2026-11-01), and moved to its own
 names only for a 403. Wikimedia's media servers answer a browser's name from a program with 429
-and `Retry-After: 600` and serve dm's name at once (measured with each name, with and without a
+and `Retry-After: 600` and serve EDM's name at once (measured with each name, with and without a
 `Referer`; BUGLOG BUG-010), now on the first request and now only on the ranges after it. So a
-429 to the browser's name asks once more by dm's own at the first request (`probe.rs`) and, on
-any later request, moves the server to dm's name for the rest of the run (`agents::limited`,
+429 to the browser's name asks once more by EDM's own at the first request (`probe.rs`) and, on
+any later request, moves the server to EDM's name for the rest of the run (`agents::limited`,
 called from `Error::from_response`, where every refusal passes). Not done: waiting the 429 out
-under the same name (the limit was on the name, so it never lifted; dm sat at 9 MB of 36 for 30
+under the same name (the limit was on the name, so it never lifted; EDM sat at 9 MB of 36 for 30
 minutes), trying every fallback name after a 429 (a server that limits everyone would be asked
-three more times at once; it is asked once), and moving a person's own choice (Identify as dm
+three more times at once; it is asked once), and moving a person's own choice (Identify as EDM
 only) to another name on a limit. What stays as it was: a server that limits every name is waited
 out with `Retry-After` as the least wait (2026-11-04), one request more than before.
 
@@ -707,8 +707,8 @@ the external video tool: "exactly like reference A". Measured the same day (refe
 line, reference A made one connection, saved the page itself (6 KB) and
 stopped; it read no video. Reference A reads no page: it gets a video only
 from the requests the browser's player makes, caught by its extension.
-dm already does that (`tests/caught_pair.rs`, no the external video tool present). So
-the external video tool goes entirely: YouTube is read by dm's own reader (`youtube.rs`),
+EDM already does that (`tests/caught_pair.rs`, no the external video tool present). So
+the external video tool goes entirely: YouTube is read by EDM's own reader (`youtube.rs`),
 every other site only through the player's caught requests, and a site
 only the external video tool could read is no longer offered, as reference A does not offer
 it. What reference A does on a playing YouTube page, where the player's
@@ -718,14 +718,14 @@ binaries, which its licence forbids. This replaces the earlier gaps entry's "the
 maintainer names the sites" and the 2026-10-26 decision to keep the external video tool
 behind the player's requests.
 
-## 2026-10-31: dm and the other macOS manager, run side by side again
+## 2026-10-31: EDM and the other macOS manager, run side by side again
 
-Asked to run both and make dm equal or better. The same cases, one app
-after the other, on this Mac (the other through its local interface, dm
+Asked to run both and make EDM equal or better. The same cases, one app
+after the other, on this Mac (the other through its local interface, EDM
 headless, release build of baa0972); the person's files and jobs in the
 other app left as they were (only what the run added was removed):
 
-| Case | Other macOS manager | dm |
+| Case | Other macOS manager | EDM |
 |---|---|---|
 | 168 MB, each connection held to 1 MB/s | 68.3 s | 21.2 s |
 | Server down 40 s at 30% | moving 21.4 s after it returned, done at 41.3 s | moving 16.4 s after, done at 38.1 s |
@@ -733,19 +733,19 @@ other app left as they were (only what the run added was removed):
 
 The folder-not-writable case was left out: on the other app's side it
 needs the person's own download folder made read-only. Its clip, GIF,
-MP3 and vertical modes are reached only through its window, so dm's were
+MP3 and vertical modes are reached only through its window, so EDM's were
 checked on real YouTube videos instead (decisions above).
 
 ## 2026-10-31: YouTube's streams are asked for when YouTube serves them; MP3 on every core
 
 Gaps row 55. A song's sound (dQw4w9WgXcQ, itag 140) was refused (403) to
-dm's engine for both dm's reading and the external video tool's, and came only through
+EDM's engine for both EDM's reading and the external video tool's, and came only through
 the external video tool's own slow download (46 s). Watched with the external video tool's own
 `--print-traffic`: it asks with the same TV-client address and no token,
 and is answered. The reading says why: `available_at`, four seconds after
-it is made; the external video tool waits for it, dm asked sooner. dm now waits for a
+it is made; the external video tool waits for it, EDM asked sooner. EDM now waits for a
 reading's `available_at` (at most 10 s), and a stream refused within ten
-seconds of its reading (dm's own reading carries no such field) is asked
+seconds of its reading (EDM's own reading carries no such field) is asked
 for once more when six seconds have passed. The song's sound: 10 s.
 
 The MP3 of it then took 46 s of encoding. Now: each table's bits counted
@@ -761,7 +761,7 @@ its start, and the bytes are the same as one run's, which a test holds).
 ## 2026-10-31: Qualities named by their class, as people know them
 
 From the comparison with the other macOS manager: its list says "4K,
-1440p, 1080p" where dm said "MP4 3840×2026", the exact picture of a film
+1440p, 1080p" where EDM said "MP4 3840×2026", the exact picture of a film
 not shot 16:9. Each picture is now named by its class and its container
 ("4K MP4", "1080p MP4", "720p WEBM"): the larger of its shorter side and
 its longer side's 16:9 height, snapped to the nearest of 144p ... 4K, 8K,
@@ -771,10 +771,10 @@ downloads differently; the panel's list and Download details' chips say
 the same. `youtube-check.py` reads the container from the line wherever
 the word is.
 
-## 2026-10-31: A part as a GIF: the system's decoder, dm's GIF writer
+## 2026-10-31: A part as a GIF: the system's decoder, EDM's GIF writer
 
 Gaps row 54, with no package and no ffmpeg. The part's H.264 samples
-(read by dm's MP4 reader) are decoded by VideoToolbox, called directly
+(read by EDM's MP4 reader) are decoded by VideoToolbox, called directly
 (`frames.rs`), twelve pictures a second kept, each made at most 480 across
 and as tall as it is decoded (box averaging), within the part its edit
 list plays and inside the stream's crop, so a vertical or square part
@@ -788,9 +788,9 @@ YouTube parts: 10 s at 480x270 and 270x480, 120 frames each, 10 MB, made
 in under 3 s; a 6 s part downloaded square and saved as a 480x480 GIF.
 In Download details, "Part as: Video / GIF" shows with Part, on macOS.
 
-## 2026-10-31: MP3 by an encoder of dm's own; the system's AAC decoder in front
+## 2026-10-31: MP3 by an encoder of EDM's own; the system's AAC decoder in front
 
-Asked for MP3 as dm's own code, with no ffmpeg and no added package.
+Asked for MP3 as EDM's own code, with no ffmpeg and no added package.
 `mp3.rs` is an MPEG-1 Layer III encoder (32, 44.1, 48 kHz; 192 kbit/s
 stereo, 128 mono; constant bit rate): the standard's polyphase analysis
 filterbank, a 36-point MDCT (over 9, which the decoder's unnormalized
@@ -808,28 +808,28 @@ Windows and Linux are gaps row 53). Checked: tones through the system's
 MP3 decoder at over 30 dB SNR, an AAC made by the system converted and
 played back at its level, and a real video's sound (3:33) saved as a
 valid 192 kbit/s MP3. Offered as "MP3 audio" after "M4A audio" in every
-quality list dm hands out (`videopage::with_mp3`), so the browser's panel and
+quality list EDM hands out (`videopage::with_mp3`), so the browser's panel and
 Download details show it with no change to the extension; its quality
 `audio/mp3` fetches the M4A and converts it.
 
 Also from the comparison with the other macOS manager's screenshots: its
-4K and 1440p files are twice dm's (414 against 209 MB) because it takes
-YouTube's VP9 where dm takes the MP4 stream, which there is AV1, as sharp
+4K and 1440p files are twice EDM's (414 against 209 MB) because it takes
+YouTube's VP9 where EDM takes the MP4 stream, which there is AV1, as sharp
 at half the bits; from 1080p down the sizes match. When YouTube refuses
-the addresses of dm's own reading, dm now fetches the external video tool's reading on its
+the addresses of EDM's own reading, EDM now fetches the external video tool's reading on its
 own engine before the external video tool downloads on its few connections. For one video
 (dQw4w9WgXcQ's sound, itag 140) both readings' addresses are refused to
-any fetch dm or curl makes, and the external video tool's own download succeeds; finding
+any fetch EDM or curl makes, and the external video tool's own download succeeds; finding
 why was stopped by the session's permissions (gaps row 55).
 
 ## 2026-10-31: Vertical and square parts by the stream's own crop, no codec
 
 Asked for the other macOS manager's clip shapes (vertical, square, GIF,
-MP3), and, as there is no ffmpeg in dm, for dm's own code rather than an
+MP3), and, as there is no ffmpeg in EDM, for EDM's own code rather than an
 added package. Vertical and square need no codec: an H.264 stream's
 sequence parameter set names the rectangle of its coded picture to show
 (the frame cropping every decoder honours, the way 1080 lines are coded as
-1088), and dm rewrites it to the middle 9:16 or 1:1 of the picture, with
+1088), and EDM rewrites it to the middle 9:16 or 1:1 of the picture, with
 the sample entry's and track header's sizes to match (`shape.rs`, applied
 to picture tracks in `mp4mux::join_cut`). Nothing is decoded or
 re-encoded, so it is instant and loses nothing; the file keeps the whole
@@ -840,52 +840,52 @@ always MP4 already. In Download details, Shape (As it is, Vertical 9:16,
 Square 1:1) shows once Part is ticked.
 
 Left as gaps rows 53 and 54: MP3 needs an AAC decoder and an MP3 encoder
-of dm's own (written from the standards, several thousand lines); GIF needs
-decoded frames, which means a full H.264 decoder of dm's own (not taken:
+of EDM's own (written from the standards, several thousand lines); GIF needs
+decoded frames, which means a full H.264 decoder of EDM's own (not taken:
 a project of its own) or the system's (VideoToolbox on macOS, Media
-Foundation on Windows; none on Linux), with a GIF writer of dm's own.
+Foundation on Windows; none on Linux), with a GIF writer of EDM's own.
 
-## 2026-10-31: Ideas from the other macOS manager's window, kept within dm's own
+## 2026-10-31: Ideas from the other macOS manager's window, kept within EDM's own
 
 Asked for: run both side by side, take the other macOS manager's slick
-window as inspiration (the maintainer: "do not completely modify" dm,
+window as inspiration (the maintainer: "do not completely modify" EDM,
 "just take good inspiration"), and better words. Its window could not be
 captured here (no screen-recording permission), so the maintainer took 17
-screenshots of it; dm's own were taken through its control port. Only
+screenshots of it; EDM's own were taken through its control port. Only
 what was seen was used; no code, asset or wording was copied.
 
-What it does better, and what dm took, each inside dm's own layout:
+What it does better, and what EDM took, each inside EDM's own layout:
 
 - **A failed download is hard to miss.** It counts failures above the
-  list with one button to retry them all. dm now does the same
+  list with one button to retry them all. EDM now does the same
   (`failed_bar`: "{} downloads didn't finish.", Retry all, Hide; hidden,
   it stays away until another fails).
 - **A link copied at a moment** (`&t=34`) is offered as a clip from that
-  moment. dm's Download details now says "This link starts at 0:34." with
+  moment. EDM's Download details now says "This link starts at 0:34." with
   a "From 0:34" button that ticks Part and fills its start
   (`youtube::start_of`).
-- **Turbo Mode explains itself in steps.** dm's Second network now has
+- **Turbo Mode explains itself in steps.** EDM's Second network now has
   "How to use your phone" (three steps) and names each interface as the
   system does ("iPhone USB (en5)", `second_path::system_name`).
 - **Each browser says whether it is connected.** Options › Browser now
   shows Connected or Add for Edge, Firefox and the Chrome family, from
   the browsers whose extension has said hello (`host::browsers_seen`).
 - **Its words** are short, say what happened and what to do next, and
-  speak to the person. 42 of dm's messages were rewritten that way (the
+  speak to the person. 42 of EDM's messages were rewritten that way (the
   longest settings lines and most failure reasons); the translations
   kept their meaning and moved with them.
 
 Not taken, and why: its library layout (a sidebar of kinds, rows grouped
 by day with thumbnails, a paste bar and an inline card instead of a
-dialog), which would replace dm's window, pinned by the behaviour
+dialog), which would replace EDM's window, pinned by the behaviour
 contract and declined by the maintainer; its conversions (vertical,
-square, GIF, MP3), which need codecs dm does not have; its notch, plans
+square, GIF, MP3), which need codecs EDM does not have; its notch, plans
 and invites, which are not a download manager's.
 
 ## 2026-10-31: A long list saves only what changed, to a journal
 
 Gaps row 18. Every save wrote the whole list (9 MB at 20 000 rows), so
-saves were spaced to ten times a write's length, up to 5 s, and a dm
+saves were spaced to ten times a write's length, up to 5 s, and an EDM
 killed in between lost what changed. Past 500 rows (the length written
 compact already) a save now appends the changed, added and removed rows to
 `queue.journal` (`queue/journal.rs`). A changed row is one that is not the
@@ -917,7 +917,7 @@ read never changes under its reader), the window keeps those
 (`Queue::list_shared`), the visible list and its sort hold pointers, and a
 row whose pointer is the one seen before is not hashed again to decide
 whether to place it. The queue names are worked out once per read from the
-list the window holds (`DmApp::queues`, by the same `queue_names` the queue
+list the window holds (`EdmApp::queues`, by the same `queue_names` the queue
 uses), with no lock. The control port's "is this queue known" check still
 asks the queue. Measured with a release build, 5000 rows waiting and 20
 downloads moving, the window thread's CPU time over 20 s (`ps -M`): busy
@@ -930,7 +930,7 @@ row under the lock, and the busy time left is drawing.
 
 `tools::freshen`, which runs at every start, now also fetches the external video tool (and
 QuickJS where no Deno is installed) when neither is installed nor fetched:
-twenty seconds after the start (`DM_PREFETCH_AFTER` for tests), so a dm
+twenty seconds after the start (`EDM_PREFETCH_AFTER` for tests), so an EDM
 that runs for a moment does not fetch 36 MB, and never for a named
 its environment switch. `tools::preparing_progress` tells the bytes so far of what is
 being fetched (`Counting` in `fetch_once`); the row's "Getting ready for
@@ -946,17 +946,17 @@ setting to turn off).
 standalone build only where the release lists one for this computer; else
 the portable build (its file, one file of Python) checked the same way,
 with the Python to run it noted beside it (its file), which
-`videopage::writable_to` starts it through. `videopage::python3` is `DM_PYTHON`, or
+`videopage::writable_to` starts it through. `videopage::python3` is `EDM_PYTHON`, or
 the first `python3` on `PATH` or in the usual places that says it is 3.10
 or newer, asked once a run. Unix only in practice: every Windows has a
 standalone build. `tests/videopage_portable.rs` publishes only the portable
 build and downloads through it.
 
-## 2026-10-29: The external video tool's failures in dm's words, from a corpus of its lines
+## 2026-10-29: The external video tool's failures in EDM's words, from a corpus of its lines
 
 its file holds the external video tool's error lines as its readers
 print them (YouTube's, Vimeo's, X's, Instagram's, TikTok's, the generic
-one, the downloader's), each with the sentence dm says; `tests/videopage_words.rs`
+one, the downloader's), each with the sentence EDM says; `tests/videopage_words.rs`
 checks every line is rewritten and that none of the external video tool's advice (flags,
 its issue tracker, `the external video tool -U`, links) reaches a person. A line with no
 sentence of its own says the fallback, the site named as people write it
@@ -969,13 +969,13 @@ catch-all: The external video tool's words for both carry "Sign in".
 
 ## 2026-10-29: A failed the external video tool run fetches the newest the external video tool once and tries again
 
-the external video tool's fix for a site change is usually out within days; dm's weekly
+the external video tool's fix for a site change is usually out within days; EDM's weekly
 `freshen` left everyone waiting up to a week. Now a run that fails in words
 that are not a known refusal (`videopage/refusal.rs`) asks the release's
-`SHA2-256SUMS` whether a build other than the one dm noted at its fetch
+`SHA2-256SUMS` whether a build other than the one EDM noted at its fetch
 (its file) is published, fetches it if so, and runs once more
 (its file, used by its file and `read_choices_as`).
-Once an hour at most, so a site that stays broken does not have dm asking
+Once an hour at most, so a site that stays broken does not have EDM asking
 GitHub at every download; never for an external video tool the person installed, which is
 theirs to update; never where fetching is off. Stable releases only:
 nightly carries breakages of its own. its environment switch names a test's
@@ -985,7 +985,7 @@ fix, then nothing more within the hour).
 ## 2026-10-29: Like reference A without the external video tool, asked again and measured
 
 Asked for: videos the way reference A gets them, with no the external video tool, and no
-upkeep. dm already does what reference A is documented to do: the
+upkeep. EDM already does what reference A is documented to do: the
 extension reads the player's own requests, takes the picture's and the
 sound's addresses, fetches both on many connections and joins them itself,
 with no helper (`tests/caught_pair.rs` proves it with no the external video tool present).
@@ -993,12 +993,12 @@ On YouTube that finds nothing today: in Edge 156 on a playing watch page,
 13 of 13 media requests were `POST videoplayback?sabr=1` with a binary body
 and no `itag`, `mime` or `range`. So "no the external video tool on YouTube" means a client
 of YouTube's SABR protocol (protobuf requests, UMP answers, proof-of-origin
-tokens) written into dm and kept in step with YouTube, which is the upkeep
+tokens) written into EDM and kept in step with YouTube, which is the upkeep
 asked to be avoided; reference A does it with a paid team and a new build
 each time, reference B does not do it at all. Kept as decided on
 2026-10-26: the player's requests first on every site, the external video tool reading the
-page only where they cannot be used, fetched by dm and current within a
-week, so dm itself has nothing to keep up. Weighed again and not taken:
+page only where they cannot be used, fetched by EDM and current within a
+week, so EDM itself has nothing to keep up. Weighed again and not taken:
 saving what the player plays through the browser's media source (only the
 quality it picked, only as fast as it plays).
 
@@ -1011,7 +1011,7 @@ length (cancel 2 000 of 20 000 rows: 60 s). Now the first change after 150 ms
 of quiet is written before the call returns, as before, and changes inside
 the window are folded into one write when it ends (`Queue::save`,
 `Queue::flush`); the write is made on a blocking thread. The window and the
-headless loop flush as they end. What this costs: a dm killed within 150 ms of
+headless loop flush as they end. What this costs: an EDM killed within 150 ms of
 a change forgets that change (the staged parts stay on disk). The file stays pretty-printed: tests and
 people read it. Not done: a journal, which would also cut the cost of
 each write on a very long list.
@@ -1020,8 +1020,8 @@ each write on a very long list.
 
 Measured in Edge with the video file's real size on disk (not the space
 reserved, which an earlier measurement counted). After a click with a reading
-ready, 4-5 s went on: The external video tool runs for each of the two streams dm's own
-request is refused for (YouTube answers dm 403; the refusal was handed to
+ready, 4-5 s went on: The external video tool runs for each of the two streams EDM's own
+request is refused for (YouTube answers EDM 403; the refusal was handed to
 the external video tool as a page, `download::is_stream` now stops that), and then the external video tool
 *sleeping*: formats from YouTube's tv client carry an `available_at` four
 seconds after the read, which the external video tool waits for ("as required by the site")
@@ -1043,7 +1043,7 @@ the host started behind the list (a thread) was ended with the host, which
 the browser stops within seconds of its answer, and the download read the
 page itself (3.6 s) and then each stream (`-O`). Waiting for the thread in
 the host did not help (the browser ended the host anyway). The reading is
-now made by `dm-desktop --warm-reading`, started detached from the host's
+now made by `edm-desktop --warm-reading`, started detached from the host's
 process group with the page and session on its standard input, so a click
 after a second or more finds it (`wait_for_reading` waits for one still being
 made). Not done: reading the player response in the page (an isolated
@@ -1052,17 +1052,17 @@ stale after YouTube's in-page navigation).
 
 ## 2026-10-27: What a failed YouTube read says; cookies stay the browser's session
 
-Checked against a report that YouTube downloads fail in dm: dm already runs
+Checked against a report that YouTube downloads fail in EDM: EDM already runs
 theexternal video tool it finds only if under 120 days old (else its own fetched copy,
 refreshed weekly), hands the external video tool a JavaScript engine by path (Deno, else the
-QuickJS dm fetched) on every read and download, and sends the page's session
+QuickJS EDM fetched) on every read and download, and sends the page's session
 or a chosen cookies file. What was wrong: the list read dropped the external video tool's
 stderr, so no failure could be told from another. Now `said_by` gives a known
 refusal in words, else the external video tool's last `ERROR:` line. Only the external video tool's own words
 for a failed player script ("solving failed", "challenge solver", "no
 supported JavaScript runtime", "only images are available") are called that;
 "Requested format is not available" is not, as it has many causes. Not done:
-`--cookies-from-browser` (dm passes the extension's session for that page
+`--cookies-from-browser` (EDM passes the extension's session for that page
 alone, so no browser profile is read and no cookie is kept) and
 `--remote-components` (it has the external video tool fetch code from GitHub to run).
 
@@ -1070,7 +1070,7 @@ alone, so no browser profile is read and no cookie is kept) and
 
 A download the browser starts is already a download (a page it navigates to
 is not), so the type list only left files with the browser (`.txt`, `.json`,
-an unlisted type) that a person wanted in dm. The default is now no list,
+an unlisted type) that a person wanted in EDM. The default is now no list,
 which `CatchRules::takes` already read as every type. A saved list that is
 exactly the old defaults was never chosen and becomes empty
 (`bring_up_to_date`, edition 2); a changed list, an Alt-click, a skipped site,
@@ -1090,14 +1090,14 @@ page, started behind the list (`warm_reading`). Any page that is not
 `status: OK`, is live or lacks the data goes to the external video tool as before. Dropped: a
 `player_client` pick for the external video tool (fewer formats, and fails by video).
 
-## 2026-10-26: The external video tool reads a video page, dm fetches it
+## 2026-10-26: The external video tool reads a video page, EDM fetches it
 
 the external video tool downloaded what it read on one connection a stream, so a video ran at
 one connection's speed (1 MB/s from a server holding each connection to
-that) while dm's engine sat idle. Now `videopage::download_page` asks the external video tool
+that) while EDM's engine sat idle. Now `videopage::download_page` asks the external video tool
 only what it would fetch (`-O "%()j"`, nothing downloaded, with the same
 format choice, name template, sign-in and proxy as its own download) and
-dm fetches each stream that is a plain file (`http`/`https`) with its own
+EDM fetches each stream that is a plain file (`http`/`https`) with its own
 engine, with the agent the external video tool gave it (`prefer_agent`; a site can bind its
 addresses to the client it gave them to), and joins picture and sound as
 before (`finish_dm`). Measured with the real the external video tool against that server,
@@ -1105,7 +1105,7 @@ before (`finish_dm`). Measured with the real the external video tool against tha
 reading included (`tests/throughput.rs`, `video_helper`).
 
 Nothing that downloaded before can fail now. Streams in pieces (HLS, DASH
-fragments), live ones and a site's own protocols stay the external video tool's; where dm's
+fragments), live ones and a site's own protocols stay the external video tool's; where EDM's
 fetch is refused, the external video tool downloads the same reading (`--load-info-json`),
 so the page is not read twice, and from the page again if that reading no
 longer serves. A refusal is remembered in the staging folder, so a resume
@@ -1124,21 +1124,21 @@ download a click starts has the external video tool choose its format from it
 the site again (1.7 to 6 s on YouTube, measured 2026-10-22/25). A reading
 that no longer serves is passed over for a fresh one. A fresh reading
 skips YouTube's HLS manifests and translated subtitles, as the list's
-does: dm fetches neither, and they were about a third of a reading's time.
+does: EDM fetches neither, and they were about a third of a reading's time.
 
-A picture and sound the extension caught from a player and that refuse dm
+A picture and sound the extension caught from a player and that refuse EDM
 (YouTube's 403 after about a megabyte without the player's token) now fall
 back to their page through the same route, rather than failing the row.
 
 Why not without the external video tool, as some download managers are: they read the player's own requests in
-the browser, which dm's extension already does (2026-10-25), and keeps up
+the browser, which EDM's extension already does (2026-10-25), and keeps up
 with each site by shipping fixes every week or two (30-odd builds in a
 year, most "resolved video recognition problems"). YouTube's web player
 has since moved to SABR, whose requests name no format and cannot be
 fetched by range; taking it over would mean writing YouTube's streaming
 protocol (protobuf requests, UMP answers, its redirects and policies) into
-dm, using the page's proof-of-origin token, and keeping it working alone.
-The external video tool is kept current by many and fetched afresh by dm weekly. Recording
+EDM, using the page's proof-of-origin token, and keeping it working alone.
+The external video tool is kept current by many and fetched afresh by EDM weekly. Recording
 what the player plays was weighed too: only the quality the player picks,
 and only as fast as it plays.
 
@@ -1163,25 +1163,25 @@ hold downloads back was waiting:
   that rate (`slow_enough_to_help`). A fast server finishes before they
   decide and never sees them (the test counts connections); a slow one is
   helped within a fraction of a second. Against the same two servers, in the
-  same benchmark (`DM_BENCH_SMALL=1`), before → now: capped, 1.5 MB 1.55 s →
+  same benchmark (`EDM_BENCH_SMALL=1`), before → now: capped, 1.5 MB 1.55 s →
   0.80 s, 3 MB 1.14 s → 0.80 s; uncapped, 0.27 s → 0.27 s and 0.35–0.45 s →
   0.44 s. The rate is watched over a window rather than since the start,
   which counts the wait for the first byte as slowness (a first try, with
   "nothing yet" taken as slow, made 3 MB and 6 MB at 80 ms slower). Two FTP
   tests that paused a 4 MB download at 0.4 s found it finished and fetch 8 MB
   now.
-- **A hand-off to a running dm waited for the inbox poll** (every 500 ms).
-  dm now writes the port of a loopback UDP socket to `inbox/bell`, and the
+- **A hand-off to a running EDM waited for the inbox poll** (every 500 ms).
+  EDM now writes the port of a loopback UDP socket to `inbox/bell`, and the
   host sends one empty datagram after filing a request (`host::ring`); the
   watcher looks at once. The datagram carries nothing, so anyone else
-  sending one only makes dm read its inbox early, and a flood is held to a
+  sending one only makes EDM read its inbox early, and a flood is held to a
   look every few milliseconds. The poll stays for an older host, a missing
   bell, or a socket that could not be had. A notifier on the directory was
   weighed again and dropped for the reason it was dropped before. From
   `download.start` to the server's first request (`scripts/launch-latency.py`,
-  median of nine, macOS debug builds): 520 ms → 59 ms with dm running (Linux
+  median of nine, macOS debug builds): 520 ms → 59 ms with EDM running (Linux
   under Xvfb, median of five: 509 ms → 13 ms); with
-  dm closed, starting it took 16 ms before and 20 ms after (noise).
+  EDM closed, starting it took 16 ms before and 20 ms after (noise).
 - **A download added while others run waited for the scheduler's next
   tick** (50 ms). An add, a resume, a retry or a queue start now wakes it
   (`Queue::kick`); the tick stays as it was.
@@ -1228,7 +1228,7 @@ debrid providers stands.
 **Share on Gofile** (a guest upload, its page link copied) was built on the
 owner's request (commits `0d505d1`, `f4089e0`, `020e3dc`) and a real upload
 worked. It was removed the same day because it did not do what it was for: a
-Gofile link cannot be downloaded by dm. The link is a JavaScript page (3 KB of
+Gofile link cannot be downloaded by EDM. The link is a JavaScript page (3 KB of
 HTML), and Gofile's content API answers `error-notPremium` to a guest
 account: listing or fetching a folder through the API is closed to free
 accounts, and the website gets round it with a token taken from its own
@@ -1246,7 +1246,7 @@ opened a port for others to reach. Neither feature is left in the code, menus,
 strings, privacy text or allowed addresses; both are in git history.
 
 Not built, and not wanted unless the owner says so: sharing beyond one's own
-computer. dm downloads; it does not host.
+computer. EDM downloads; it does not host.
 
 ## 2026-10-24: The work list is empty: what was built, and what was dropped and why
 
@@ -1258,13 +1258,13 @@ for ever; it names what is missing — a person, an account, money, a security
 design — so it can be picked up when that exists.
 
 **Built** (each has its own entry below or above): ZIP extraction, a command
-line with an opt-in setting to find a running dm, a watched folder, per-site
+line with an opt-in setting to find a running EDM, a watched folder, per-site
 rules, batch rename and a file's SHA-256 in Properties, a recording time
 limit, the FTP torn-part repair, and the Wayland close fix, checked under
 sway and KWin in Docker.
 
 **Dropped because it needs a person's own machine, account or release**, which
-no automated run can stand in for: dm on a real Windows desktop with a GPU
+no automated run can stand in for: EDM on a real Windows desktop with a GPU
 driver, tray and SmartScreen (`windows-checklist.md` lists the 17 checks); a
 real login on any system; VoiceOver and NVDA; a drag by hand on macOS or
 Windows; Brave's fresh-profile automation; a Chrome context menu clicked with
@@ -1274,7 +1274,7 @@ the Firefox store listing, which waits in Mozilla's review; waking a sleeping
 computer on macOS and Linux, which `pmset` and `rtcwake` do only for an
 administrator.
 
-**Dropped because it costs money**, and dm is free and stays free: Apple's
+**Dropped because it costs money**, and EDM is free and stays free: Apple's
 notarisation ($99 a year, no free route); Chrome Web Store's one-time fee, so
 Chrome-family browsers load the extension unpacked or from Edge Add-ons. A
 free Windows signing certificate exists (SignPath Foundation, for open
@@ -1283,7 +1283,7 @@ says how to open an unsigned installer.
 
 **Dropped for law, terms or privacy.** Debrid providers and Gofile: their API
 terms could not be read, and the reference project the owner named uses keys
-from each person's own accounts, one of them possibly paid; dm will not claim
+from each person's own accounts, one of them possibly paid; EDM will not claim
 a provider it has not tested under terms it has read. Cutting advertising or
 sponsor segments out of a video: it touches a service's terms and
 technical protections, detection from the video alone is unreliable, and a
@@ -1305,11 +1305,11 @@ Hebrew layouts (egui lays text out left to right only, so it needs
 bidirectional ordering inside its layout and a mirrored window); the "Download
 video" panel on a site whose security policy forbids WebAssembly (inherent:
 the menu still works); telling an advertisement from the programme on a
-player (needs a site's own knowledge, which dm does not keep); rewriting
-the external video tool's site extractors and QuickJS (site logic is not dm's to write); a
-browser that fetches a file again when it keeps a download dm refused
+player (needs a site's own knowledge, which EDM does not keep); rewriting
+the external video tool's site extractors and QuickJS (site logic is not EDM's to write); a
+browser that fetches a file again when it keeps a download EDM refused
 (Firefox's pause drops the connection); the one-name-for-every-package
-command (`dm-desktop` in the .deb, `dm` elsewhere; the README says which).
+command (`edm-desktop` in the .deb, `EDM` elsewhere; the README says which).
 
 **Left for later though free and possible**, because nothing needs them yet:
 a schedule, retry count and When done for each queue (one for all today); a
@@ -1319,18 +1319,18 @@ polish findings of the internal QA rounds (a column's arrow, a tooltip, a
 window's size at 300% text), none of which loses a download or hides a
 control. A defect found again is a new row.
 
-## 2026-10-24: The command line finds a running dm by an opt-in setting
+## 2026-10-24: The command line finds a running EDM by an opt-in setting
 
-`dm-desktop list|status|pause|resume|cancel` reach the running dm over the
+`edm-desktop list|status|pause|resume|cancel` reach the running EDM over the
 loopback control port. That port used to exist only under `--control`. Options ›
 General now has "Let the command line list and steer downloads", off by
 default, which opens the same port, with the same token only the account can
-read, at every start. Off, dm listens on nothing, as before, and the command
-says to start dm with the setting or `--control`.
+read, at every start. Off, EDM listens on nothing, as before, and the command
+says to start EDM with the setting or `--control`.
 
 ## 2026-10-24: A watched folder
 
-Options › Downloads names a folder dm reads every five seconds (even in the
+Options › Downloads names a folder EDM reads every five seconds (even in the
 tray or headless). A `.url`, `.webloc`, text file of links, or `.torrent` saved
 there is read exactly as a drop is read (the first 64 KB of a text kind; a
 torrent by its path), its links are added, and the file is moved into a `done`
@@ -1338,7 +1338,7 @@ folder inside it, so nothing is added twice and nothing is deleted. A link
 already in the list is put aside without being added again. A file less than
 two seconds old is left for the next look; symbolic links, hidden files and
 other kinds are never read; a file with no link in it, or one that cannot be
-moved, is said once and then left alone until dm restarts. Empty is off.
+moved, is said once and then left alone until EDM restarts. Empty is off.
 
 ## 2026-10-24: Site rules apply when a row is added
 
@@ -1371,7 +1371,7 @@ writing. A server that cannot be asked is left to the fetch to report.
 
 ## 2026-10-24: The ZIP crate is 9, and the advisory check gates it
 
-`zip` 8.6 carried three advisories about `ZipArchive::extract`, which dm does
+`zip` 8.6 carried three advisories about `ZipArchive::extract`, which EDM does
 not call (it reads and judges each entry itself), but `cargo audit
 --deny warnings` fails the Audit workflow on any. It is `zip` 9, whose entry
 names are fallible: a name that is not text refuses the archive. The same run
@@ -1393,8 +1393,8 @@ Deflate and Stored entries: the crate is built without its C-backed codecs.
 
 A program cannot hide or unminimize its own window on Wayland (winit's
 `set_visible` does nothing there), so close-to-tray cannot hide it. Marking the
-window hidden anyway stopped dm drawing a window the compositor still showed
-(a frozen ghost, KDE Plasma). dm minimizes on a Wayland display and keeps
+window hidden anyway stopped EDM drawing a window the compositor still showed
+(a frozen ghost, KDE Plasma). EDM minimizes on a Wayland display and keeps
 drawing; the task manager restores it, which the tray's Show cannot. Checked
 under sway and under KWin 6.8.1 in Docker (`linux-kde-close-check.sh`), where
 the check fails on the original code.
@@ -1411,7 +1411,7 @@ mid-write.
 `app.rs`, `dialogs.rs`, `download.rs`, `queue.rs`, `main.rs` and the window
 tests were each one file of thousands of lines, found by reading the code
 rather than by any rule. They are now directories of files by concern
-(`src/app/`, `src/dialogs/`, `dm-core/src/download/`, `queue/`, the window
+(`src/app/`, `src/dialogs/`, `edm-core/src/download/`, `queue/`, the window
 tests under `tests/window/`), moved verbatim: the only edits are `pub(super)`
 on what now crosses a file, and rustfmt's rewrapping of the longer lines.
 Behaviour, the window, and the tests' names are unchanged.
@@ -1428,7 +1428,7 @@ no widening.
 
 egui 0.37 shapes Arabic (harfrust) but lays every line out left to right in
 stored order, and has no paragraph direction (epaint's `unicode.rs` still
-says "TODO: heed bidi characters"). dm reorders single-line names itself
+says "TODO: heed bidi characters"). EDM reorders single-line names itself
 (`bidi.rs`). An interface in Arabic or Hebrew cannot be done the same way:
 a message that wraps must be reordered line by line after it is broken,
 which only the layout can do, and reordering strings before they reach
@@ -1437,7 +1437,7 @@ vendored epaint, as winit is vendored: the Unicode bidirectional algorithm
 run per laid-out row (reorder its glyph runs by level), right-aligned rows
 for a right-to-left paragraph, then the window mirrored (the places on the
 right, the toolbar and columns from the right) and the two catalogs. Until
-then dm offers the eleven left-to-right languages it has.
+then EDM offers the eleven left-to-right languages it has.
 
 ## 2026-10-22: Mica is opt-in, off by default, from the next start
 
@@ -1456,7 +1456,7 @@ settings file does the same.
 ## 2026-10-22: The title bar takes the window's colour; no Mica backdrop yet
 
 Fluent's windows read as one surface from title bar to content. On Windows
-dm tells the window's frame its look through DWM: dark mode where the look
+EDM tells the window's frame its look through DWM: dark mode where the look
 is dark, and the caption in the window's own background colour, its words
 in the text colour (`chrome.rs`). Mica itself (`DWMWA_SYSTEMBACKDROP_TYPE`)
 shows only through a see-through window, which means drawing egui's
@@ -1464,18 +1464,18 @@ panels with a transparent clear colour; where the compositor or an old GPU
 driver cannot, the window comes out black. That stays off until it can be
 watched on a real Windows 11 desktop.
 
-## 2026-10-22: dm does not get around copy protection
+## 2026-10-22: EDM does not get around copy protection
 
-dm has no DRM remover and never will: no licence-server requests, no key
+EDM has no DRM remover and never will: no licence-server requests, no key
 extraction, no content-decryption-module hooks. What it decrypts is HLS's
 own AES-128 scrambling, whose key the server hands to any player that asks
 (as every player and standard decoder reads it). A stream whose key belongs to a rights
 system is refused as copy-protected: SAMPLE-AES, any `KEYFORMAT` other than
-`identity` (FairPlay, Widevine, PlayReady), or a key address dm could only
+`identity` (FairPlay, Widevine, PlayReady), or a key address EDM could only
 reach through one (`skd://`, a `data:` licence). The external video tool is never given
 `--allow-unplayable-formats`, and its own "DRM protected" refusal reaches the
 row in plain words. In the browser, a player the page plays through EME (its
-`mediaKeys` set) gets a "Protected video" bar that says dm does not download
+`mediaKeys` set) gets a "Protected video" bar that says EDM does not download
 protected video and hands nothing over.
 
 ## 2026-10-17: A key is taken by the command that asks for the most modifiers
@@ -1489,7 +1489,7 @@ and the first that matches consumes the press. Remove follows the platform:
 Delete elsewhere. Keys that act on the selection do nothing while a dialog
 is in front; the per-download progress and completion windows do not count
 as in front. A dialog asked for while it is open is raised, not rebuilt.
-Window state (`persist_window`) goes to `$DM_HOME/window.ron` when `DM_HOME`
+Window state (`persist_window`) goes to `$EDM_HOME/window.ron` when `EDM_HOME`
 is set, so test and screenshot runs leave the person's own alone.
 
 ## 2026-10-17: A frame carries the oldest protocol version that reads it
@@ -1510,7 +1510,7 @@ version the app reads (`protocol`, absent from a version-1 app), and the
 extension hands a download the browser holds only to an app that says 2 or
 more; an older app keeps getting what a person asks for from the menus and
 the panel, which the browser never started, and the popup and one
-notification say "update the dm app". A caught download sent to an older
+notification say "update the EDM app". A caught download sent to an older
 app anyway is not answered and is given back after the wait. A frame of a
 version outside 1..=2 now names the side to update, not `--register`.
 
@@ -1524,19 +1524,19 @@ WebAssembly decides, so `extension/content.js` registers them before it
 imports anything; the panel stays Rust. A unit test holds the message
 names in the script to the constants in `decide.rs`.
 
-## 2026-10-17: A lock dm cannot read stops dm, and says so
+## 2026-10-17: A lock EDM cannot read stops EDM, and says so
 
 `instance.lock` that cannot be opened or locked (a directory in its place,
-a file system without locks) used to read as "another dm is running", and
-dm handed its links to nobody and exited without a word, every launch.
+a file system without locks) used to read as "another EDM is running", and
+EDM handed its links to nobody and exited without a word, every launch.
 Starting anyway without the lock was weighed and dropped: the next launch
-would start a second dm the same way, writing the same `queue.json`. So
-dm exits with the reason on stderr and in a dialog (none when headless),
+would start a second EDM the same way, writing the same `queue.json`. So
+EDM exits with the reason on stderr and in a dialog (none when headless),
 and the native host treats the lock as unreadable rather than as a running
-dm: it refuses the hand-off, and the browser keeps its download. A lock
-file left by dm run as another user is opened to read instead, which an
-advisory lock allows, so `sudo dm` once does not cause this. The host's
-probe still takes the lock for a moment; a dm starting then retries for
+EDM: it refuses the hand-off, and the browser keeps its download. A lock
+file left by EDM run as another user is opened to read instead, which an
+advisory lock allows, so `sudo EDM` once does not cause this. The host's
+probe still takes the lock for a moment; an EDM starting then retries for
 half a second before believing another is running.
 
 ## 2026-10-17: Waiting connections to the control port are evicted, not refused
@@ -1559,7 +1559,7 @@ that same server, so a mirror, a CDN redirect or another row never sees
 them, and an address edited onto another server drops them. A row keeps its sign-in until it is deleted from the list: dropping it
 when the download finished was tried and broke Redownload, and left the
 recheck queue probing signed out, where a sign-in page of another length
-reads as a changed file. dm's files are written readable by the account
+reads as a changed file. EDM's files are written readable by the account
 alone instead. The external video tool gets
 them in a private cookies file of its run (mode 0600, removed after),
 not as a command-line header any local `ps` could read. The control
@@ -1567,12 +1567,12 @@ protocol and MCP say only whether a row has a sign-in.
 
 ## 2026-10-16: Released unsigned, with the free signing there is
 
-dm earns nothing, so nothing that costs a yearly fee is bought. Releases
+EDM earns nothing, so nothing that costs a yearly fee is bought. Releases
 go to GitHub unsigned for every platform, and the README says how to open
 one. Where signing is free it is taken: Mozilla signs the Firefox build at
 no cost without a store listing (self-distributed), which ends the
 "temporary add-on every session" problem; SignPath Foundation signs
-open-source Windows builds through CI at no cost, and dm applies. Package
+open-source Windows builds through CI at no cost, and EDM applies. Package
 managers that cost nothing carry it by name: winget and Chocolatey on
 Windows, a Homebrew cask on macOS (no quarantine warning there), the AUR
 and Flathub on Linux. The Chrome Web Store's one-time five dollars is the
@@ -1620,12 +1620,12 @@ added for later, never started, and never twice.
 reqwest's default client reads the environment's `HTTP_PROXY` and friends,
 and with its `system-proxy` feature the macOS network settings too. Turning
 that feature on to offer "the computer's proxy settings" made every client
-dm builds take over a second on this Mac (`SystemConfiguration` is slow to
+EDM builds take over a second on this Mac (`SystemConfiguration` is slow to
 answer), and a test that paused a download at 400 ms found the download had
 not started. So the system's settings are read only for the one proxy kind
 that asks for them (`builder_with(read_timeout, system_proxy)`); a proxy
 that is off goes out directly, whatever the environment says, and a proxy
-of dm's own covers every address but its bypass list. A proxy dm uses is
+of EDM's own covers every address but its bypass list. A proxy EDM uses is
 one chosen in its Options. PAC scripts are not read: they are JavaScript.
 
 ## 2026-10-16: Digest is answered; NTLM and Kerberos are not
@@ -1635,7 +1635,7 @@ address carries (RFC 7616, MD5 and SHA-256), and the challenge is kept per
 server so the ranges sign in from the start. Negotiate, NTLM and Kerberos
 are not attempted: they authenticate a TCP connection, not a request, over
 several round trips, which a pooled HTTP client does not promise to keep
-on one connection, and dm has no Kerberos ticket cache to draw on. A server
+on one connection, and EDM has no Kerberos ticket cache to draw on. A server
 asking only for those gets the 401 said with what it asked for.
 
 ## 2026-10-16: Attempts, timeout and per-site connections are settings; one ceiling still
@@ -1657,13 +1657,13 @@ and dialogs through the AT-SPI accessibility tree and clicks them where it
 says they are. Table rows are the exception: egui's accessibility tree
 reports a virtualized table's cells at the wrong screen position (a row at
 y=244 was announced at y=431), so a click there selects nothing. Rows are
-instead clicked by their own rectangle, which dm reports over the control
+instead clicked by their own rectangle, which EDM reports over the control
 protocol (`ui.inspect`), plus the window's on-screen origin. The same
-protocol is the check's oracle: on any failed check it prints dm's view of
+protocol is the check's oracle: on any failed check it prints EDM's view of
 the window (open dialogs, selection, rows) so a failure says why.
 
 A running or queued download cannot be deleted until it is stopped
-(`enabled(Command::Remove)` excludes those states): dm keeps an active
+(`enabled(Command::Remove)` excludes those states): EDM keeps an active
 download safe, and the test follows that — Stop, then Delete.
 
 ## 2026-10-16: An installer is installed and run before it is released
@@ -1691,9 +1691,9 @@ KSNI owns its service thread and exports the same icon and menu without
 GTK-specific startup. The test machine's StatusNotifier registration and
 menu callbacks are verified.
 
-The tray is made whether or not a watcher is up, since at login dm can start
+The tray is made whether or not a watcher is up, since at login EDM can start
 before the panel and KSNI registers when one appears. Whether the window may
-hide is asked on closing, and the answer is whether the watcher lists dm's
+hide is asked on closing, and the answer is whether the watcher lists EDM's
 item, not merely whether a watcher exists: a watcher that has just started
 can take its bus name before it answers, and drop a registration that lands
 in that gap without a reply (seen in the Linux check after a watcher
@@ -1702,27 +1702,27 @@ seconds and registers the item again when the watcher does not list it, and
 a login launch that finds no tray showing it after ten seconds opens its
 window rather than run unseen.
 
-## 2026-10-15: dm's own names, list format and remote control
+## 2026-10-15: EDM's own names, list format and remote control
 
-dm is its own program and names no other. Its menus, dialogs, columns,
-categories and themes use dm's own words (Program menu, "Download details",
+EDM is its own program and names no other. Its menus, dialogs, columns,
+categories and themes use EDM's own words (Program menu, "Download details",
 "Add numbered series", "Files on a site", Videos/Audio/Apps/Archives/
-Pictures, Light/Dark/Classic). Export and import use dm's own `.dmlist`, a
+Pictures, Light/Dark/Classic). Export and import use EDM's own `.dmlist`, a
 JSON list of rows; a plain list of links still imports. The only remote
-control is dm's own token-protected control protocol (`--control`) and its
-MCP server (`dm-desktop mcp`); the extra JSON-RPC server that spoke another
+control is EDM's own token-protected control protocol (`--control`) and its
+MCP server (`edm-desktop mcp`); the extra JSON-RPC server that spoke another
 program's protocol was removed, with its setting. The window's controls are
 held by window tests that click every menu item, toolbar button and
 row-menu item by its name, not by a catalog of another window.
 
-## 2026-10-15: FTP by a client of dm's own
+## 2026-10-15: FTP by a client of EDM's own
 
 A download needs six FTP commands; a library would bring TLS and a second
 async runtime's worth of choices for them. Passive only (active needs the
 server to reach the client, which a home router stops). The data
 connection goes to the host the control connection reached, never the
 address a PASV names, as curl does: right behind NAT, and no way for a
-server to point dm elsewhere. FTPS is not done. FTP goes through a SOCKS5,
+server to point EDM elsewhere. FTPS is not done. FTP goes through a SOCKS5,
 SOCKS4 or HTTP CONNECT proxy (2026-10-16), both connections, with the
 server's name handed to the proxy for the data connection; an HTTPS proxy
 is refused, not sent around.
@@ -1731,7 +1731,7 @@ is refused, not sent around.
 
 Pieces alone (about four per connection) left the last slow piece to one
 connection while the rest sat finished. Now, when a connection frees up,
-dm halves the largest range left and gives it the second half. Each range has a
+EDM halves the largest range left and gives it the second half. Each range has a
 small lock of its own holding where it ends and how far it has claimed;
 its connection claims a chunk before writing it, and a split moves the end
 only past the claim. Splits append ranges, so part order is no longer file
@@ -1744,7 +1744,7 @@ finishes" true. Halves stop at 256 KiB, and a download has at most 256 ranges.
 
 Left to itself, the external video tool picks YouTube's best stream, which is AV1 or VP9
 in WebM with Opus sound: files many players (QuickTime, Windows' Films &
-TV, phones) open badly or not at all. dm now
+TV, phones) open badly or not at all. EDM now
 asks for MP4 picture and M4A sound, H.264 ahead of AV1 at the same height,
 joined into an MP4, whenever no WebM line was picked. Above 1080p YouTube
 has no H.264, so 4K is VP9 in an MP4: the height asked for wins over the
@@ -1764,22 +1764,22 @@ string asked for and missing, which the scan cannot see for words chosen
 at run time. A translation may name its values `{0}`, `{1}` where its word
 order differs.
 
-## 2026-10-15: A file dm is refused goes back to the browser, from the panel too
+## 2026-10-15: A file EDM is refused goes back to the browser, from the panel too
 
-A caught download dm cannot fetch was already left to the browser. A file
-from the panel or a menu was not: dm was refused (W3Schools' 403 on one
+A caught download EDM cannot fetch was already left to the browser. A file
+from the panel or a menu was not: EDM was refused (W3Schools' 403 on one
 Linux network) and the person got nothing. Such a hand-off is now checked
-the same way, and when dm is refused or absent the extension starts the
+the same way, and when EDM is refused or absent the extension starts the
 browser's own download of it and the panel says so. A player page (handed
 to the external video tool) is not sent back: the browser cannot download a page as a video.
-The probe also tries a browser's agent, with `dm/<version>` after it, as a
-last rung after dm's own and the plain `dm/<version>`: it is still named.
+The probe also tries a browser's agent, with `EDM/<version>` after it, as a
+last rung after EDM's own and the plain `EDM/<version>`: it is still named.
 
 ## 2026-10-14: Browser drags can be URL-backed temp files, not just regular files
 
 The window reads dropped files through the egui file handle, but some browser
 sources hand over a temporary file or a URL-shaped path when they cannot expose
-readable bytes. dm now falls back to the dropped path and parses URL-like text
+readable bytes. EDM now falls back to the dropped path and parses URL-like text
 from it before giving up, which fixes the common browser-drag case without
 claiming a full live-browser drag has been proven end to end.
 
@@ -1788,7 +1788,7 @@ claiming a full live-browser drag has been proven end to end.
 One fixed range per connection let one slow connection decide when a
 download finished. Splitting a range under a connection that is still
 filling it would need part files to change
-meaning mid-download, which dm's resume and its one-byte overlap check rely
+meaning mid-download, which EDM's resume and its one-byte overlap check rely
 on not happening. Instead the file is cut into about four pieces per
 connection, and connections take the next unstarted piece in file order:
 the same effect for any slowness short of the very last piece, with no
@@ -1796,11 +1796,11 @@ change to resume or assembly. 8.36s became 2.26s in `tests/speed.rs`.
 
 ## 2026-10-13: The installed app registers itself with the browsers
 
-A person who installs dm from a release should not need a terminal. Each
+A person who installs EDM from a release should not need a terminal. Each
 time the installed app opens, it checks that every installed browser's
 host manifest names this copy, and writes those that do not, keeping any
-extension ids already allowed there. A development build, a dm with
-`DM_HOME` set (every test), and a copy running from the mounted disk image
+extension ids already allowed there. A development build, an EDM with
+`EDM_HOME` set (every test), and a copy running from the mounted disk image
 do not, so none of them can take the browsers from the installed one. An
 AppImage registers the AppImage file, not the program mounted inside it.
 
@@ -1811,12 +1811,12 @@ failed. Wikimedia's caches answer several ranges at once that way under the
 same ETag, and a range of every byte too. Now the validator decides: the same
 one means the server stopped serving ranges, and the download starts again
 on one connection (a whole answer to a range of every byte is the file);
-another one still means the file changed. dm's user agent also names the
+another one still means the file changed. EDM's user agent also names the
 project's address, which Wikimedia requires.
 
 ## 2026-10-12: Light or Dark by default, following the computer
 
-dm's window draws every colour from `theme.rs` tokens. The default look is
+EDM's window draws every colour from `theme.rs` tokens. The default look is
 Light or Dark as the operating system is set; Classic stays as a choice.
 An openly licensed typeface is embedded (Inter since 2026-10-18; see below). Fonts given to egui take
 effect a frame later, and egui panics on a family it has not loaded, so
@@ -1835,7 +1835,7 @@ told to prefer that container, so an "MP4" line arrives as .mp4.
 
 ## 2026-10-12: One speed ceiling for everything
 
-A limit per download would let N downloads use N times the limit. dm's
+A limit per download would let N downloads use N times the limit. EDM's
 is one ceiling, shared by every connection and split with torrents and
 the external video tool runs. A limit is set to leave the link usable, and that is a
 statement about the link, not about one download.
@@ -1848,13 +1848,13 @@ a page script must start before WebAssembly can load. Its decisions live in
 
 ## 2026-10-11: The window is egui, not a web view
 
-dm's window is drawn in Rust. A Tauri
+EDM's window is drawn in Rust. A Tauri
 web view was replaced: one language, one process, and a window the tests
 drive through its accessibility tree.
 
 ## 2026-10-11: Player pages go to the user's the external video tool
 
-dm writes no site logic, token minting or signature work of its own. It runs
+EDM writes no site logic, token minting or signature work of its own. It runs
 theexternal video tool the person installed and places what it produces. Nothing behind
 DRM is attempted.
 
@@ -1887,7 +1887,7 @@ describes the file made from it.
 
 ## 2026-10-17: SOCKS5 resolves names at the proxy; FTP paths are the login's
 
-A SOCKS5 proxy is handed out as `socks5h://`, to dm's client and to
+A SOCKS5 proxy is handed out as `socks5h://`, to EDM's client and to
 the external video tool, so a name is resolved by the proxy: resolved locally, a name only
 the proxy's network knows cannot be reached, and every site is told to the
 local resolver. librqbit reads only `socks5://`, so the swarm is given that
@@ -1897,10 +1897,10 @@ to the login directory, as RFC 1738 has it, and `%2F` reaches the root.
 ## 2026-10-17: A page named as a document is that document
 
 A link whose last segment names a document (`.html`, `.xml`, `.txt`, not a
-script's `.php` or `.aspx`) is fetched by dm's own client, with the row's
+script's `.php` or `.aspx`) is fetched by EDM's own client, with the row's
 referrer and cookies, and never handed to the external video tool. It used to go to the external video tool
 first, falling back only on "unknown site"; any other refusal (a 403 to a
-request without the page's sign-in, a 429) failed a page dm could save.
+request without the page's sign-in, a 429) failed a page EDM could save.
 Some video sites do end watch pages in `.html`: a quality picked in the
 browser's video panel (which carries a container) still goes to the external video tool. A
 watch address with no extension, or a script's, is the external video tool's or refused.
@@ -1938,10 +1938,10 @@ line. The process group is ended with `libc::killpg`, not by running
 at-spi2-core 2.62 (Arch since 2026) dropped the bus's `ScreenReaderEnabled`
 property and keeps only `IsEnabled`. egui 0.36's accesskit_unix 0.21 waited
 for a change to `ScreenReaderEnabled` before putting the window on the
-accessibility bus, so there dm was invisible to Orca and to every AT-SPI
+accessibility bus, so there EDM was invisible to Orca and to every AT-SPI
 lookup; accesskit_unix 0.24 (egui-winit 0.37) listens to `IsEnabled`. A
 `[patch.crates-io]` of accesskit_winit alone was the fallback, not needed.
-What 0.37 changed under dm, kept as it was: eframe's clipboard and egui's
+What 0.37 changed under EDM, kept as it was: eframe's clipboard and egui's
 emoji fonts became opt-in features (`clipboard`, `monochrome_emoji_fonts`),
 both turned on; a screenshot is now a callback (`request_screenshot`), not
 an input event. 0.37's test harness panics on a glyph no font has, which
@@ -1984,7 +1984,7 @@ and sites.
 
 ## When done: what counts as done (2026-10-17)
 
-"When done" fires when nothing is left that dm will finish by itself. That
+"When done" fires when nothing is left that EDM will finish by itself. That
 means nothing Running or Queued and nothing the schedule or download limit
 holds, since those start again when the window reopens. Something must also
 have finished or failed since the queue last ran dry. A row a person stopped
@@ -1996,11 +1996,11 @@ for Retry.
 
 ## Login item and host manifests follow the installed copy (2026-10-17)
 
-On launch an installed release dm (no `DM_HOME`) rewrites the host
+On launch an installed release EDM (no `EDM_HOME`) rewrites the host
 manifests when they name another copy or do not allow this version's
 extension ids. A development build fixes only a missing one. The ids
 already allowed are kept, including Firefox's retired
-`dm@pranavo72bex.github.io`: that is harmless, and it keeps an old copy of
+`EDM@pranavo72bex.github.io`: that is harmless, and it keeps an old copy of
 the extension working until it is replaced.
 
 The login item is taken from another copy only when that copy's program is
@@ -2087,13 +2087,13 @@ not be paused and was no longer running ("it finished first"). Chromium
 finishes a small file served fast before the extension can hold it — a PDF
 almost always (it is not held for a danger check the way a `.bin` is), and
 a pause does not stop what it has already received — so those PDFs never
-reached dm. A cache hit and a fast fetch look the same from the extension,
+reached EDM. A cache hit and a fast fetch look the same from the extension,
 so the rule could not be kept for one and not the other, and it guarded
-nothing a person asked for: the catch rules said dm takes the type. Now a
+nothing a person asked for: the catch rules said EDM takes the type. Now a
 finished download is handed over by its address like any other, still
-`held` (protocol 2), so dm probes it, compares the type the browser got,
+`held` (protocol 2), so EDM probes it, compares the type the browser got,
 and refuses what it cannot fetch itself (a one-time link, a POST result, a
-sign-in page). Only once dm has taken it is the browser's copy removed:
+sign-in page). Only once EDM has taken it is the browser's copy removed:
 `downloads.removeFile` for a finished one (cancelling it would leave the
 file), `cancel` for one still running, then `erase`. Refused, the finished
 copy stays, and `give_back` does not start it again. The size floor in the
@@ -2103,17 +2103,17 @@ every fast PDF, which is what the hold-then-complete race already did);
 keeping the rule and lowering latency (the race is lost before
 `onCreated` runs).
 
-## Chrome's file name answer is held while dm decides; `scripting` added (2026-10-18)
+## Chrome's file name answer is held while EDM decides; `scripting` added (2026-10-18)
 
 Chrome asks where to save a download (its Save dialog) when the name is too
 long for the disk, or when "Ask where to save each file" is on, and it asks
 only after every `downloads.onDeterminingFilename` listener has answered. A
-dialog opened while dm was being asked stayed open after the extension
+dialog opened while EDM was being asked stayed open after the extension
 cancelled the download it had taken, and caught the next clicks. So the
 extension now listens there (Chrome only; Firefox has no such event) and
-holds its answer until `onCreated` has decided: a download dm takes is
+holds its answer until `onCreated` has decided: a download EDM takes is
 cancelled before Chrome asks anything, one it leaves is answered with no
-suggestion, as if dm were not installed. The hold lasts at most
+suggestion, as if EDM were not installed. The hold lasts at most
 `DETERMINE_WITHIN_MS` (handshake, settings and hand-off times plus 5 s) and
 is then answered whatever happened. Considered: suggesting a shorter name
 (fixes only the long name, not the "ask" setting); cancelling sooner (the
@@ -2121,7 +2121,7 @@ dialog can open before the app has answered).
 
 "Download all/selected links" asks the page script for the page's links;
 Chromium puts declared content scripts only into pages loaded after the
-extension, so a tab open before dm was installed, updated or reloaded had
+extension, so a tab open before EDM was installed, updated or reloaded had
 nobody to answer. The extension now puts `content.js` into that frame with
 `scripting.executeScript` and asks again. That needs the `scripting`
 permission (both manifests); with `<all_urls>` already granted it adds no
@@ -2150,7 +2150,7 @@ Inter and egui's fonts have no Chinese, Japanese, Korean, Arabic, Hebrew,
 Thai or Devanagari. Bundling Noto CJK would add tens of megabytes to a
 7.9 MB installer, so the computer's own font for the script is read the
 first time a row's name, path or note needs it (fontconfig's answer on
-Linux, the usual files on macOS and Windows) and appended after dm's fonts.
+Linux, the usual files on macOS and Windows) and appended after EDM's fonts.
 A computer without one draws what it can, as before. The files are read
 into memory (no memory-mapping crate in the window), once a process.
 
@@ -2168,38 +2168,38 @@ off for a while (holds every other row's start too).
 the status bar's count. Failed and stopped rows are under All and their
 kind, not here.
 
-## Every opening of dm registers with the browsers (2026-10-18)
+## Every opening of EDM registers with the browsers (2026-10-18)
 
-Registration ran only in the copy that opened the window, so opening dm
+Registration ran only in the copy that opened the window, so opening EDM
 again while it ran (what the README says to do after installing a browser)
 handed off and exited without telling the new browser. Now a launch that
-hands off registers first, and the running dm checks again whenever it is
+hands off registers first, and the running EDM checks again whenever it is
 asked to show itself. `ensure` is idempotent and reads a few small files,
 so it costs nothing when nothing changed. A failure is said in the window
-once until it changes. The extension with no host cannot know whether dm
-runs, so its words cover both: open dm, again if it is open.
+once until it changes. The extension with no host cannot know whether EDM
+runs, so its words cover both: open EDM, again if it is open.
 
 ## Firefox's downloads panel is left to Firefox (2026-10-18)
 
 Firefox opens its panel for every download it starts. Measured: cancelling
 and erasing inside `onCreated`, before asking anything, keeps it shut, but
-dm may cancel only after the app has taken the download (never lose one),
+EDM may cancel only after the app has taken the download (never lose one),
 and the app's answer comes later than the panel. No extension API closes
 the panel or sets `browser.download.alwaysOpenPanel`. Considered and
 dropped: cancelling at once and restarting the download if the app refuses
 (a restart is a second request — a one-time link or a POST is lost, and the
 restart is caught again); erasing at once and cancelling later (an erased
 download leaves the list the extension's pause, cancel and resume act on,
-so it could not be given back; reasoned from Firefox's code, not run). The README says the panel may show and dm has the download.
+so it could not be given back; reasoned from Firefox's code, not run). The README says the panel may show and EDM has the download.
 
 
 ## Right-to-left names reordered before egui draws them (2026-10-18)
 
 egui 0.37 has no bidirectional layout: a line is laid out in stored order,
 and its shaper (harfrust, guessing each font run's direction) turns each
-Arabic or Hebrew word round, but not the order of the words. dm does not
+Arabic or Hebrew word round, but not the order of the words. EDM does not
 wait for egui: `bidi::visual` runs the Unicode bidirectional algorithm
-(`unicode-bidi`, a left-to-right line, as dm's window is) and hands egui the
+(`unicode-bidi`, a left-to-right line, as EDM's window is) and hands egui the
 runs in drawing order, keeping each right-to-left word in stored order so
 the shaper's own turn is not undone, and mirroring brackets. It is applied
 only where a name or a path is drawn; text a person edits is left alone,
@@ -2220,7 +2220,7 @@ accent colour; the colours are tested as numbers in `theme.rs`.
 
 ## Scroll bars that take their room and can be seen (2026-10-18)
 
-egui's default scroll bars float over the content and, in dm's looks, are
+egui's default scroll bars float over the content and, in EDM's looks, are
 invisible until the pointer is over them: their handle is drawn in a
 button's fill, which the looks keep clear, and at zero opacity while
 dormant. A tester found Options › General cut off with no sign of more, and
@@ -2236,7 +2236,7 @@ egui's.
 `client_with` used to build a direct client from that: every download went
 out around the proxy someone had asked for. `client_with` now refuses it,
 which is what the launch path already turns into "the saved proxy could not
-be used, so it is turned off" for every route (dm's own client and the
+be used, so it is turned off" for every route (EDM's own client and the
 tools), said in the window in its language. Options refuses it before it
 gets that far. The native host's pre-check (`host.rs`) still falls back to a
 direct client when its proxy cannot be built; it only asks the server
@@ -2246,7 +2246,7 @@ is left for a change of its own.
 ## Link drags from a browser: a hint, not a fix (2026-10-18)
 
 winit delivers dropped files only, and reports nothing while a link is
-dragged over the window, so dm cannot tell that a link was dropped on it.
+dragged over the window, so EDM cannot tell that a link was dropped on it.
 What it can do: a drop holding no link says how to add one (Add URL, the
 browser's right-click menu, or a dropped `.url`/`.webloc` file), and the
 empty list says the same.
@@ -2285,12 +2285,12 @@ reset to the left edge on the first frame.
 
 ## Only Exit quits (2026-10-18)
 
-The Exit question used to close dm by itself once nothing was running,
+The Exit question used to close EDM by itself once nothing was running,
 reasoning that there was nothing left to ask about. A person reading the
-question, or reaching for "Keep downloading", saw dm vanish. dm now quits
+question, or reaching for "Keep downloading", saw EDM vanish. EDM now quits
 only on the person's Exit (or a script's or a signal's explicit quit):
 when everything finishes under the question, it changes to "Nothing is
-downloading any more. Exit dm?" with Exit and Stay. The question keeps one
+downloading any more. Exit EDM?" with Exit and Stay. The question keeps one
 width and the room of three lines, because a dialog anchored by its middle
 that shrinks moves its buttons, and Exit had slid under the pointer.
 
@@ -2305,7 +2305,7 @@ installer, and goes to Apps. The browser's catch list still catches `.bin`.
 ## Key names are catalog words with a `key:` prefix (2026-10-18)
 
 German keyboards say Strg, Umschalt and Entf. The shortcut text is built by
-dm rather than egui on every system without the Mac's symbols, from
+EDM rather than egui on every system without the Mac's symbols, from
 catalog keys such as `key:Delete`: the prefix keeps "Delete" the key
 ("Entf") apart from "Delete" the command ("Löschen"), and is taken off
 where no catalog has the word (English).
@@ -2353,7 +2353,7 @@ such links from their address (tokens, signatures) guesses wrong both ways,
 and reusing the check's connection for the download would mean the host
 fetching files. So the person lists those sites in Options › Browser, and a
 hand-off from one is taken without the question, knowing a sign-in-only link
-from it then fails in dm instead of finishing in the browser.
+from it then fails in EDM instead of finishing in the browser.
 
 ## Only questions dim the window (2026-10-18)
 
@@ -2390,16 +2390,16 @@ that lists only `udp://` trackers is refused with that reason rather than
 sent around the proxy. An HTTP proxy is still refused for torrents
 altogether, as before.
 
-A torrent shares the whole speed ceiling while none of dm's own downloads
+A torrent shares the whole speed ceiling while none of EDM's own downloads
 is running; with one running, the ceiling is split as before, one part for
-dm's own downloads and one for each torrent or the external video tool run.
+EDM's own downloads and one for each torrent or the external video tool run.
 
 ## The modern looks follow WinUI 3's Fluent 2 (2026-10-19)
 
 Asked for twice: the window follows Fluent 2 as WinUI 3 draws it, with the
 values read from WinUI's own open-source control templates
 (microsoft-ui-xaml's `*_themeresources.xaml`), the ones the WinUI 3 Gallery
-renders with. dm is not presented as a Microsoft product and does not ship
+renders with. EDM is not presented as a Microsoft product and does not ship
 Segoe UI (not redistributable); Inter stands in.
 
 What was taken, and where it was bent:
@@ -2408,7 +2408,7 @@ What was taken, and where it was bent:
   disabled, the strong and soft strokes, the accent fills from the default
   accent (#0078d4), status colours, and the subtle fills for hover and
   selection, kept see-through as WinUI's are. Two were darkened a shade to
-  hold dm's contrast floors on the list: the strong stroke (#8d8d8d to
+  hold EDM's contrast floors on the list: the strong stroke (#8d8d8d to
   #8a8a8a, 3:1) and disabled text (#9f9f9f to #9a9a9a, 2.5:1). The hover test
   now asks only that hover changes something, since WinUI's subtle fill is
   about 1.1:1 by design; the selection is told apart by the accent pill.
@@ -2449,8 +2449,8 @@ JavaScript and work from the start, as before.
 ## Segoe UI from Windows, Selawik elsewhere (2026-10-20)
 
 Fluent's face is Segoe UI (Segoe UI Variable on Windows 11), which
-Microsoft licenses with Windows: dm may not ship it. Chosen by the person:
-on Windows dm draws with the computer's own Segoe UI and its semibold
+Microsoft licenses with Windows: EDM may not ship it. Chosen by the person:
+on Windows EDM draws with the computer's own Segoe UI and its semibold
 (`%WINDIR%\Fonts\segoeui.ttf`, `seguisb.ttf`, mapped, as WinUI uses the
 system's); on macOS and Linux, and on a Windows without them, with Selawik,
 the open stand-in Microsoft made to Segoe UI's measure for other systems
@@ -2465,7 +2465,7 @@ cannot pick. Not yet seen on Windows.
 Segoe Fluent Icons, WinUI's icon font, comes with Windows and may not be
 shipped. Chosen by the person: Microsoft's Fluent UI System Icons (MIT), the
 same icons published for other platforms, as a font cut down to the 26 the
-window draws (`fonts/FluentSystemIcons-dm.ttf`, 5 KB, made with fontTools'
+window draws (`fonts/FluentSystemIcons-EDM.ttf`, 5 KB, made with fontTools'
 `pyftsubset`; `icons::fluent` names each by its `ic_fluent_<name>_20_regular`).
 The modern look draws the toolbar, every place (each its own, as the WinUI 3
 Gallery's pane has them), the pane's group chevrons, drop-downs' and
@@ -2484,8 +2484,8 @@ is gone; the numbers family is the window's face and what follows it.
 ## A login launch makes its window only when asked (2026-10-20)
 
 eframe makes the window and its GL context as it starts, about 40 MB of
-the 43 a dm waiting in the tray held. A `--hidden` launch now runs winit's
-event loop itself (`run_hidden`, `eframe::create_native`), with dm's logic
+the 43 an EDM waiting in the tray held. A `--hidden` launch now runs winit's
+event loop itself (`run_hidden`, `eframe::create_native`), with EDM's logic
 on a stand-in egui context (`run_logic`: no fonts, no drawing) whose
 repaint observer wakes the loop; the first ask for the window passes the
 loop to eframe, the window's state to its creator, and the stand-in's
@@ -2503,10 +2503,10 @@ and with no more CPU (measured on 2026-10-20).
 
 ## NTLM sign-ins (2026-10-20)
 
-NTLMv2 is written in dm (`ntlm.rs`, MD4 from RustCrypto, HMAC-MD5 over the
+NTLMv2 is written in EDM (`ntlm.rs`, MD4 from RustCrypto, HMAC-MD5 over the
 `md5` already used for Digest) rather than taken from a crate: the
 algorithm is short, its worked example in MS-NLMP pins it, and the crates
-on offer bring signing and sealing dm has no use for. It is answered under
+on offer bring signing and sealing EDM has no use for. It is answered under
 NTLM and under Negotiate, which Windows servers accept. Only the NTLMv2
 answer: LM and NTLMv1 are broken. NTLM signs in a connection, which
 reqwest does not expose; each reply is read to its end so the connection
@@ -2517,31 +2517,31 @@ to be tested against.
 
 ## RTMP, RTSP and MMS through an external converter (2026-10-20)
 
-These are media servers' protocols, not files: dm has no client for them
-and does not write one. The converter dm already finds for joining
+These are media servers' protocols, not files: EDM has no client for them
+and does not write one. The converter EDM already finds for joining
 streams reads all three, so an address of these schemes is handed to it
 with `-c copy`: nothing is re-encoded. MP4 is written fragmented
 (`frag_keyframe+empty_moov`), so a live stream stopped by hand still
 plays; MMS, which carries Windows Media, goes into its own container. A
 stream has no length and no position to resume from: progress is the
 bytes written, and a resume starts it again. That converter cannot go through
-dm's proxy for these, so with one in force the download is refused.
+EDM's proxy for these, so with one in force the download is refused.
 
-## The external video tool and a video tool fetched by dm itself (2026-10-21)
+## The external video tool and a video tool fetched by EDM itself (2026-10-21)
 
-YouTube is to work out of the box, with nothing installed by hand. dm still
+YouTube is to work out of the box, with nothing installed by hand. EDM still
 writes no site logic of its own: it runs the external video tool. Where the computer has no
-the external video tool (or converter), the first video page that needs one has dm fetch it
-into `<dm home>/tools`, through dm's proxy like any download: The external video tool's own
+the external video tool (or converter), the first video page that needs one has EDM fetch it
+into `<EDM home>/tools`, through EDM's proxy like any download: The external video tool's own
 standalone build from its GitHub releases, checked against the
 `SHA2-256SUMS` published with it (on macOS the unpacked build, which starts
 in 0.3 s where the single-file one took 8–14); the converter as one file from
 a static-build project's b6.1.1 release on GitHub, checked against digests written
-into dm, since that project publishes none. Fetched the external video tool is fetched
+into EDM, since that project publishes none. Fetched the external video tool is fetched
 afresh once a week. One the person installed is preferred, wherever it is.
-Not bundled in the installers: a bundled the external video tool goes stale between dm
+Not bundled in the installers: a bundled the external video tool goes stale between EDM
 releases, and both would add 100–150 MB to every installer. Not written as
-dm's own extractor: that is the site logic this project does not write.
+EDM's own extractor: that is the site logic this project does not write.
 
 ## A video page's session goes with its video (2026-10-21)
 
@@ -2550,17 +2550,17 @@ unless the client holds a proof-of-origin token, and an address that has
 asked too often is told "Sign in to confirm you're not a bot". The external video tool gets
 past both with a JavaScript runtime (Deno, now fetched with it) and the
 browser's session. So the extension sends the page's cookies with every
-video handed over (the panel, "Download media with dm") and with the
+video handed over (the panel, "Download media with EDM") and with the
 panel's quality list, whether or not the site is in the popup's sign-in
 list, and the `cookies` permission moved from optional to required (it
 carries no install warning in Chrome or Firefox). Bounded the way a kept
 sign-in is: to the page's own server, in a private file of the external video tool's run
 removed when it ends, and — unlike a kept one — dropped from the row once
 the video is downloaded (`Start.cookies_once`, `Entry.cookies_once`).
-Nothing from a private window. Dropped: writing a token generator of dm's
+Nothing from a private window. Dropped: writing a token generator of EDM's
 own, which is the site logic this project does not write.
 
-## dm joins a video's picture and sound itself (2026-10-21)
+## EDM joins a video's picture and sound itself (2026-10-21)
 
 A separate video tool was fetched (40–80 MB) for every video page only to join a picture
 and a sound that the external video tool had already fetched. `mp4mux.rs` does that join in
@@ -2572,10 +2572,10 @@ list is given one that starts it at its first shown frame, as the converter's ow
 join does (it played 67 ms behind its sound without). With no converter, the external video tool
 is asked for an MP4 picture and an M4A sound (`bv[ext=mp4]+ba[ext=m4a]`),
 leaves them side by side (its default `ignoreerrors='only_download'` turns
-the missing merger into a warning), and dm joins them under the name the external video tool
+the missing merger into a warning), and EDM joins them under the name the external video tool
 reported. Measured: 120 MB joined in 96 ms where the converter's stream copy took
 174 ms; the decoded frames and sound match the inputs' (`tests/mp4mux.rs`),
-and AVFoundation reads the result. The converter is still fetched where dm does not
+and AVFoundation reads the result. The converter is still fetched where EDM does not
 do the work: a WebM picked in the panel, embedded subtitles, RTMP/RTSP/MMS.
 Not written: a WebM (Matroska) muxer.
 
@@ -2583,16 +2583,16 @@ Later the same day, the HLS side: `tsmux.rs` reads a transport stream's
 tables, its H.264 pictures (start codes turned into lengths, the picture
 size read from the SPS) and its ADTS AAC frames, and hands them to the same
 writer, picture and sound kept the distance apart they had in the stream.
-It runs before the converter for dm's own HLS downloads, and on a file the external video tool saved
+It runs before the converter for EDM's own HLS downloads, and on a file the external video tool saved
 as `.mp4` that is a transport stream (the external video tool's HLS downloader leaves that to
 its converter's fix-up). A stream with any other picture or sound kind (HEVC, MP3,
 AC-3…) is refused whole, so nothing is dropped from it: a converter does it
-where there is one, else the `.ts` is kept. When dm joins, the external video tool's joiner-location option is
-pointed at nothing, so it never uses a converter dm
+where there is one, else the `.ts` is kept. When EDM joins, the external video tool's joiner-location option is
+pointed at nothing, so it never uses a converter EDM
 did not choose. Tests that would pass with a converter the external video tool found itself
-were checked to fail with dm's join turned off.
+were checked to fail with EDM's join turned off.
 
-## WebM joined by dm too (2026-10-21)
+## WebM joined by EDM too (2026-10-21)
 
 `mkvmux.rs` joins a WebM picture (VP9, AV1) and sound (Opus) the way
 `mp4mux.rs` joins MP4: tracks and blocks read from each input's EBML, written
@@ -2603,10 +2603,10 @@ real YouTube 720p VP9/Opus pair (21 MB) joins in 44 ms and decodes identical
 to its halves. Reads move within one megabyte buffer rather than seeking
 (seeking threw the buffer away per block: 1.47 s for the same file).
 
-## Subtitles put in by dm (2026-10-21)
+## Subtitles put in by EDM (2026-10-21)
 
 With no converter, the external video tool is asked for subtitles as WebVTT beside the video
-(`--sub-format vtt`, no `--embed-subs`), and dm carries them inside what it
+(`--sub-format vtt`, no `--embed-subs`), and EDM carries them inside what it
 writes: in an MP4 as `tx3g` text tracks, one per language in one alternate
 group, each cue a sample and each gap an empty one, with a closing empty
 sample (readers time a subtitle by the sample after it; without one the
@@ -2619,21 +2619,21 @@ A real YouTube video's English and German subtitles read back exact. A
 block before zero (Opus's delay) now keeps its time, the first cluster at
 zero and its offset negative, rather than moving everything 7 ms on.
 
-## More of a transport stream put into MP4 by dm (2026-10-21)
+## More of a transport stream put into MP4 by EDM (2026-10-21)
 
 `tsmux.rs` now also carries HEVC pictures (an `hvc1` with its `hvcC` built
 from the VPS, SPS and PPS: profile bytes as they are, sub-layers, chroma
 format, bit depths and size read from the SPS), MPEG-1/2 audio (MP3, MP2:
 frames whole, object type 0x6B or 0x69) and AC-3 (`ac-3` with its `dac3`,
 frame sizes from the standard's table). Each was made by a standard encoder, put into an
-MP4 by dm and decoded identical to the stream; AVFoundation reads the HEVC
+MP4 by EDM and decoded identical to the stream; AVFoundation reads the HEVC
 and AC-3 one. E-AC-3 too (`ec-3` with its `dec3`; one independent
 substream). Still refused, and left to an installed converter or kept as `.ts`: MPEG-1/2
 and MPEG-4 Part 2 pictures and LATM AAC, which HLS does not use.
 
-## RTMP spoken by dm (2026-10-21)
+## RTMP spoken by EDM (2026-10-21)
 
-`rtmp.rs` is a client of dm's own for `rtmp://` and `rtmps://` (TLS through
+`rtmp.rs` is a client of EDM's own for `rtmp://` and `rtmps://` (TLS through
 tokio-rustls with the webpki roots reqwest already uses, the ring provider
 named since two are compiled in): the simple handshake, the chunk stream
 (all four header forms, extended timestamps, the server's chunk size,
@@ -2644,11 +2644,11 @@ fragmented MP4 written a fragment a second, so a stream cut short plays.
 When the stream ends it is rewritten plain by `mp4mux`, which now keeps a
 fragmented track's start (`tfdt`) as an edit, so sound that began after the
 picture still lines up. Checked against a real streaming server sending a clip over RTMP: the
-saved file decodes identical to the clip, picture and sound, with dm told
+saved file decodes identical to the clip, picture and sound, with EDM told
 there is no converter. RTMPE (Adobe's encryption) and RTMPT (HTTP tunnelling)
 stay with the converter; neither is in use any more.
 
-## RTSP recorded by dm (2026-10-21)
+## RTSP recorded by EDM (2026-10-21)
 
 `rtsp.rs` records `rtsp://` with the `retina` crate (MIT/Apache, a
 maintained RTSP client used for IP cameras): DESCRIBE, SETUP with RTP
@@ -2663,7 +2663,7 @@ pictures are the clip's frames 75–198 in order) and, in the suite, against
 a one-client RTSP server in `tests/live.rs` sending real H.264 as single NAL
 and FU-A packets (all 75 pictures identical). RTSPS and MMS remain the converter's.
 
-## MMS over HTTP by dm (2026-10-21)
+## MMS over HTTP by EDM (2026-10-21)
 
 `mms.rs` asks an `mms://` (or `mmsh://`, `mmst://`) address over HTTP as a
 Windows Media player does: a first request for the ASF header, from which
@@ -2679,12 +2679,12 @@ Part 2.
 
 ## The same formats as the converter route (2026-10-21)
 
-Without the converter dm had asked the external video tool for an MP4 picture and M4A sound, which
+Without the converter EDM had asked the external video tool for an MP4 picture and M4A sound, which
 would have given a lower picture for a video whose tallest came only as
 WebM. `mkvmux::mp4_tracks` now reads a WebM's VP9 (`vp09`, its `vpcC` from
 the first key frame's header), AV1 (`av01`, WebM's `av1C`) and Opus (`Opus`,
 `dOps` from OpusHead) as MP4 tracks, and `mp4mux` takes a WebM input beside
-MP4 ones, so dm asks for what the converter route asked for (`bv+ba/b` and its height
+MP4 ones, so EDM asks for what the converter route asked for (`bv+ba/b` and its height
 forms, with the same sort) and puts it into an MP4 as the converter did; a WebM is
 made only when one is asked for. Checked: on six YouTube videos at best and
 at 720p, the external video tool picks the same format IDs for the old and the new selector,
@@ -2699,15 +2699,15 @@ winit:
 
 - macOS: `draggingEntered:` and `performDragOperation:` on winit's window
   delegate class are replaced at run time; a pasteboard with files goes on to
-  winit's own, one with a URL or text holding a link is taken by dm.
-- Windows: winit's drop target is revoked and dm registers its own OLE
+  winit's own, one with a URL or text holding a link is taken by EDM.
+- Windows: winit's drop target is revoked and EDM registers its own OLE
   `IDropTarget`, which reads files, `UniformResourceLocatorW` and text.
 - X11: winit is vendored (`vendor/winit`, `[patch.crates-io]`) with a
-  small patch, marked `dm:`, choosing `_NETSCAPE_URL` or UTF-8 text when no
+  small patch, marked `EDM:`, choosing `_NETSCAPE_URL` or UTF-8 text when no
   `text/uri-list` is offered — Firefox offers none for a link. Dragging out
-  is dm's own XDND source on a connection of its own (`xdnd.rs`): winit's
+  is EDM's own XDND source on a connection of its own (`xdnd.rs`): winit's
   pointer grab (core and XInput 2) is let go so the drag can take it, and
-  dm's window is told the button is up afterwards, since winit never sees
+  EDM's window is told the button is up afterwards, since winit never sees
   that release.
 - Wayland: neither. winit has no data-device support there; a hint says so.
 
@@ -2717,24 +2717,24 @@ Replacing the vendored copy goes away when a winit release reads links.
 
 ## Out of the box for someone new: nothing to install but the extension (2026-10-21)
 
-dm no longer fetches a separate video tool for anything. What it was still fetched for is
-dm's own now, or refused: RTMPT through an HTTP tunnel in `rtmp.rs`, RTSPS
+EDM no longer fetches a separate video tool for anything. What it was still fetched for is
+EDM's own now, or refused: RTMPT through an HTTP tunnel in `rtmp.rs`, RTSPS
 through a loopback TLS bridge in front of retina (which speaks plain RTSP
 only: patching it was the alternative, and the bridge needs no vendored
-copy), and a video in a container dm does not join asked of the external video tool as one
+copy), and a video in a container EDM does not join asked of the external video tool as one
 file that needs no joining. RTMPE is refused: it is Flash's encrypted RTMP,
-a protection dm does not undo. A converter the person installed is still
+a protection EDM does not undo. A converter the person installed is still
 used where it helps.
 
 Bounded, as everything read from a server is: an RTMPT answer is read in
 pieces and refused past 16 MiB. The RTSPS bridge takes the first
 connection to a random loopback port: another program on the same
-computer that got there first would reach the camera without dm's login,
-which retina sends only on its own connection, and dm's recording would
+computer that got there first would reach the camera without EDM's login,
+which retina sends only on its own connection, and EDM's recording would
 then fail rather than go anywhere else. Accepted, as a program already
-running as the person can read dm's files anyway.
+running as the person can read EDM's files anyway.
 
-The external video tool stays the one thing fetched, with Deno. Written into dm instead it
+The external video tool stays the one thing fetched, with Deno. Written into EDM instead it
 would be the site logic this project does not write (see "Player pages go
 to the user's the external video tool"): YouTube's player code changes weekly and is answered
 by running it, which is why the external video tool needs a JavaScript runtime, and the external video tool's
@@ -2744,9 +2744,9 @@ says "Getting ready for videos (first time only)" while it happens.
 
 Someone who installed only the app is shown how to add the extension: a bar
 over the list, until a browser connects (the native host leaves
-`browser.seen` in dm's home on the extension's hello) or they say not now,
+`browser.seen` in EDM's home on the extension's hello) or they say not now,
 with the same buttons in Options › Browser. Messages never say "install
-the external video tool" or tell the person to install a converter: a failed video says dm could not get ready for
+the external video tool" or tell the person to install a converter: a failed video says EDM could not get ready for
 videos and to check the connection, and an extension talking to an older
 app says to update the app. The two store addresses are allowed in shipped
 code by `cargo xtask privacy`, since they open in the person's browser only
@@ -2755,43 +2755,43 @@ when clicked.
 ## The external video tool may use a joiner the person installed (2026-10-22, later)
 
 The option that pointed the external video tool at a joiner that is not there was removed:
-it was the last place dm named a tool it does not use, and the owner chose
+it was the last place EDM named a tool it does not use, and the owner chose
 to drop it. On a computer with no joiner of its own nothing changes: The external video tool
-leaves picture and sound apart and dm joins them. Where one is installed,
-the external video tool may join them itself and dm takes the one file as it is (putting
+leaves picture and sound apart and EDM joins them. Where one is installed,
+the external video tool may join them itself and EDM takes the one file as it is (putting
 subtitles inside where it can, as it does for any single file). The cost:
 the file can differ from computer to computer, and that route is tested
-only where the test machine has such a joiner. dm still fetches nothing
+only where the test machine has such a joiner. EDM still fetches nothing
 of the kind and runs nothing of the kind itself.
 
 ## No separate video tool, not even an installed one (2026-10-22)
 
-dm joins picture and sound (`mp4mux`, `mkvmux`), carries subtitles, puts
+EDM joins picture and sound (`mp4mux`, `mkvmux`), carries subtitles, puts
 transport streams into MP4 (`tsmux`) and records live streams itself, so a
 converter on the computer is no longer used for any of it either: The external video tool is
 pointed at a joiner that is not there and always leaves picture and sound
-for dm, an HLS stream dm cannot convert (MPEG-2 pictures) is kept as the
+for EDM, an HLS stream EDM cannot convert (MPEG-2 pictures) is kept as the
 `.ts` it came as, and RTMPE is refused. The same file on every computer,
 whatever is installed, and one route to test instead of two.
 
-The external video tool stays, and is not rewritten inside dm. It is what reads a video
+The external video tool stays, and is not rewritten inside EDM. It is what reads a video
 site's page: YouTube's player answers with signatures and throttling codes
 that change week to week and are worked out by running the player's own
 JavaScript (which is why the external video tool needs Deno), and the external video tool covers well over a
-thousand sites, kept working by the many people who maintain it. dm's own
+thousand sites, kept working by the many people who maintain it. EDM's own
 version would be site logic this project does not write (see "Player
 pages go to the user's the external video tool"), would break within weeks of being
 written, and could not behave as the external video tool does across its sites. The
-person never installs it: dm fetches it, checked, and keeps it current.
-User-facing words call it dm's video helper; PRIVACY.md names it and Deno,
-since people are owed knowing what program dm downloads and from where.
+person never installs it: EDM fetches it, checked, and keeps it current.
+User-facing words call it EDM's video helper; PRIVACY.md names it and Deno,
+since people are owed knowing what program EDM downloads and from where.
 
 ## QuickJS rather than Deno for the external video tool's JavaScript (2026-10-22)
 
 the external video tool answers YouTube's player challenges by running JavaScript, with
-Deno, Node, QuickJS or Bun. dm fetched Deno (85 MB) for it; it now fetches
+Deno, Node, QuickJS or Bun. EDM fetched Deno (85 MB) for it; it now fetches
 QuickJS-ng 0.17.0 (1–3 MB), pinned, each build checked against the digest
-written into dm since the release publishes no checksums file. Measured
+written into EDM since the release publishes no checksums file. Measured
 first on 2026-10-22: the same formats chosen at every quality, a 108 MB
 1080p stream in 9 s either way, a page read in about 6 s against Deno's 3.
 `scripts/out-of-box-check.py` passes every case on it. The first video
@@ -2807,10 +2807,10 @@ go stale between releases, for a few seconds saved once.
 
 winit 0.30 has no Wayland drag and drop, and a Wayland drag can only be
 started on the connection that owns the window, with the serial of the
-press that began it, so dm cannot do it from a connection of its own as it
+press that began it, so EDM cannot do it from a connection of its own as it
 does on X11 (`xdnd.rs`). Both directions are added to the vendored winit
 with sctk's data-device support, which winit already depends on: a drop is
-read through a pipe on winit's event loop; a drag out is asked for by dm,
+read through a pipe on winit's event loop; a drag out is asked for by EDM,
 and winit starts it on its next turn, woken at once so the press is still
 held. Tested under sway (headless) with a virtual pointer written for the
 test (`scripts/linux/vpointer.c`, wlroots' virtual-pointer protocol), since
@@ -2835,13 +2835,13 @@ untouched), and the tray gained Start queue and Stop all.
 
 Left as it is, on purpose:
 - A certificate that cannot be checked stops the download with the reason
-  said. A "continue anyway" would be the one place dm fetched over a link
+  said. A "continue anyway" would be the one place EDM fetched over a link
   anyone on the path can read and swap; nothing a person is waiting for
   justifies it. Considered: a per-row override, dropped.
 - Taking a download the browser would keep is Shift-click, and the keys are
   options; a second default combination adds nothing.
 - A floating button over selected links, with a checklist of them: the
-  right-click "Download selected links" hands over the same set, and dm's
+  right-click "Download selected links" hands over the same set, and EDM's
   own Add links window has the checkboxes. A page overlay needs a real
   browser to check, which this project's shell does not have, so it is not
   built unseen.
@@ -2851,13 +2851,13 @@ Left as it is, on purpose:
 Close-to-tray on Wayland minimizes (2026-10-23), and sway, Hyprland, river,
 niri and similar have no minimize: Super+Q (their kill-window key) changed
 nothing on screen. Where `XDG_CURRENT_DESKTOP` names one of them
-(`minimize_is_ignored`, unit-tested) a close takes the no-tray path: dm exits,
+(`minimize_is_ignored`, unit-tested) a close takes the no-tray path: EDM exits,
 asked first while downloads run. Not seen on a real compositor from this
 shell; `swaymsg kill` in `linux-wayland-close-check.sh` sets no desktop name,
 so it still checks the minimize path. Considered: a setting for what closing
 does, dropped until someone needs the other choice.
 
-## 2026-10-25 DASH is dm's own; the external video tool is left the pages
+## 2026-10-25 DASH is EDM's own; the external video tool is left the pages
 
 A DASH manifest went to the external video tool, so a stream whose address was a plain `.mpd`
 needed a 40–80 MB helper fetched first. A manifest is a published format with
@@ -2881,7 +2881,7 @@ The way past that without site logic is to take the address from the player
 in the browser, which already ran the site's code: see docs/gaps.md.
 
 A picture and sound that an HLS master keeps in playlists of their own
-(`#EXT-X-MEDIA TYPE=AUDIO` with a `URI`) are dm's too when both are plain
+(`#EXT-X-MEDIA TYPE=AUDIO` with a `URI`) are EDM's too when both are plain
 fragmented MP4: fetched as the two tracks of a DASH stream and joined by
 `mp4mux`. Encrypted, byte-ranged or transport-stream pairs are still
 `Beyond`, because joining them wrongly saves a silent film as complete.
@@ -2894,7 +2894,7 @@ through `content.js`) and, where the request is a `videoplayback` of a
 `googlevideo.com` host, keeps the file's own address (the per-piece `range`,
 `rn` and `rbuf` taken off) as a picture or a sound by its `mime`/`itag`. A
 tab that has loaded both shows one line, "1080p video + sound", whose hand-off
-carries a second address (`Start.sound`, `Entry.sound`, `Options.sound`). dm
+carries a second address (`Start.sound`, `Entry.sound`, `Options.sound`). EDM
 fetches both at once in 8 MiB byte-range pieces, as many at a time as the
 connection setting, and joins them with its own muxer
 (`download::dash::download_media_pair`). A server that does not answer a
@@ -2928,7 +2928,7 @@ page. Three things, kept in this order of effect:
    dropped: `android_vr` and `mweb` read in about 1.6 s but offered five
    formats, nothing above 338 p; `tv`, `ios` and `web_safari` were refused.
    Downloads are untouched.
-3. A reading is kept for ten minutes in `formats.cache.json` in dm's home
+3. A reading is kept for ten minutes in `formats.cache.json` in EDM's home
    (48 pages), keyed by the page and the *names* of the cookies sent: a
    site restamps some cookie values on every request, and keyed by value a
    page was never found again (measured: the second read took 1.6 s).
@@ -2939,17 +2939,17 @@ page. Three things, kept in this order of effect:
 
 `#EXT-X-BYTERANGE` (and a `BYTERANGE` on `#EXT-X-MAP`) are read into
 `Part::range` and each piece is asked for by its bytes, exactly or refused
-(`fetch_segment_range`). A range dm cannot read is an error, not ignored: an
+(`fetch_segment_range`). A range EDM cannot read is an error, not ignored: an
 ignored one saved the whole source repeated and called it done. A pair
 (picture and sound in playlists of their own) may now be AES-128 as well:
 `dash::Piece` carries a `Lock` (key and the vector its segment number
 makes), undone as each piece is fetched. Still `Beyond`: a transport-stream
 picture with packed-AAC sound (gaps.md row 7).
 
-## 2026-10-26: A transport-stream picture with packed-AAC sound is joined by dm
+## 2026-10-26: A transport-stream picture with packed-AAC sound is joined by EDM
 
 An HLS master that keeps its sound in `.aac` segments beside a `.ts` picture
-went to the external video tool. dm now reads the ADTS frames as `tsmux` reads a transport
+went to the external video tool. EDM now reads the ADTS frames as `tsmux` reads a transport
 stream's, takes the sound's start from the first segment's ID3
 `transportStreamTimestamp` (the picture's 90 kHz clock), and writes both as the
 two tracks of one MP4 (`tsmux::join_packed`). The join is chosen by sniffing
@@ -2963,38 +2963,38 @@ the stream twice.
 
 `ask_panel_downloads` and `ask_caught_downloads` now default to off (this
 reverses "A video from the panel asks first", 2026-10-12). A click on the
-floating "Download video" button, or a download dm catches, was handed over
+floating "Download video" button, or a download EDM catches, was handed over
 and then waited in "Download details" for a "Start" press, which read as the
-browser having downloaded it and dm opening late. Measured in Edge 156: the
-browser's copy is paused 0.02 s after it is created; the 1.5–1.9 s before dm's
+browser having downloaded it and EDM opening late. Measured in Edge 156: the
+browser's copy is paused 0.02 s after it is created; the 1.5–1.9 s before EDM's
 first request is the browser starting the native host the first time in a
 session (22 ms after), which `on_startup` already warms. The two switches stay
 in Options for anyone who wants the dialog. Existing settings files keep what
 they hold. Side effect: with both off, "Download all links" queues the links
 without the picker (the links dialog follows the same switch).
 
-## 2026-10-26: A file asked of dm by name is never started in the browser instead
+## 2026-10-26: A file asked of EDM by name is never started in the browser instead
 
-The floating "Download video" button and the menus' "Download with dm" handed a
-file as `caught`, so the host fetched it first and, if dm was refused (a 403
+The floating "Download video" button and the menus' "Download with EDM" handed a
+file as `caught`, so the host fetched it first and, if EDM was refused (a 403
 where the browser has the site's session), the extension gave it back and the
 browser downloaded it: the "download started in the browser" the person saw.
-They are handed over as asked for now (`caught: false`); dm takes the file and
+They are handed over as asked for now (`caught: false`); EDM takes the file and
 a refused one shows as a failed row to retry or sign in for. The browser still
-takes over only when no dm app can be reached at all. Dropped: probing first,
+takes over only when no EDM app can be reached at all. Dropped: probing first,
 which is what let the browser start.
 
-## 2026-10-26: A caught download dm is refused is retried with the session, not left in the browser
+## 2026-10-26: A caught download EDM is refused is retried with the session, not left in the browser
 
-A link only a signed-in browser could fetch was refused by dm's pre-check and
+A link only a signed-in browser could fetch was refused by EDM's pre-check and
 stayed in the browser. The extension now hands it over a second time with the
 page's cookies for that one download (`cookies_once`, to the download's own
-server, dropped when it ends), and the browser keeps it only if dm fails again.
-A caught download of an address already in dm's list opens "Already in the
+server, dropped when it ends), and the browser keeps it only if EDM fails again.
+A caught download of an address already in EDM's list opens "Already in the
 list" (Show it / Download again) instead of being fetched a second time
-unasked. When the browser does keep a download because dm could not take it or
+unasked. When the browser does keep a download because EDM could not take it or
 could not be reached, it says so in a notification. Left with the browser by
-design: Alt-click, a type dm does not catch, catching switched off.
+design: Alt-click, a type EDM does not catch, catching switched off.
 
 ## 2026-10-26: Smaller ways a download ended up in the browser
 
@@ -3017,7 +3017,7 @@ saved when the window closes by Close, ×, or the last Open; a later download
 that finishes opens nothing (tested through the engine's own settings).
 Escape closes the window as Close and × do, and the ticked box is kept on that
 path too (`Dialogs::close_top` empties the set; the window saves the choice on
-its next frame). Rule for dismissal in dm: a dialog's check box is a choice made
+its next frame). Rule for dismissal in EDM: a dialog's check box is a choice made
 in the dialog, kept ticked while it is open and saved when it is dismissed by
 any route, never applied (and the dialog shut) under the pointer.
 
@@ -3061,11 +3061,11 @@ caught download starts, until the person turns it off in Options.
 ## 2026-10-26: A click on a file the browser shows is caught by the page script
 
 A link to a `.pdf`, `.mp4` or `.mp3` opens in the tab: the browser starts no
-download, so `downloads.onCreated` never fires and a type on dm's list was
+download, so `downloads.onCreated` never fires and a type on EDM's list was
 read, not caught. The page script now sees the person's plain left click
 (`isTrusted`, no key held, no `download` attribute, an http(s) link to one of
 the browser-shown types that is also on the app's list), keeps the page from
-opening it, and asks the background (`dm.inline`); the background applies the
+opening it, and asks the background (`EDM.inline`); the background applies the
 app's rules (`CatchRules::takes`, the master switch, the popup's switch, not a
 private window) and hands the file over. Any "no" (no app, a site to leave
 alone, a failed hand-off) makes the page open the link itself, so a click is
@@ -3079,7 +3079,7 @@ viewer: those are the browser's page loads, not clicks the page can see.
 
 ## 2026-10-26: A waiting dialog comes forward; a saved "ask first" is not migrated
 
-A download the browser handed over and dm asks about has already left the
+A download the browser handed over and EDM asks about has already left the
 browser, so a dialog behind another window or in the tray looked like a lost
 download. Opening Download details, the page's links or "Download again"
 from a hand-off now sets `show_asked`, which the window already honours (it
@@ -3109,7 +3109,7 @@ parts folder for five seconds and the disk it holds. The new dependency,
 
 ## 2026-10-26: The first run is the welcome; hints are said once; paused sites are the extension's
 
-The standards ask for a first run of at most three skippable steps. dm already
+The standards ask for a first run of at most three skippable steps. EDM already
 opened a welcome on a new install (the extension for each browser found, start
 with the computer); it now also shows the folder downloads go to, which can be
 changed there, and ends with Done (Later still skips it). A hint is said once
@@ -3117,7 +3117,7 @@ ever and kept in the settings file (`hinted_big`, for a download of 5 GB or
 more; the Scheduler is what it names): said again, it is a nag. The close
 button asks once (`on_close`: ask, tray, exit) and the answer is the setting,
 changeable in Options, so no answer is hidden. "Pause capturing on this site"
-is a list in the extension's storage (`dm.catch.paused`), as "Take every
+is a list in the extension's storage (`EDM.catch.paused`), as "Take every
 download from this site" is, not a setting in the app: the app's skip list
 (Options › Browser) is the app's own, for every browser, and a popup that
 wrote into it would need the host to be running. Restore defaults copies a
@@ -3131,7 +3131,7 @@ saved window shows and which fifteen tests read.
 
 ## 2026-10-26: Windows modules are checked from here, and run on Windows later
 
-`cargo check --target x86_64-pc-windows-msvc -p dm-desktop` stops at the C
+`cargo check --target x86_64-pc-windows-msvc -p edm-desktop` stops at the C
 build of `aws-lc-sys` without a Windows toolchain, so Windows-only code could
 not be compiled on a Mac, and was left unwritten. The new Windows code
 (`quiet.rs`, `contrast.rs`, `jumplist.rs`) is written to need only `std`,
@@ -3141,12 +3141,12 @@ checks it for the Windows target; their logic (what is quiet, what is held, the
 palette's contrast) is plain code the tests run anywhere. What it cannot say is
 whether the system answers as expected, so gaps rows 11 and 14 stay open as
 checks to make on Windows. Dropped: a `windows` crate behind a feature in
-dm-core, to check the whole of dm-desktop (a second build for one check), and
+edm-core, to check the whole of edm-desktop (a second build for one check), and
 leaving the rows blocked (a person can only verify what exists).
 
 High Contrast is not a fifth choice in Options: Windows says it is on, and
 every program is expected to follow, whatever it was set to; the debug-only
-`DM_HIGH_CONTRAST=black|white` shows the look elsewhere. A jump list is
+`EDM_HIGH_CONTRAST=black|white` shows the look elsewhere. A jump list is
 published once at start, in the language then in force.
 
 The list's vertical bar was a scroll area under egui's 64-point minimum, in a
@@ -3183,7 +3183,7 @@ signing step, `cargo xtask sign-update`/`update-keygen` and the check in
 `update.rs` are removed; the installer is still checked against the SHA-256
 in the manifest. It is in git history (commit `89a66d6`) if wanted again.
 
-## 2026-10-27: Compressed bodies are decoded by dm
+## 2026-10-27: Compressed bodies are decoded by EDM
 
 reqwest's gzip/brotli features decode inside the client and report no count
 of the wire bytes, so a ratio limit was impossible. They are off; `decode.rs`
@@ -3228,7 +3228,7 @@ its `expire` has passed or bytes were already fetched, reads the page again and
 continues if the streams are the same (format id, name, stated size). The saved
 plan holds no address, so nothing on disk changes. A refusal at the first ask
 on a live address keeps the old route (the `REFUSED` marker, the external video tool downloads),
-so a site that refuses dm does not cost a second reading. Pause and cancel
+so a site that refuses EDM does not cost a second reading. Pause and cancel
 during the second reading stop the download, as anywhere.
 
 **A stream's headers are that stream's.** All of `http_headers` goes with its
@@ -3236,13 +3236,13 @@ probe and ranges (`download::Headers`), carried on `Job`, not kept by host as
 the agent is (`prefer_agent` stays for the agent, as before). Not forwarded:
 the agent, `Range`, `If-Range`, `Accept-Encoding` (the engine needs the file
 as the server keeps it), the connection's own headers and `Authorization`;
-`Cookie` and `Referer` only where dm has none of its own. Values are never
+`Cookie` and `Referer` only where EDM has none of its own. Values are never
 printed (`Headers` has a `Debug` of names alone).
 
 **The external video tool, when it downloads itself, gets `--http-chunk-size 10M` and not
 `--throttled-rate`.** Run against the external video tool 2026.10.21: chunking a server that
 ignores ranges gave an identical 25 MB file, `--limit-rate 3M` held (25 MB in
-8.7 s) and the `@dm@` progress lines were unchanged. `--throttled-rate 100K`
+8.7 s) and the `@EDM@` progress lines were unchanged. `--throttled-rate 100K`
 against a server held to 40 KB/s: the 600 kB file never arrived in four minutes
 (a 0-byte `.part`; the external video tool starts over each time it reads the link as throttled),
 where without it the same file took 16 s. Tried and dropped: it would turn a
@@ -3264,17 +3264,17 @@ one-file 0.59-0.66 s, unpacked 0.22-0.24 s, five runs each, twice. That is the
 whole gain on Linux (0.4 s a run); the 8-14 s of macOS does not happen there.
 Windows was not measured.
 
-## 2026-10-28: Routing `m3u8_native` to dm's own HLS (design only)
+## 2026-10-28: Routing `m3u8_native` to EDM's own HLS (design only)
 
 Measured on 2026-10-31, and not built. Dailymotion's 1080p HLS stream
 (`hls-1080`, 47 segments, 80.7 MB, the same bytes both ways), three runs
 each from one reading of the page: The external video tool with `--concurrent-fragments 8`
-and `--load-info-json` took 6.2 to 6.6 s; dm's `download_stream` on the same
+and `--load-info-json` took 6.2 to 6.6 s; EDM's `download_stream` on the same
 media playlist, 8 connections, 5.6 to 5.7 s. About 0.7 s (12 %), most of it
 the external video tool's start, on a link that the stream fills either way: not the clear
 gain the route would need to pay for a second path, its fallback and the
 picture-and-sound join. Measured with a throwaway example that called
-`dm_core::download` on the playlist address; to repeat, build it again.
+`edm_core::download` on the playlist address; to repeat, build it again.
 
 Not built. The external video tool already fetches HLS fragments concurrently (`--concurrent-
 fragments`, since 2026-10-27), so the gain over today is unmeasured and may be
@@ -3282,13 +3282,13 @@ small; a measurement on a recorded run comes before code.
 
 Which formats: `protocol` is `m3u8_native`, the reading is not live, `has_drm`
 is not true, the playlist's keys are `AES-128` or none (`SAMPLE-AES` and
-`EXT-X-MAP` shapes dm's `resolve_stream` calls `Beyond` stay the external video tool's), and
+`EXT-X-MAP` shapes EDM's `resolve_stream` calls `Beyond` stay the external video tool's), and
 `http_headers` are what `Headers` carries (applied in `fetch_segment_range`,
 which does not yet). The format's `url` is already the chosen variant's media
-playlist, so dm takes it as given and does not choose a rendition again.
+playlist, so EDM takes it as given and does not choose a rendition again.
 
 How: `Read::plan` gives such a stream a kind beside the plain-file one;
-`fetch_stream` calls `hls::download_stream` into the same `.dm-f{id}` folder
+`fetch_stream` calls `hls::download_stream` into the same `.edm-f{id}` folder
 (segments resume as whole segments, as they do anywhere), and the existing
 `merge_progress` adds the streams' bytes up (no total, so no ETA, until every
 stream has one). A separate audio playlist is a second stream, joined like the
@@ -3338,7 +3338,7 @@ so it only means something under load.
 
 ## 2026-10-28: The window reads the queue when it changes
 
-The window keeps a copy of the list (`DmApp::rows`) and read it every quarter
+The window keeps a copy of the list (`EdmApp::rows`) and read it every quarter
 of a second while it thought something moved, every 30 seconds otherwise; a
 change to the queue only asked for a repaint in a quarter of a second. A frame
 that came before that (a control request, a click) read nothing, because a read
@@ -3405,7 +3405,7 @@ show this (it includes the download threads and moved 9-16 % between runs of
 one binary), which is why the thread was measured on its own.
 
 The shown rows, the sidebar's counts and each row's kind and filter text are
-kept from one frame to the next (`DmApp::visible_shared`, `count`,
+kept from one frame to the next (`EdmApp::visible_shared`, `count`,
 `place_rows`), each under what it is made from: a generation counter bumped
 when the list is read or the places are made again, and for the rows the
 place, the filter, the sort and how many sizes a dialog has told. A place is
@@ -3445,21 +3445,21 @@ yet); three strings built with `+` are built with `format!`; two `for_each`
 are loops, and `string_add` and `needless_for_each` are kept clean by a lint;
 `rustfmt.toml` says the width of 100 the guide asks for (rustfmt's default,
 stated); the cache key added the same day is a struct with named fields, not a
-tuple; one test that set `DM_HOME` in every case of a property test now sets
+tuple; one test that set `EDM_HOME` in every case of a property test now sets
 it once (the standard library calls `set_var` unsafe because another thread may
 be reading, which a comment cannot make false: the exposure that remains is
 named in the comment).
 
 Kept, on purpose:
 
-- `lock()` (`dm-core/src/lib.rs`) takes the data of a poisoned mutex
-  (`PoisonError::into_inner`), where the guide says never to. dm's plain mutexes
+- `lock()` (`edm-core/src/lib.rs`) takes the data of a poisoned mutex
+  (`PoisonError::into_inner`), where the guide says never to. EDM's plain mutexes
   guard a problem list, a schedule and the window's settings, which stay whole
   after a panic elsewhere, and one panic turning into a crash at every later
   lock was judged worse; changing it would put a `Result` on hundreds of calls.
 - `tray.rs` calls `catch_unwind` around the tray's creation, where the guide
   allows it only if never relied on. It is: a panic in the tray library on some
-  desktop would otherwise end the program, and dm runs without a tray instead.
+  desktop would otherwise end the program, and EDM runs without a tray instead.
 - `use super::*;` in a file module (121 uses) and `use submodule::*;` in a
   parent that only re-exports: the guide allows the glob in inline modules and
   in non-leaf modules that re-export; a file module extending its parent is the
@@ -3501,23 +3501,23 @@ The stress suite's `edge` phase ran Chrome for Testing, not Edge: it blanked
 a row (connection closed, timed out, reset). It now uses the installed
 Microsoft Edge (macOS, Windows, Linux paths) and says when it has to fall back:
 38 of 38 checks pass with Edge 156, forty simultaneous downloads all taken by
-dm and none kept by Edge.
+EDM and none kept by Edge.
 
 ## 2026-10-28: Microsoft's Pragmatic Rust Guidelines (the part given)
 
 Checked against what was pasted (it stopped partway). Already as asked: no
 `panic!`, `assert!`, `todo!` or `unreachable!` in shipped code (so every one
 has no message to be missing); `unsafe` has its reason written beside it; no
-macros of dm's own; module and crate docs are about what a thing does.
+macros of EDM's own; module and crate docs are about what a thing does.
 
 Not applied, and why:
 
-- Items reachable by one path (`M-SINGLE-ITEM-PATH`): `dm_core::category` is
+- Items reachable by one path (`M-SINGLE-ITEM-PATH`): `edm_core::category` is
   public and its types are also re-exported at the crate root (about twenty
   items), so each is reachable two ways. One path means changing it in every
   crate that uses the other; a public-path change for you to decide.
 - `M-PANIC-IS-STOP` calls `unwrap()` on a poisoned lock valid, where
-  `dm_core::lock` takes a poisoned mutex's data; and `M-PANIC-CONTINUATION` asks
+  `edm_core::lock` takes a poisoned mutex's data; and `M-PANIC-CONTINUATION` asks
   for a restart after a caught panic, where the tray's `catch_unwind` goes on
   without a tray. Both are the choices already recorded above; the two guides
   disagree about the first (Google: never reach inside a poisoned mutex).
@@ -3532,33 +3532,33 @@ Not applied, and why:
 
 ## 2026-10-28: A portable Windows build, and a video failure on CachyOS
 
-**Portable.** dm already kept its data beside the program when an empty file
+**Portable.** EDM already kept its data beside the program when an empty file
 named `portable` sat beside it (`settings::enter_portable`), but nothing
 shipped that way: the Windows checklist told a tester to make one by hand, and
 the release held only the NSIS installer. The Windows bundle job now zips
-`dm-desktop.exe`, an empty `portable` and a readme under a folder of its own
-(`dm_<version>_x64-portable.zip`), the `installed` job unzips it and runs
+`edm-desktop.exe`, an empty `portable` and a readme under a folder of its own
+(`edm_<version>_x64-portable.zip`), the `installed` job unzips it and runs
 `scripts/portable-check.py` (headless, with every usual data place pointed at a
-decoy: `dm-data` appears beside the program with its port and its list, and the
+decoy: `edm-data` appears beside the program with its port and its list, and the
 decoy stays empty), and the release job ships it with the rest. The check was
-run here on a Mac and fails, as it should, when the marker is left out (dm then
+run here on a Mac and fails, as it should, when the marker is left out (EDM then
 writes to `Library/LaunchAgents` and `Application Support`). Not run on
 Windows: the zip step and the Windows run of the check first happen in CI.
 `latest.json` lists every file, but the updater takes the Windows installer by
 its `-setup.exe` ending, so the zip is never offered as an update.
 
-**"dm could not get the video from this page", CachyOS, AppImage, Brave.** One
+**"EDM could not get the video from this page", CachyOS, AppImage, Brave.** One
 way it happens found and shown; that it is this person's way is not confirmed.
 The released x86-64 AppImage cannot run in Docker on the Apple Silicon machine
 this was tried on (Exec format error even for `--appimage-version`), so the
 aarch64 AppImage of the same release was run on an arm64 Arch Linux image, started
-the way an AppImage runs, with no `DM_HOME` set by hand. With `/tmp` as on a
+the way an AppImage runs, with no `EDM_HOME` set by hand. With `/tmp` as on a
 default system the page downloads. With `/tmp` mounted `noexec` the single-file
-the external video tool that dm 0.8.3 fetches cannot start (it unpacks itself into `/tmp` on each
+the external video tool that EDM 0.8.3 fetches cannot start (it unpacks itself into `/tmp` on each
 start: "error while loading shared libraries: libz.so.1: failed to map segment
-from shared object"), and the row ends as the person's sentence: dm's state was
+from shared object"), and the row ends as the person's sentence: EDM's state was
 `the external video tool could not download that: …/tools/the external video tool: error while loading shared
-libraries…`, which the status table turned into "dm could not get the video from
+libraries…`, which the status table turned into "EDM could not get the video from
 this page" for every the external video tool failure it had no words for. The current tree, which
 fetches the unpacked build (written for startup speed), fetched
 its file, ran, and reached YouTube under the same `noexec` `/tmp`
@@ -3576,13 +3576,13 @@ address, 120 characters), so the next report carries its cause.
 
 Reproduced on CachyOS itself with Brave (`scripts/linux/cachyos-brave/run.sh`):
 CachyOS's own image (x86-64, under emulation), Brave 1.98.62 as Brave publishes it
-(it runs a page, and `dm-desktop --register` connected dm to
+(it runs a page, and `edm-desktop --register` connected EDM to
 `BraveSoftware/Brave-Browser`), and the released 0.8.3 AppImage unpacked. A page
-with a video in it is handed to dm over the native host exactly as the extension's
+with a video in it is handed to EDM over the native host exactly as the extension's
 Download video panel sends it (`engine.hello`, then `download.start` with a
 quality). With `/tmp` as normal it completes (`A video (1) [page-1].mp4`, 600000
 bytes); with `/tmp` `noexec` the row fails with the `libz.so.1: failed to map
-segment` loader error and the Status column reads "Error: dm could not get the video
+segment` loader error and the Status column reads "Error: EDM could not get the video
 from this page", the person's sentence; with `noexec` and `TMPDIR` pointed at a
 folder that allows programs the same page completes. The external video tool's own two builds on
 that CachyOS under `noexec`: the single file fails, the unpacked one starts. What
@@ -3590,39 +3590,39 @@ is not shown: that this person's `/tmp` is `noexec` (asked of them), the
 extension's own UI (the hand-off is its message, sent by script), and the current
 code's x86-64 build (its aarch64 build was run on Arch earlier).
 
-## 2026-10-28: The external video tool gets a temporary folder of dm's own when /tmp is noexec
+## 2026-10-28: The external video tool gets a temporary folder of EDM's own when /tmp is noexec
 
 The unpacked the external video tool (0.8.3's follow-up) does not unpack at each start, but a
-single-file the external video tool a person installed, or one fetched by an older dm, still does,
-into `TMPDIR`. On a `noexec` mount it cannot start. dm reads `/proc/self/mounts`
+single-file the external video tool a person installed, or one fetched by an older EDM, still does,
+into `TMPDIR`. On a `noexec` mount it cannot start. EDM reads `/proc/self/mounts`
 once (`videopage::runnable_temp`); if the system temporary folder sits on a `noexec`
 mount it sets `TMPDIR` for the external video tool to `<tools folder>/tmp` (made on demand, `_MEI*`
 older than a day removed). Where `/tmp` allows programs nothing changes. Tried and
 dropped: asking the person to set `TMPDIR` themselves (they see only "could not get
 the video"); remounting is not ours to do.
 
-## Programs dm starts do not get the AppImage's folders
+## Programs EDM starts do not get the AppImage's folders
 
 The AppImage's `AppRun` sets `PYTHONHOME`, `PYTHONPATH`, `LD_LIBRARY_PATH`,
-`PATH` and others to point into the AppImage, for dm's own sake. A person's
+`PATH` and others to point into the AppImage, for EDM's own sake. A person's
 the external video tool run by the system's Python (CachyOS's `pacman -S the external video tool`) inherited them
 and died at start ("Fatal Python error … <no Python frame>"). `no_window` and
-`no_window_async`, which every helper dm starts already goes through, now give
+`no_window_async`, which every helper EDM starts already goes through, now give
 each of those variables without the entries under the AppImage's folder
-(`APPDIR`, or the folder dm's program sits in as `usr/bin/dm-desktop` beside an
+(`APPDIR`, or the folder EDM's program sits in as `usr/bin/edm-desktop` beside an
 `AppRun`), and unset it where nothing is left. Outside an AppImage nothing
 changes. Dropped: clearing the variables outright, which would also drop a
 person's own `LD_LIBRARY_PATH` entries (CUDA and the like).
 
 ## The panel's code is injected by the browser, not imported by the page
 
-`content.js` used `import(runtime.getURL('pkg/dm_catcher.js'))` and the module
+`content.js` used `import(runtime.getURL('pkg/edm_catcher.js'))` and the module
 fetched its `.wasm`, both listed as web-accessible. Brave on YouTube logged
 "Unsafe attempt to load URL chrome-extension://… Domains, protocols and ports
 must match" for those loads (reproduced by `stress.sh` on real YouTube, on tabs
 opened after the first), whichever address the manifest gave (`use_dynamic_url`
 on or off). Blink logs that when a fetch is checked against the page's origin
-rather than the extension's. Now `content.js` sends `dm.panel-load`; the
+rather than the extension's. Now `content.js` sends `EDM.panel-load`; the
 background calls `scripting.executeScript({ files: ['pkg/panel.js'] })` for
 that tab and frame; `panel.js` is wasm-bindgen's `no-modules` glue with the
 WebAssembly written into it as base64 (`scripts/package.sh`), so the page's
@@ -3639,12 +3639,12 @@ built-in roots do not hold) as a connect error, and `retry::transient` retried
 every connect error: ten tries over two minutes before the row said why
 (BUGLOG.md, BUG-002). `retry::untrusted_certificate` reads the error's chain
 and makes it final, as `unreadable_response` does for headers that cannot be
-read. dm still trusts only the built-in roots (webpki); trusting the system's
+read. EDM still trusts only the built-in roots (webpki); trusting the system's
 store, for a company's own authority, would be a separate decision.
 
 ## The external video tool is ended when it stops answering
 
-an external video tool that said nothing kept its row "running" for as long as dm ran
+an external video tool that said nothing kept its row "running" for as long as EDM ran
 (BUGLOG.md, BUG-004). Its two output streams are watched: nothing before its
 first word for 120 s (as long as a page reading may take, `READ_WITHIN`), or
 nothing for ten minutes once it has spoken (a merge or a slow server is quiet
@@ -3654,14 +3654,14 @@ program. Dropped: a limit on the whole run, which a long video on a slow link
 would hit while working.
 
 
-## 2026-10-30: dm follows redirects itself
+## 2026-10-30: EDM follows redirects itself
 
 reqwest followed a redirect with the request's headers, dropped the sign-in
 and cookies when the host changed, and wrote the address each hop came from
 into `Referer` on every hop (`referer(true)`, its default), which is how a
 page's path and query, or a signed link's, reached whatever other host a
 redirect led to (`docs/security-report.md`, L2). Its policy sees the hops
-and can refuse one but cannot change a header. So dm's clients follow
+and can refuse one but cannot change a header. So EDM's clients follow
 nothing (`Policy::none()`, `referer(false)`) and every request goes through
 `redirects::send` or `redirects::execute`: ten hops at most, none from
 `https` to `http`, none from a public address inward, the sign-in and
@@ -3700,11 +3700,11 @@ standard model: the browser lets only the extensions its manifest names
 start the host). Added as defence in depth, since it costs one file read:
 `shell::launcher_known` takes the id from the origin Chrome passes (or from
 the id Firefox passes after its manifest path, in the versions that do) and
-answers only the ids built in and those a manifest dm wrote allows, read
+answers only the ids built in and those a manifest EDM wrote allows, read
 from the files whether or not their browser is installed, so a manifest a
 person edited for a build of their own still counts. A `moz-extension://`
 origin is a profile's own name for an extension, not its id, and is let
-through. Refused, dm says so on stderr (the browser's log) and exits.
+through. Refused, EDM says so on stderr (the browser's log) and exits.
 
 ## 2026-10-30: The slice cap timed on a long video over a real connection
 
@@ -3713,8 +3713,8 @@ Row 22 asked for the slice size taken from the external video tool's `http_chunk
 throttles. Big Buck Bunny (10 minutes, 181 MB at 720p) through the release
 build, headless, on this connection: 16.1 s and 14.1 s with the cap (11.2
 and 12.9 MB/s), 44.2 s and 44.2 s without it (4.1 MB/s). The cap stays. It
-is switched off by `DM_NO_CHUNK` in the environment, kept so the
-measurement can be taken again (the scratch script drove dm over its
+is switched off by `EDM_NO_CHUNK` in the environment, kept so the
+measurement can be taken again (the scratch script drove EDM over its
 control port, as `scripts/real-sites.py` does).
 
 ## 2026-10-30: A scripted step goes to one painted pass, and the window comes to the front for it
@@ -3734,7 +3734,7 @@ redraw at all, so the steps waited in eframe's carried-over input for a
 painting that never came, and a screenshot, which forces one, let them
 all in at once. Traced with the hook's raw input printed per pass. Taken:
 a step is given out only once the window has been painted since the step
-before (`DmApp::painted`, counted where the window is drawn), and a step
+before (`EdmApp::painted`, counted where the window is drawn), and a step
 that has waited 400 ms for a painting asks the system to bring the window
 to the front (`ViewportCommand::Focus`), as a person driving the window
 would have it in sight. Also kept from the chase: each step finds its word
@@ -3755,9 +3755,9 @@ reference managers get YouTube "legally".
 
 - **Licence.** The external video tool, its its file challenge solver and QuickJS-NG
   are published under the Unlicense (public domain) and the MIT licence;
-  nothing in them constrains dm's MIT licence, and dm could even carry
-  their code. dm fetches them at run time from their own releases rather
-  than shipping them, so dm's packages and repository distribute none of
+  nothing in them constrains EDM's MIT licence, and EDM could even carry
+  their code. EDM fetches them at run time from their own releases rather
+  than shipping them, so EDM's packages and repository distribute none of
   that code at all; the licence question does not arise for a distribution
   that has nothing to distribute.
 - **What the law is about** is not the tool but the use: YouTube's terms
@@ -3767,22 +3767,22 @@ reference managers get YouTube "legally".
   EFF's letter on it is the public record. The external video tool solves the player's `n`
   and signature puzzles, which YouTube serves in the clear to every
   browser; it breaks no encryption (DRM-protected formats are not
-  downloaded by it, and dm leaves them alone too). Every download manager
+  downloaded by it, and EDM leaves them alone too). Every download manager
   that gets YouTube is in the same position: reference A documents reading
   the player's requests and keeps a paid team shipping fixes; the other
   macOS manager looked at today (1.1.10, installed on this computer) ships
   the external video tool 2026.10.26 inside its bundle with QuickJS, ffmpeg, ffprobe and
   the downloader, points the external video tool at its QuickJS through a config file, and updates
   the external video tool to the latest release through its own manifest every four hours.
-  So none of them "does it legally" in a way dm does not; dm fetches the
+  So none of them "does it legally" in a way EDM does not; EDM fetches the
   same the external video tool afresh and does not ship it.
-- **What dm keeps apart:** no YouTube code of its own to defend, the tool
+- **What EDM keeps apart:** no YouTube code of its own to defend, the tool
   fetched from its publisher and refreshed, the person's own session only
   with their consent, no DRM, and the policy of each site's terms left to
   the person, as with any downloader. The README's "Use it responsibly"
   says so.
 
-## 2026-10-30: How YouTube is got today, watched, and what a reader of dm's own would be
+## 2026-10-30: How YouTube is got today, watched, and what a reader of EDM's own would be
 
 The maintainer asked for YouTube without the external video tool, as the other macOS
 manager was believed to do it. It does not (above). What the external video tool itself
@@ -3799,32 +3799,32 @@ server accepts (and decodes a `signatureCipher` where a format carries
 one). Its own source marks the web client as SABR-only, the Android VR
 client refused since 2026-08-17, and the iOS and Android clients as
 needing a token: the TV client is the one that works without tokens, as
-of today. A reader of dm's own is therefore well defined: the same four
+of today. A reader of EDM's own is therefore well defined: the same four
 requests, the same solver scripts fetched from their releases and run in
-the QuickJS dm already fetches, the result written in the shape of
+the QuickJS EDM already fetches, the result written in the shape of
 the external video tool's reading so `download_page` and the panel's list consume it
 unchanged, and the external video tool kept behind it for every other site and for the
 day YouTube changes the client. Its cost is the one already recorded
 (2026-10-29): the client's name and version, and the solver's version,
-are dm's to keep current, as the external video tool keeps them for itself. Taken on, at
+are EDM's to keep current, as the external video tool keeps them for itself. Taken on, at
 the maintainer's word of 2026-10-30, as gaps.md row 41.
 
-What the other manager offers that dm does not, worth taking on the same
+What the other manager offers that EDM does not, worth taking on the same
 evidence (its bundle and settings, not its code): a download of a part of
-a video (the external video tool's `--download-sections`, which cuts with ffmpeg; dm has
+a video (the external video tool's `--download-sections`, which cuts with ffmpeg; EDM has
 no ffmpeg and its own muxer joins whole streams, so a part would be its
 own fetch of the byte ranges the picture's and the sound's index names,
-row 42), and the external video tool refreshed within hours rather than a week (dm already
+row 42), and the external video tool refreshed within hours rather than a week (EDM already
 refetches a newer the external video tool after a failure, once an hour).
 
-## 2026-10-30: YouTube read by dm itself, done
+## 2026-10-30: YouTube read by EDM itself, done
 
 Row 41 closed the same day: `youtube.rs` makes the four requests above
 and writes the reading in the external video tool's shape; `download_page` takes it first
 on a watch page and the external video tool behind it, the panel's list stays the page's
 own data, and the host no longer warms an external video tool reading of a YouTube page.
 A YouTube page does not wait for the helper's first fetch either: that
-goes on behind dm's own reading, for the videos it cannot read. Two
+goes on behind EDM's own reading, for the videos it cannot read. Two
 things the stand-in could not show and the real video did: the TV
 client's answer names no title (the page's own is used) and a
 picture-with-sound format chosen beside a sound made a file with two
@@ -3834,14 +3834,14 @@ the real video through `real-sites.py` (4 s, the right name, one picture
 and one sound) and the Edge check 49 of 49 with the panel's download
 through the reader. The solver's scripts are pinned to release 0.8.0 by
 digest; when YouTube's player changes past what that release solves,
-dm's reading fails in words and the external video tool (which carries the newer solver)
+EDM's reading fails in words and the external video tool (which carries the newer solver)
 reads the page, so a stale pin costs the first request and nothing else;
-refreshing the pin is a release of dm, as QuickJS's is.
+refreshing the pin is a release of EDM, as QuickJS's is.
 
-## 2026-10-30: The other macOS manager watched at run time, and what dm takes from it
+## 2026-10-30: The other macOS manager watched at run time, and what EDM takes from it
 
 Asked for: how the other macOS manager (1.1.10) gets YouTube and other
-sites, found by running it, and the same in dm without the external video tool. Its engine
+sites, found by running it, and the same in EDM without the external video tool. Its engine
 is a Node program packed into one file with its code compiled, so it reads
 as nothing (a static JavaScript analysis tool was run on it and on its Edge
 extension; only the extension is source). What cost nothing was going
@@ -3878,51 +3878,51 @@ What it does, from the record:
   cut by the external video tool's `--download-sections` and ffmpeg (row 42).
 
 So it does not get YouTube without the external video tool: it is the external video tool, ffmpeg and the downloader
-behind a window, and refreshes the external video tool every four hours. dm, as of today,
-goes further than it on YouTube: the page is read by dm itself in four
+behind a window, and refreshes the external video tool every four hours. EDM, as of today,
+goes further than it on YouTube: the page is read by EDM itself in four
 requests (`youtube.rs`, no the external video tool run at all when the reading holds; proved
 by a run with its environment switch naming a program that does not exist), the
-streams are fetched on dm's connections and joined by dm's own muxers, with
-no ffmpeg, and the same video that took it 45 s took dm 6 s from a cold
-start, dm's own reading included. The external video tool stays behind dm's reading, as
+streams are fetched on EDM's connections and joined by EDM's own muxers, with
+no ffmpeg, and the same video that took it 45 s took EDM 6 s from a cold
+start, EDM's own reading included. The external video tool stays behind EDM's reading, as
 decided on 2026-10-29 (rows 6 and 32), for the videos the reader cannot
 read and for every other site, where the other manager uses it too.
 
 Taken from it: a quality is the picture's shorter side (`format_for`'s
 selector and `youtube::choose`), so a portrait video at 720p is 720×1280,
-not the 405×720 picture that is 720 tall; dm's own HLS and DASH picks
-still go by height (row 43). Not taken: the downloader (dm's engine fetches plain
-files on its own connections), ffmpeg and ffprobe (dm's muxers join without
-them), the four-hour refresh (dm refetches a newer the external video tool after a failure
-it has no words for, within the hour), and `--prefer-free-formats` (dm
+not the 405×720 picture that is 720 tall; EDM's own HLS and DASH picks
+still go by height (row 43). Not taken: the downloader (EDM's engine fetches plain
+files on its own connections), ffmpeg and ffprobe (EDM's muxers join without
+them), the four-hour refresh (EDM refetches a newer the external video tool after a failure
+it has no words for, within the hour), and `--prefer-free-formats` (EDM
 chooses H.264 in MP4 by its own rule).
 
 ## 2026-10-30: What was taken from the other macOS manager, and how it was measured
 
 Asked for: the other macOS manager's good things, its slick window, its
-settings and its paid tier's features, taken into dm as a clean-room
-implementation in Rust and egui, and dm made to perform as well. Its window
+settings and its paid tier's features, taken into EDM as a clean-room
+implementation in Rust and egui, and EDM made to perform as well. Its window
 is a native Swift app with a Tauri window beside it; none of its code or
 assets were read or copied (its engine is compiled bytecode, its window
 could not be captured here for want of screen-recording permission). What
 it does was taken from its public pages, its own words in its binaries
 (feature and setting names), and its engine driven over its local
-interface; dm's versions were written from that description alone.
+interface; EDM's versions were written from that description alone.
 
 What it offers, and what became of each:
 
 - **A part of a video** (its "Clip", paid): taken, `clip.rs`. Its clip is
-  the external video tool's `--download-sections` with ffmpeg re-encoding; dm's is the
+  the external video tool's `--download-sections` with ffmpeg re-encoding; EDM's is the
   streams' own pieces chosen by their index (`sidx`), fetched by ranges,
   and cut to the second by the joined file's edit lists, with nothing
-  decoded. Its vertical, square and GIF clips re-encode, which dm has no
+  decoded. Its vertical, square and GIF clips re-encode, which EDM has no
   codec for: not taken.
 - **The quality list with sizes** in its save sheet: taken into Download
   details for video pages, as chips four to a row.
-- **Playlists** (paid): taken for YouTube, read by dm itself from the
+- **Playlists** (paid): taken for YouTube, read by EDM itself from the
   playlist page and the browse API; other sites' playlists are gaps.md
   row 46 (the external video tool's flat listing would give them).
-- **Connections per file up to 32, ten downloads at once** (paid): dm
+- **Connections per file up to 32, ten downloads at once** (paid): EDM
   already allows 32 and 10.
 - **Turbo Mode** (an iPhone's connection beside the Mac's): not built; the
   design (a second client bound to the second interface by its address,
@@ -3936,60 +3936,60 @@ What it offers, and what became of each:
 - **Its settings** (connections per file, downloads at once, where to
   save, ask where to save from the browser, sort into folders by kind,
   notify when done, sounds, open at login, show in the menu bar, offer
-  copied links, auto-updates): dm has each of them already, and many it
+  copied links, auto-updates): EDM has each of them already, and many it
   has not (queues, schedules, proxies, sign-ins, site rules, host limits,
   a speed limiter).
 
 Measured, the same files one after another:
 
-- A local server holding each connection to 1 MB/s, 168 MB: dm 8
+- A local server holding each connection to 1 MB/s, 168 MB: EDM 8
   connections 20.5 s (8.2 MB/s), 16 connections 10.1 s (16.6 MB/s), 32
   connections 5.4 s (31.1 MB/s); the other manager at its own setting
   (the downloader, 16) 40.6 s, 16.4 s of it waiting in its queue.
 - A 100 MB file on a far server over this slow link: the other manager
-  failed once at 16.6 s and completed once in 167 s (0.6 MB/s); dm on 8
+  failed once at 16.6 s and completed once in 167 s (0.6 MB/s); EDM on 8
   connections completed in 88 s (1.2 MB/s) and on 16 failed twice (362 s
   and 496 s, "the server did not answer in time"): that server leaves
-  connections past its limit unanswered until dm's read timeout, and after
-  dm's tries the row fails where fewer connections would have finished it.
+  connections past its limit unanswered until EDM's read timeout, and after
+  EDM's tries the row fails where fewer connections would have finished it.
   Row 44.
-- YouTube, a 19 s video: dm 3.9 s whole with no the external video tool run; the other
+- YouTube, a 19 s video: EDM 3.9 s whole with no the external video tool run; the other
   manager 45 s (7.6 s of the external video tool reading, 36 s in its queue, 1 s
-  fetching). A 30 s part of a ten-minute 720p video: dm 5.0 s, 8 MB.
+  fetching). A 30 s part of a ten-minute 720p video: EDM 5.0 s, 8 MB.
 
 Also seen: its extension asks YouTube's player for the quality list in
-the page's own world (`getAvailableQualityLevels`); dm's panel reads the
+the page's own world (`getAvailableQualityLevels`); EDM's panel reads the
 page's data instead, which gives the sizes too. Its the external video tool is refreshed
-every four hours; dm refetches after a failure, within the hour.
+every four hours; EDM refetches after a failure, within the hour.
 
 ## 2026-10-30: The maintainer's later asks on the other macOS manager, and what was done with each
 
 Asked for, in turn: its window's close icons for the side and top panels
-and its popup dialog; how it ships the external video tool, since dm's has given trouble;
+and its popup dialog; how it ships the external video tool, since EDM's has given trouble;
 a core as good as its or better; the way its extension gets a video's
-qualities quickly, since dm's panel was slow to; and, last, to run a decompiler
+qualities quickly, since EDM's panel was slow to; and, last, to run a decompiler
 on its app and implement its core and its extension in
-dm. Also: Microsoft Edge alone for the browser checks.
+EDM. Also: Microsoft Edge alone for the browser checks.
 
 - **A decompiler is not on this computer** (nothing at the paths rea and the
   shell look in), so that cannot run here; and decompiling its
   binaries to re-implement them would not be the clean-room work asked
   for earlier the same day. Its core is the external video tool, the downloader and ffmpeg driven
-  by a Node program: there is no native engine in it to take, and dm's own
+  by a Node program: there is no native engine in it to take, and EDM's own
   engine measured faster (the entry above). What was taken is behaviour,
   observed: the items below.
 - **The instant quality list.** Its extension asks YouTube's player, in
-  the page's world, for `getAvailableQualityLevels()`. dm's panel now does
-  the same (`document.js` answers a `dm-ask-qualities` message with the
+  the page's world, for `getAvailableQualityLevels()`. EDM's panel now does
+  the same (`document.js` answers a `edm-ask-qualities` message with the
   player's levels and its video id; `handoff.rs` lists the heights at
-  once) and lets dm's reading, with sizes, replace that list when it
+  once) and lets EDM's reading, with sizes, replace that list when it
   comes. The contract's row B34 still ends with the sizes listed.
 - **How it ships the external video tool.** Inside its bundle, the unpacked build, beside
   QuickJS, ffmpeg and the downloader, refreshed from its own manifest every four
-  hours. dm now looks for an external video tool shipped in its own package
+  hours. EDM now looks for an external video tool shipped in its own package
   (`videopage::bundled`) and the packaging fetches one (its file,
-  the desktop workflow); dm's fetched copy still comes first, so the
-  after-failure refresh keeps working. The earlier note that dm's packages
+  the desktop workflow); EDM's fetched copy still comes first, so the
+  after-failure refresh keeps working. The earlier note that EDM's packages
   distribute no the external video tool no longer holds for packages built that way; the
   Unlicense allows it, and the maintainer asked for it.
 - **The core.** The one measured shortfall (16 connections failing on a
@@ -4000,14 +4000,14 @@ dm. Also: Microsoft Edge alone for the browser checks.
   retrying each; the range goes on either way.
 - **Its popup dialog** ("Save download", "From Edge", Save As, Where,
   "Always save here without asking", Auto-Delete, Don't Download /
-  Download): dm's Download details for a caught download now says the
+  Download): EDM's Download details for a caught download now says the
   browser (the host names its parent process) and offers "Always save
   here without asking" (Options › Browser's switch, from the dialog).
   Auto-Delete stays row 48.
-- **The close icons.** dm's View menu already folded the categories
+- **The close icons.** EDM's View menu already folded the categories
   away; the toolbar now has the switch at its left end, as its window
   has at top left. Its right-hand inspector toggle has no counterpart in
-  dm (the progress window is a window of its own).
+  EDM (the progress window is a window of its own).
 - **Edge alone.** The check scripts take Microsoft Edge where it is
   installed; Chrome for Testing is fetched only without it.
 
@@ -4033,20 +4033,20 @@ the old would exceed, but a stricter shape needs paced served responses
 at the timeout; it has them now), a forged page message can silence the
 panel's "did not answer" note (harmless otherwise), and the packaged
 the external video tool is not pinned to a digest in the repository (gaps row 50).
-Network drop (25 s, 100 s) and a 45 s freeze of dm complete byte-exact.
+Network drop (25 s, 100 s) and a 45 s freeze of EDM complete byte-exact.
 
 ## 2026-10-30: The external video tool out of the box, as the clean-room specification recommends
 
 From `docs/clean-room-download-engine-spec.md`: the other macOS manager
 ships the external video tool in its bundle, signed with its own Developer ID, and runs a
-copy in its support folder that carries no quarantine mark. dm now ships
+copy in its support folder that carries no quarantine mark. EDM now ships
 the pinned build in every package and copies it into its tools folder on
 first use (`tools::adopt`, `ditto --noextattr --noqtn` on macOS, then any
 quarantine attribute removed and its absence checked), running it from
 there. Found while checking it: `ditto --noqtn` alone kept the quarantine
 attribute, and the quarantined copy hung the download for four minutes;
 and the shipped-copy lookup missed the build's own program name
-(its file) beside the program. A Developer ID for dm stays the
+(its file) beside the program. A Developer ID for EDM stays the
 maintainer's to buy; until then the copy is what keeps macOS from asking.
 
 Retry timing: 15 s apart after the fifth try instead of 30, with 15 tries
@@ -4056,7 +4056,7 @@ keep the 10 they saved, which now outlasts about 90 s.
 
 ## 2026-10-30: The external video tool shipped as its zip, not unpacked
 
-Found by packaging a real dm.app before the release: cargo-packager signs
+Found by packaging a real EDM.app before the release: cargo-packager signs
 every program in the bundle, and codesign refuses the external video tool's embedded
 `Python.framework/Python` ("bundle format is ambiguous"), so the macOS
 package failed. The package now carries the release's zip as it is
@@ -4064,7 +4064,7 @@ package failed. The package now carries the release's zip as it is
 seal still covers; `tools::adopt` unpacks it into the tools folder on
 first use (`ditto -x -k` on macOS, then any quarantine mark removed; the
 zip crate elsewhere). The app is 75 MB (the dmg 62 MB) instead of about
-150 MB. Checked end to end: the packaged dm.app, marked as an Edge
+150 MB. Checked end to end: the packaged EDM.app, marked as an Edge
 download and approved by a person (an ad-hoc-signed app downloaded by a
 browser is killed until it is: the known limit without a Developer ID),
 with nothing installed and fetching off, read a non-YouTube video page in
@@ -4085,9 +4085,9 @@ hour, a day), as the other macOS manager's Auto-Delete does. Decided:
   missing, or one a later row has written over, is not touched; its row goes.
 * A file that cannot be moved stays with its row, is said once in the status
   line, and is not tried again (the time is taken off the row).
-* The window sweeps (`DmApp::delete_due_files`, from `logic`), so the time
-  is kept while dm runs, hidden or not, to within its 30 s idle wake; a time
-  that passed while dm was closed is acted on at the next start.
+* The window sweeps (`EdmApp::delete_due_files`, from `logic`), so the time
+  is kept while EDM runs, hidden or not, to within its 30 s idle wake; a time
+  that passed while EDM was closed is acted on at the next start.
 
 ## The external video tool in macOS's own sandbox (2026-10-30)
 
@@ -4100,16 +4100,16 @@ system's cookies, the keychains, `~/.ssh`, `~/.gnupg` and the cloud logins
 are neither read nor written, listed last so a writable folder cannot
 uncover them. `sandbox-exec` is deprecated but present on every macOS; it
 is tried once a run, and where it cannot make a sandbox the external video tool starts
-plainly, as on Linux without bubblewrap. `DM_SANDBOX=0` turns it off.
+plainly, as on Linux without bubblewrap. `EDM_SANDBOX=0` turns it off.
 Checked: a hidden file reads as not permitted, outside its folders nothing
-writes, its staging writes; Dailymotion (HLS, through dm) and YouTube (with
+writes, its staging writes; Dailymotion (HLS, through EDM) and YouTube (with
 Deno) downloads complete with both the Homebrew and the shipped build.
 
 ## One reqwest and one axum (2026-10-31)
 
-`cargo tree --duplicates` listed crates twice, some from dm's own manifests.
-What reached the shipped binary was reqwest: 0.12 from `dm-core` beside the
-torrent library's 0.13. `dm-core` now asks for 0.13 built without a TLS
+`cargo tree --duplicates` listed crates twice, some from EDM's own manifests.
+What reached the shipped binary was reqwest: 0.12 from `edm-core` beside the
+torrent library's 0.13. `edm-core` now asks for 0.13 built without a TLS
 provider of its own (`rustls-no-provider`), and every client is handed the
 set-up the stream protocols already use (`with_tls`, `rtmp::tls_config`):
 ring and the public roots, as 0.12's `rustls-tls` had them, so which
@@ -4117,14 +4117,14 @@ certificates are trusted is unchanged. Release binary 24,687,328 to 24,405,792
 bytes (275 KB less); duplicate crates in a normal build 66 to 64; the 14 real
 sites pass. axum 0.7 was a test dependency only, beside the 0.8 the torrent
 library brings: the tests moved to 0.8 (`{capture}` paths), one axum built.
-`dirs` 6 comes from `auto-launch`, not from a manifest of dm's. Clean build
+`dirs` 6 comes from `auto-launch`, not from a manifest of EDM's. Clean build
 time was not measured.
 
 ## A second network path (2026-10-31)
 
 Options › Network › Second network names an interface; every other
 connection of a ranged download goes out on it (`second_path.rs`). The
-client is dm's usual one, bound to the interface's address and, on macOS and
+client is EDM's usual one, bound to the interface's address and, on macOS and
 Linux, to the interface itself (reqwest's `interface`, `IP_BOUND_IF` /
 `SO_BINDTODEVICE`), so it leaves by that network rather than the default
 route. No share is planned: connections take ranges as they free up and
@@ -4190,7 +4190,7 @@ visible Edge with no sign-in on Vimeo, Instagram, TikTok and X.
 ## Each dialog a window of its own, and the vendored egui-winit (2026-11-01)
 
 The maintainer asked (2026-11-01, "make the UI improvements in gaps.md"; the
-request of 2026-10-31 that dm behave like reference A, whose dialogs are
+request of 2026-10-31 that EDM behave like reference A, whose dialogs are
 windows of their own that a person drags anywhere on the screen) for the
 dialogs to stop being drawn inside the main window. `Dialog::show`
 (`dialogs/frame.rs`) now hands its body to `dialogs/apart.rs`, which opens it
@@ -4198,7 +4198,7 @@ in an egui immediate viewport, as `app/drops.rs` opens the drop target: the
 system's title bar with the dialog's title and close button, placed over the
 middle of the main window to begin with and left wherever the person puts it,
 sized to what the body measures. Immediate, not deferred, because the dialogs'
-bodies are closures over `&mut DmApp`. Where the backend has no window but the
+bodies are closures over `&mut EdmApp`. Where the backend has no window but the
 first (`Context::embed_viewports`, which the test harness is), the dialog stays
 a window in the main window, as it was, so `tests/window` keeps its tests. A
 dialog that keeps the clicks to itself holds the main window through a layer
@@ -4207,7 +4207,7 @@ Closing a dialog's window, like Escape, closes that dialog and no other
 (`Dialogs::close_window`, `state.rs`).
 
 How the control port reaches them. `ui.click`, `ui.key` and `ui.type` are
-how the QA and AI clients drive dm: events fed to egui as a person's pointer
+how the QA and AI clients drive EDM: events fed to egui as a person's pointer
 and keyboard would. eframe 0.37 offers the app the first window's input
 (`App::raw_input_hook`, `epi_integration.rs`) and no other window's: an
 immediate viewport's input is taken by egui-winit and handed straight to egui.
@@ -4222,11 +4222,11 @@ So `vendor/egui-winit` is the published crate **egui-winit 0.37.0**, the
 version eframe 0.37.0 depends on, licence **MIT OR Apache-2.0** (its
 `Cargo.toml`; the published package carries no licence text of its own, the
 project does: github.com/emilk/egui), used through `[patch.crates-io]` as
-`vendor/winit` is. The one change is in `src/lib.rs` (search `dm:`): a
+`vendor/winit` is. The one change is in `src/lib.rs` (search `EDM:`): a
 `pub static OTHER_WINDOWS_INPUT: OnceLock<fn(&mut egui::RawInput)>` before
 `State`, and `State::take_egui_input` calls it with the input of every window
 whose viewport is not the first, just before returning it. Its `Cargo.lock` is
-left out, as a path dependency uses the workspace's. dm sets the function once
+left out, as a path dependency uses the workspace's. EDM sets the function once
 at start (`main.rs`) to `dialogs::apart::feed`, which gives a window the events
 a control client queued for it (`app/human.rs`). Nothing else differs from the
 published crate (`vendor/README.md`); carry the change over when eframe
@@ -4239,17 +4239,17 @@ the Windows set of pictures for B25 is kept beside the macOS one
 (`docs/behaviour-baseline/windows/`, the maintainer's approval of 2026-11-01).
 
 Found by the maintainer's report that they still could not drag a dialog out of
-dm's window (2026-11-01), and by dragging every kind of dialog with the system's
+EDM's window (2026-11-01), and by dragging every kind of dialog with the system's
 mouse (`SetCursorPos`, `mouse_event`) and reading its window back from Windows
 (`GetWindowRect`, `GetParent`, `GetWindow`): a dialog window was put back over
-the middle of dm's window whenever its measured size changed, so one whose body
+the middle of EDM's window whenever its measured size changed, so one whose body
 changes (Properties, a progress window, Download details) was pulled back while
 it was dragged. Placement is now latched once the size has settled (`Own::placed`).
 Sizing had two faults of its own: a panel's `min_rect` is the whole room it was
 given before anything is drawn, so a window could never measure smaller than its
 first guess (the body's height is now read from the layout's cursor), and Options
 fills a height it is given (`fixed_size`), which is now passed through
-(`Spec::height`). A dialog that opens centred on a dm window that reaches past the
+(`Spec::height`). A dialog that opens centred on an EDM window that reaches past the
 bottom of the screen is kept above the taskbar (`on_screen`). The control port
 chooses, among words that two dialog windows share, the one in the window that has
 the keyboard (`apart::windows`).
@@ -4271,7 +4271,7 @@ Where OK refuses a proxy (no host, an address where the host goes, port 0) Advan
 its proxy section (`OptionsDialog::to_proxy`, consumed by the page with `scroll_to_cursor`), where
 the Proxy tab was selected before. Behaviour contract row B43; tests in `tests/window/options.rs`.
 
-Not changed, as they are other crates' words: the English notices of dm-core and dm-shell that
+Not changed, as they are other crates' words: the English notices of edm-core and edm-shell that
 still say "Options › Proxy" or "Options › Network" (`download/mod.rs`, `live.rs`, `shell.rs`);
 they are shown to a person only through the window's own sentences above, or as they are.
 
@@ -4280,16 +4280,16 @@ they are shown to a person only through the window's own sentences above, or as 
 Replaced on 2026-11-08: "YouTube's checks are answered as reference A answers them" below. The
 scripts are no longer fetched, and the weekly pull request is gone.
 
-dm reads YouTube itself (`youtube.rs`). To answer the signature and speed-limit checks in YouTube's
+EDM reads YouTube itself (`youtube.rs`). To answer the signature and speed-limit checks in YouTube's
 player it runs two small scripts in QuickJS or Deno, pinned by version and digest (`SOLVER_VERSION`,
 `SOLVER_LIB`, `SOLVER_CORE`) and fetched once from the release page of the project that publishes
 them; the address is the one place the old external video tool's name is left in the repository.
-dm does not run that tool.
+EDM does not run that tool.
 
-The maintainer chose on 2026-11-01 to keep it so. Copying the scripts into dm's own release assets
+The maintainer chose on 2026-11-01 to keep it so. Copying the scripts into EDM's own release assets
 would still need the same attribution and the same upkeep, and a script that no longer matches the
 player is the most likely reason YouTube stops working. The way to notice is a weekly run of
-`scripts/real-sites.py` (a real YouTube video); the cure is a new version and digest. Writing dm's own
+`scripts/real-sites.py` (a real YouTube video); the cure is a new version and digest. Writing EDM's own
 solver was declined as upkeep (the YouTube proof-of-origin gap, gaps row 37, is the same kind).
 
 ### The pin is kept current by a weekly pull request (2026-11-01)
@@ -4315,9 +4315,9 @@ A row's login and its browser cookies were written whole to `secrets.json` besid
 by this account alone, so a copy of the home carried them in clear (gaps row 39). A Windows credential is
 limited to 2560 bytes and a cookie jar is not, so the file is sealed instead (ChaCha20-Poly1305, a fresh
 nonce on every write, `secretstore.rs`) under a random 32-byte key that is the credential, named
-`dm:queue-secrets-key` and scoped to this computer's profile. A file written in clear moves into the sealed
+`EDM:queue-secrets-key` and scoped to this computer's profile. A file written in clear moves into the sealed
 form the first time it is read where the store works; where it does not (an error from the API, the
-store switched off by `DM_NO_SECRET_STORE`, any other system) the file is exactly what it always was and a
+store switched off by `EDM_NO_SECRET_STORE`, any other system) the file is exactly what it always was and a
 notice says so. A file that cannot be opened (a copy made on another account) is not guessed at: the
 downloads that had logins or cookies ask for them again. Not done: the Sign-ins' and the proxy's passwords
 in the settings file, and the macOS and Linux stores (the row says why).
@@ -4326,16 +4326,16 @@ in the settings file, and the macOS and Linux stores (the row says why).
 
 A fix for one site (a host to leave alone, a request whose answer names the stream) used to need a new
 extension in the browser stores, because the tables were compiled into it (gaps rows 68 and 69). The hello
-now carries an optional `rules` document, `Rules` in `dm-protocol`: `format` (how it is written, 1) and
+now carries an optional `rules` document, `Rules` in `edm-protocol`: `format` (how it is written, 1) and
 `revision` (how new it is), the lists `exclude` adds to `excluded.rs`, and `sites`, each with the requests
 whose JSON answers hold streams (`url_contains`, and the `keys` whose strings are addresses). The app serves
-the newer of `dm-shell/resources/rules.json` (built in) and a `rules.json` in dm's home, so a fix can be put
+the newer of `edm-shell/resources/rules.json` (built in) and a `rules.json` in EDM's home, so a fix can be put
 in place by a file and not a release. Decisions:
 
 * Additive only. The extension adds what it is served to its own tables and nothing served removes a built-in
   rule, so a missing, older, oversize (256 KiB, one native-messaging frame holds 1 MiB), malformed or
   other-format document costs nothing: the extension decides as it was built to.
-* The served rules are kept in the extension's storage (`dm.rules`) and put back when the worker wakes, since
+* The served rules are kept in the extension's storage (`EDM.rules`) and put back when the worker wakes, since
   waking is when a download arrives and asking the app takes longer than a small download.
 * The page hook reads only JSON, at most 1 MiB, only for requests the rules of the page's site name, and
   the extension re-checks the site and the request before it finds anything, so a page cannot make the
@@ -4349,16 +4349,16 @@ in place by a file and not a release. Decisions:
 
 ## 2026-11-01: Site rules ride in the update manifest, checked by digest
 
-`latest.json` may carry `rules`: `{url, sha256, size}`, the address under dm's own releases, size at most 256 KiB. The weekly or manual update check fetches it, requires the exact size and digest, parses it as `Rules` and keeps it as `rules.json` in dm's home only when its `revision` beats what is served (the shipped document is the floor); anything else is passed over silently and the check itself does not fail. Trust rests on the manifest being fetched over TLS from the project's releases plus the digest; this tree has no separate signature check on `latest.json` to lean on (the 2026-10-25 entry describes one), so none is claimed here.
+`latest.json` may carry `rules`: `{url, sha256, size}`, the address under EDM's own releases, size at most 256 KiB. The weekly or manual update check fetches it, requires the exact size and digest, parses it as `Rules` and keeps it as `rules.json` in EDM's home only when its `revision` beats what is served (the shipped document is the floor); anything else is passed over silently and the check itself does not fail. Trust rests on the manifest being fetched over TLS from the project's releases plus the digest; this tree has no separate signature check on `latest.json` to lean on (the 2026-10-25 entry describes one), so none is claimed here.
 
 ## 2026-11-01: The Linux AAC decoder is written but gated off until its tables are supplied
 
-`dm-core/src/aac/` holds everything of an AAC-LC decoder that is logic (bit reader, config, frame syntax, dequantisation, pulses, mid/side, TNS, FFT-based IMDCT, windows, overlap-add), tested against the defining formulas. It holds none of the standard's Huffman books (121 scale-factor and eleven spectral codebooks) nor band layouts beyond 44.1/48 kHz: they could not be reproduced reliably, copying them from another decoder is not allowed, and a wrong code word yields noise with no error. `tables::COMPLETE` is false, so `aac::decoder_ready()` is false and Linux offers no MP3 exactly as before. Dropped: guessing the tables, and returning a short or silent file. To finish: supply the tables from the standard, set `COMPLETE`, decode `sound.f140.m4a` and compare with a reference decode.
+`edm-core/src/aac/` holds everything of an AAC-LC decoder that is logic (bit reader, config, frame syntax, dequantisation, pulses, mid/side, TNS, FFT-based IMDCT, windows, overlap-add), tested against the defining formulas. It holds none of the standard's Huffman books (121 scale-factor and eleven spectral codebooks) nor band layouts beyond 44.1/48 kHz: they could not be reproduced reliably, copying them from another decoder is not allowed, and a wrong code word yields noise with no error. `tables::COMPLETE` is false, so `aac::decoder_ready()` is false and Linux offers no MP3 exactly as before. Dropped: guessing the tables, and returning a short or silent file. To finish: supply the tables from the standard, set `COMPLETE`, decode `sound.f140.m4a` and compare with a reference decode.
 
 ## The settings passwords go to the same store; macOS and Linux reach theirs through the system's tools (2026-11-01)
 
 The Sign-ins' and the proxy's passwords (gaps row 39) are kept in memory as before; `Settings::save` puts each
-into the store under its own name (`dm:login:<home>:<host>\n<user>`, `dm:proxy:<home>`, the home being the
+into the store under its own name (`EDM:login:<home>:<host>\n<user>`, `EDM:proxy:<home>`, the home being the
 short hash `secretstore::namespace` gives) and writes the field empty, and `Settings::load` fills an empty field from
 the store. A password still in the file in clear is moved in on its first read and the file written again. A
 store that refuses leaves the password in the file, as before, with a notice. A login removed in Options leaves
@@ -4430,7 +4430,7 @@ exist. Halving and stealing are `tests/speed.rs` (`one_slow_connection_does_not_
 ## The worker checks its WebAssembly against a digest built with its code (2026-11-03)
 
 A browser keeps an unpacked extension's worker scripts (`background.js` and wasm-bindgen's glue)
-from when the extension was loaded, but reads `pkg/dm_catcher_bg.wasm` from the folder each time the
+from when the extension was loaded, but reads `pkg/edm_catcher_bg.wasm` from the folder each time the
 worker starts. A rebuild of `extension/pkg` in place therefore paired old glue with new WebAssembly,
 which failed on its first call ("wasm.__wasm_bindgen_func_elem_1846 is not a function", gaps row
 114). `package.sh` writes the WebAssembly's SHA-256 into `pkg/build.js`, which the worker imports
@@ -4445,7 +4445,7 @@ glue and WebAssembly are one file (`pkg/panel.js`).
 
 * **Headers (116).** The worker listens at `onSendHeaders` (read only) and keeps the last request
   headers per address in memory, never in storage or a log. They travel in `Start.headers`; the host
-  and the queue filter them again (`dm_core::cookies::forwardable`: nothing dm sets itself, no
+  and the queue filter them again (`edm_core::cookies::forwardable`: nothing EDM sets itself, no
   `Cookie`, bounded), keep them with the row's secrets like cookies, and send them only to the
   row's own server (`SignIn::headers_for`), so a bearer token never follows a redirect or a mirror.
   `Authorization` is forwarded here although `Headers::of` (the stream hints) drops it: those hints
@@ -4474,59 +4474,59 @@ glue and WebAssembly are one file (`pkg/panel.js`).
 
 ## The made-up `Referer` is dropped for a server that refuses it; `Retry-After` is a floor (2026-11-04, rows 133 and 134)
 
-Found by running reference A and dm on the same real sites (`docs/gaps.md` row 132).
+Found by running reference A and EDM on the same real sites (`docs/gaps.md` row 132).
 
-* **`Referer`:** dm keeps sending the file's own folder when no `Referer` was given (reference A does
+* **`Referer`:** EDM keeps sending the file's own folder when no `Referer` was given (reference A does
   the same, and some hosts want one). Only when the probe is still refused with 403 after the agent
   ladder is it asked once more with none; if that is served, the server (host and port) is
   remembered for the session and every later request to it goes without. A `Referer` that came with
   the download (the browser's page) is never dropped. Tried and dropped: never sending one, which
   would lose the hosts that want it.
-* **`Retry-After`:** the server's value is the least wait, and dm's own wait still grows under it,
+* **`Retry-After`:** the server's value is the least wait, and EDM's own wait still grows under it,
   doubling past the 15 s a dropped connection is held to, up to the 60 s ceiling as before.
-  Wikimedia's limiter answered dm each second for minutes and let a request through only after
+  Wikimedia's limiter answered EDM each second for minutes and let a request through only after
   about 20 quiet seconds; following the header exactly cannot get past one. Checked by
   `tests/errors.rs` and a unit test in `retry.rs`. Not re-checked live: after the day's
   side-by-side runs Wikimedia answered this computer `Retry-After: 600` with a request to be less
-  disruptive; dm then showed "Too many requests (retry n …)" and asked once a minute. Do not
+  disruptive; EDM then showed "Too many requests (retry n …)" and asked once a minute. Do not
   re-test against Wikimedia's originals in a loop.
 
 ## Measured and not changed: FTP's sign-in, the ramp after a restart (2026-11-04, rows 138 and 139)
 
 * **The 11.7 s against 8.2 s for GNU's 1 MB file over FTP** was mostly the harness: `sites.mjs`
   sampled connections with a blocking PowerShell call each 400 ms, which held Node's loop and added
-  seconds to both apps' times. Traced without it, dm took 7.3 s on three runs; it signed in twice
+  seconds to both apps' times. Traced without it, EDM took 7.3 s on three runs; it signed in twice
   (once to describe the file, once to fetch it) where curl signs in once (7.4 s). Changed: the
   describing session fetches the first range; about 6 s now.
 * **The slow ramp after a hard kill** was the server: Hetzner's Ashburn mirror swings from 5 MB/s to
   16 KB/s within a fresh download as well. On a local server holding each connection to 256 KB/s,
-  dm was back at full speed in the first second after a restart (1.5 MB, against 262 KB in a fresh
+  EDM was back at full speed in the first second after a restart (1.5 MB, against 262 KB in a fresh
   start's first second). Not changed. Use a local steady server (`D:\compare\steady\steady.mjs`)
   for engine timings; real servers only to see that a thing works.
 
-## dm works exactly like reference A, with its labels (maintainer, 2026-11-04)
+## EDM works exactly like reference A, with its labels (maintainer, 2026-11-04)
 
 Asked, in the maintainer's words: "I want to clone" reference A; "it should exactly work same";
 "if the user from" reference A "use our app user should be comfortable"; Windows first, macOS and
 Linux tested later; Microsoft Edge for testing. Answered the same day to three questions:
 
 * **Approval:** "It should work exactly like" reference A. This is the approval
-  `docs/behaviour-contract.md` asks for, for every change that makes dm behave as reference A does
+  `docs/behaviour-contract.md` asks for, for every change that makes EDM behave as reference A does
   (the link chooser, File Info before a panel download, the quality list, connections on small
   files, a pasted page saved, the queue drop-downs, the Options controls). Each such commit names
   this entry and edits its contract row and `docs/behaviour-baseline/` in the same commit.
 * **Labels:** reference A's own words for menus, buttons, categories and columns (a Tasks menu,
   Delete, Delete Completed, All Downloads, Unfinished, Finished, Grabber; the Q, Last Try Date and
   Description columns), in every catalog. Its icons, logo and artwork are still never copied.
-* **The window:** dm's own (Rust and egui), reshaped to reference A's layout; no WinUI rewrite.
+* **The window:** EDM's own (Rust and egui), reshaped to reference A's layout; no WinUI rewrite.
 
 ## The window as compact as reference A's (maintainer, 2026-11-04)
 
-Asked: "the opening screen size, font size and overall compactness" of dm and reference A "should be
+Asked: "the opening screen size, font size and overall compactness" of EDM and reference A "should be
 same. It should not look extremely big." Measured on this computer (1366 by 768, 100%): reference A
 opens 800 by 458, its text the system's 9-point face (about 12 pixels), its list rows 17 apart, its
 tree about 145 wide with items 16 apart, its toolbar 66 tall with every button named (a long name
-shortened, "Delete C…"). dm opened 962 by 692, past the bottom of the screen, with 14-point text,
+shortened, "Delete C…"). EDM opened 962 by 692, past the bottom of the screen, with 14-point text,
 rows 28 apart, tree items 32 and a tree 230 wide; at that width its toolbar fell to pictures alone.
 
 Now (`theme::BODY` 12, `CAPTION` 11, `HEADING` 16, `CONTROL` 22, `NAV_ITEM` 22, `ROW` 20): a new
@@ -4536,15 +4536,15 @@ eight fit. The larger text sizes in Options › View still scale all of it.
 
 ## Maintenance pass: one settings reader, lib.rs by concern, borrowing over copying (2026-11-05)
 
-Asked: code easy to maintain, without changing what dm does; then a performance review on three
+Asked: code easy to maintain, without changing what EDM does; then a performance review on three
 rules (borrow in parameters, no copy before the end, references out where only read).
 
 * **One settings reader.** `Settings::read_only` (the window's lenient reading and its upgrades, no
   file moved, no secret asked) is what the browser's host reads; it read strictly, so one odd field
   put every default in force there while the window kept the rest.
-* **`dm-core/src/lib.rs` by concern** (1214 lines to 397): `error.rs`, `files.rs`, `http_client.rs`,
-  `agents.rs`, `processes.rs`, each re-exported whole, so every path (`dm_core::Error`,
-  `crate::lock`, `dm_core::agent_for`) is where it was.
+* **`edm-core/src/lib.rs` by concern** (1214 lines to 397): `error.rs`, `files.rs`, `http_client.rs`,
+  `agents.rs`, `processes.rs`, each re-exported whole, so every path (`edm_core::Error`,
+  `crate::lock`, `edm_core::agent_for`) is where it was.
 * **CI off Node 20**: checkout v5.0.0, upload-artifact v6.0.0, download-artifact v7.0.0, the first
   of each on Node 24 (later majors not taken: more change than the runtime).
 * **Borrowing over copying**, found with clippy's `needless_pass_by_value`, `ptr_arg`,
@@ -4563,7 +4563,7 @@ rules (borrow in parameters, no copy before the end, references out where only r
 
 ## The Scheduler by queue, and the queue lists on Start Queue and Stop Queue (2026-11-05, gaps rows 79 and 90)
 
-Built at the maintainer's word that dm "should work exactly like" reference A (2026-11-04), as
+Built at the maintainer's word that EDM "should work exactly like" reference A (2026-11-04), as
 contract rows B64 and B65.
 
 * **The Main queue's hours are the shared ones.** The settings already had one schedule for
@@ -4609,8 +4609,8 @@ reference apps); the sound files are reference A's.
   kept on the row and given to `add_torrent` at each start; Properties greys the ticks while it
   runs. A file left out is deleted from the staging folder before the rest is moved: pieces it
   shares with a wanted file leave it partly written, and moved it would look fetched.
-* **The blocklist is fetched by dm, not librqbit.** librqbit's own fetch would go around dm's
-  proxy, so dm fetches a list on the web with its own client, keeps it a day beside the parts
+* **The blocklist is fetched by EDM, not librqbit.** librqbit's own fetch would go around EDM's
+  proxy, so EDM fetches a list on the web with its own client, keeps it a day beside the parts
   (named by a hash of its address) and hands librqbit a `file:` address. A list that cannot be
   read stops the torrent with the reason: going on unprotected is not what was asked for. One
   address on a list does not cover a peer's others: on this computer local peer discovery found
@@ -4628,15 +4628,15 @@ reference apps); the sound files are reference A's.
 * **Read from Windows' keys, beside the window.** Options › Browser asks `reg.exe` four
   questions as the page opens (each takes a moment), on a thread of its own. Windows' own
   choice (`UserChoice`, set in Default apps) is asked first: it decides over every program's
-  registration and no program may write it, so dm says so and offers no button there.
-* **dm takes them only at a click, and keeps what it replaced.** At start dm still writes its
-  keys only where nobody has them (row 100). "Use dm for magnet links" is the person's own
+  registration and no program may write it, so EDM says so and offers no button there.
+* **EDM takes them only at a click, and keeps what it replaced.** At start EDM still writes its
+  keys only where nobody has them (row 100). "Use EDM for magnet links" is the person's own
   choice to replace another program's: that program's key is first written out with
-  `reg export` to `magnet-before-dm.reg` in dm's home, then removed, then dm's written. "Give
-  magnet links back" removes dm's key and imports the kept one. The same for `.torrent`, whose
-  extension key is kept and dm's ProgId removed on giving back.
-* **dm does not appear in Default apps.** That needs a `RegisteredApplications` entry with
-  `Capabilities` (spec T5), a change to how dm shows in Windows, left for the maintainer's word.
+  `reg export` to `magnet-before-EDM.reg` in EDM's home, then removed, then EDM's written. "Give
+  magnet links back" removes EDM's key and imports the kept one. The same for `.torrent`, whose
+  extension key is kept and EDM's ProgId removed on giving back.
+* **EDM does not appear in Default apps.** That needs a `RegisteredApplications` entry with
+  `Capabilities` (spec T5), a change to how EDM shows in Windows, left for the maintainer's word.
 
 ## Choices one size (maintainer, 2026-11-05)
 
@@ -4649,23 +4649,23 @@ height with their 16-point drawings. The Windows baseline pictures were taken ag
 run that showed the change (Add URL 8 points shorter: its sign-in switch's row); contract row
 B25 says so.
 
-## "Download links" as reference A's, and where dm keeps its own way (2026-11-05, gaps row 94)
+## "Download links" as reference A's, and where EDM keeps its own way (2026-11-05, gaps row 94)
 
-At the maintainer's word that dm "should work exactly like" reference A (2026-11-04).
+At the maintainer's word that EDM "should work exactly like" reference A (2026-11-04).
 
 * **Hide images and Hide repeated files are on**, as reference A's are. A picture is told by the
   name its server gave, or before it answers by its address (`classify`).
 * **A repeat is an address the page gives more than once**, the first kept. Reference A also
-  counts one already downloaded; dm already shows such a link unticked and says "(already in the
+  counts one already downloaded; EDM already shows such a link unticked and says "(already in the
   list)", which tells the person more than a missing line, so that stays.
 * **Save To's one category** is any of the kinds or a person's own categories; the folder it
-  names is the one dm would sort that kind into. One folder must be named before Start now or
+  names is the one EDM would sort that kind into. One folder must be named before Start now or
   Add for later take it.
 * **Edit is a button on each line**, opening the link's name and address under the list: egui's
   grid has no row to select for one Edit button below it, as reference A's list does.
 * **Link texts come with the links**, as a map of address to words (`Batch.texts`), not a list
   beside the links: the browser and the host each drop links (a fragment, a page's own address,
-  what dm cannot fetch), and a map stays right where two lists would fall out of step. Words are
+  what EDM cannot fetch), and a map stays right where two lists would fall out of step. Words are
   a link's text, else its title, an image's `alt` or title, spaces closed up and cut to 200
   characters; an older extension sends none and the column is empty. With the dialog off they
   are the queued links' descriptions too, as the dialog keeps them by default.
@@ -4681,7 +4681,7 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
   probe asks once, with no range and none of its second tries (each would send the form again),
   and the answer is fetched whole on one connection. A failure starts over with the same form,
   as the browser would.
-* **Not asked about first.** The host's check that dm can fetch a caught download would send the
+* **Not asked about first.** The host's check that EDM can fetch a caught download would send the
   form, so a form's answer is taken as a link that works once is.
 * **Fields re-encoded.** A form the browser reports as fields is sent as
   `application/x-www-form-urlencoded`; a raw body goes as its bytes with the type the browser's
@@ -4689,7 +4689,7 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
 * **In memory only.** The row keeps the form in memory and writes only that it is a form's
   answer; after a restart it fails saying to start it again from the page.
 * **Fields in the browser's order.** Chromium reports a form's fields as a dictionary sorted by
-  name (`format=csv&report=7` for a form written `report`, `format`), so dm sends them in that
+  name (`format=csv&report=7` for a form written `report`, `format`), so EDM sends them in that
   order. A server reads a form by field name; one that checks the body's bytes (a signed body)
   would refuse it. Reading the form in the page as it is submitted would keep the order, at the
   cost of a listener on every page's submit.
@@ -4704,7 +4704,7 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
   thread waits, which nothing the script needs depends on. Asking before the first request instead
   (the plan of 2026-11-03) missed redirects to other sites and every request made outside a
   download (the video page reads, the probe of Add URL).
-* **The first way only.** A script's answer lists ways to try in turn; dm takes the first. Trying
+* **The first way only.** A script's answer lists ways to try in turn; EDM takes the first. Trying
   the next on failure would need a client per way.
 * **No path, kept per site.** The script is asked about `scheme://host:port/`, as browsers ask
   about secure addresses: a path can carry a session, and the answer is kept for the whole site.
@@ -4739,18 +4739,18 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
 
 * **Told from Windows' own rules.** The question at the first torrent leaves a firewall rule naming
   the program, allowed or blocked, in `HKLM\...\FirewallPolicy\FirewallRules`, which a person's
-  account can read. No rule with `App=` dm's own path means Windows has not had an answer: the
+  account can read. No rule with `App=` EDM's own path means Windows has not had an answer: the
   row of a torrent finding peers says Windows may be asking, until there is one
-  (`dm_shell::firewall::may_ask`, read on a thread of its own every few seconds while asked).
+  (`edm_shell::firewall::may_ask`, read on a thread of its own every few seconds while asked).
   Looking for the question's window by its title was the other way: its title is in the
-  system's language and its owner is not dm.
+  system's language and its owner is not EDM.
 * **Never answered for the person.** Adding a rule needs administrator rights and is the
-  person's choice; dm says where to change it later (Windows Security, Firewall) and that it
+  person's choice; EDM says where to change it later (Windows Security, Firewall) and that it
   still downloads without it.
 * **The magnet chooser likewise.** Windows' own "how do you want to open this" at a first
-  magnet click is said in Options beside who opens magnet links; dm cannot answer it.
+  magnet click is said in Options beside who opens magnet links; EDM cannot answer it.
 
-## The browsers dm takes from, and its menu items, are chosen in the catch rules (2026-11-05, gaps row 86)
+## The browsers EDM takes from, and its menu items, are chosen in the catch rules (2026-11-05, gaps row 86)
 
 * **The extension knows its browser; the app does not.** Native messaging tells the host an
   extension's id, which is the same in Chrome, Edge and Brave for one store. The extension names
@@ -4758,10 +4758,10 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
   it against `CatchRules::off_browsers`, which the app sends with the rest of its rules.
 * **An unticked browser keeps its downloads, not its menus.** Its right-click menu and the
   video panel still hand things over when asked, as with catching switched off (B31).
-* **Menu items by id.** `dm_protocol::MENU_ITEMS` names them for Options and is checked against
+* **Menu items by id.** `edm_protocol::MENU_ITEMS` names them for Options and is checked against
   the extension's own list by a test; the extension makes its menu again when the rules it is
   sent leave out other items than the ones it kept.
-* **The panel's buttons.** Reference A's panel has buttons to choose from; dm's has one (Download
+* **The panel's buttons.** Reference A's panel has buttons to choose from; EDM's has one (Download
   video) and its close, and the panel itself has its switch (`video_panel`), so there is nothing
   more to choose.
 
@@ -4794,8 +4794,8 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
 
 ## The Edge check keeps its torrents off the network (2026-11-05, gaps row 108)
 
-* The check copies dm into a new folder for each run, and a torrent listening for peers from a
-  program at a new path raises Windows' firewall question every time. `DM_NO_SWARM`, set only by
+* The check copies EDM into a new folder for each run, and a torrent listening for peers from a
+  program at a new path raises Windows' firewall question every time. `EDM_NO_SWARM`, set only by
   the check's host shim, makes a torrent fail at once before any connection; the seven magnet
   variants are checked by the rows they make, which is what the check is about.
 
@@ -4811,11 +4811,11 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
   waits for the maintainer's word. The waiting row takes it where nothing asks.
 * **The extension offers what it sees, the app decides.** The app has no way to ask the
   extension (the browser starts the native host, not the app). So the extension remembers the
-  addresses it handed to dm (`decide::Handed`, in the session's storage across the worker's
+  addresses it handed to EDM (`decide::Handed`, in the session's storage across the worker's
   naps), and when the page's player asks for one anew with a fresh signature
   (`RequestHeaders::renewed`: the same path, query names and `itag`, no byte range) it sends
   that address marked `Start::renews`. The app gives it to a row waiting for it and drops it
-  otherwise; the host never starts dm for one and never asks about one.
+  otherwise; the host never starts EDM for one and never asks about one.
 * **Bounded.** Looked for at most every 2 s (every request the browser sends reaches the
   worker), offered at most every 30 s and 20 times for one hand-off, 50 hand-offs remembered.
 * **Not a protocol version.** Version 3 would make today's app unable to read the new
@@ -4827,17 +4827,17 @@ At the maintainer's word that dm "should work exactly like" reference A (2026-11
 ## A fetched tool loses macOS's quarantine mark (2026-11-06)
 
 * **Found by the human QA (B35):** every YouTube download from Edge failed with "the solver took too
-  long". The QuickJS dm fetched carried `com.apple.quarantine` ("Edge"): a program the browser
+  long". The QuickJS EDM fetched carried `com.apple.quarantine` ("Edge"): a program the browser
   starts is a quarantining one, so what it writes is marked, and Gatekeeper rejects an ad-hoc
   signed program so marked; `qjs` waited, never ran, and the solver's 45 s ran out. A copy without
   the mark printed at once.
-* **dm takes the mark off** what it fetched and held to the SHA-256 it ships (`tools::place`), and
+* **EDM takes the mark off** what it fetched and held to the SHA-256 it ships (`tools::place`), and
   off a copy fetched before this (`tools::fetched`, when found). The digest says more than the mark;
   a tool the person installed is theirs and is left alone.
-* **Not done: signing QuickJS.** dm does not re-sign a program it did not build.
+* **Not done: signing QuickJS.** EDM does not re-sign a program it did not build.
 
 
-## The rows that waited for the maintainer's word, decided for the person using dm (2026-11-06)
+## The rows that waited for the maintainer's word, decided for the person using EDM (2026-11-06)
 
 The maintainer's word, 2026-11-06, asked about gaps rows 70, 80, 84, 95, 120, 125, 136, 147, 154 and
 155: "implement which is better for user and user experience, what the user expect from program".
@@ -4848,29 +4848,29 @@ Each was decided by that rule:
 * **Built: 136, a web page typed into Add URL is asked about, not refused.** The question contract
   row B40 already asks for an address that ends like a file is asked here too (Yes saves the page as
   `.html`, No keeps nothing): a person who typed it may want it, and one who pasted it by mistake
-  says No. Reference A saves it without asking; asking is what B40 already does in dm.
+  says No. Reference A saves it without asking; asking is what B40 already does in EDM.
 * **Built: 147, "Keep sharing a finished torrent", off by default.** A person who downloads torrents
   expects to be able to give back; one who does not is not asked to (uploads cost a metered
   connection, battery and privacy), so it is off until turned on.
 * **Built: 154, the macOS pictures of contract row B25 taken again**, of the 820 by 500 window the
-  maintainer approved on 2026-11-04, with dm picturing its own dialog windows (no screen-recording
+  maintainer approved on 2026-11-04, with EDM picturing its own dialog windows (no screen-recording
   permission is needed for the check).
-* **Instead of 80 (the browser's proxy as a fallback): dm follows the system's proxy from the
+* **Instead of 80 (the browser's proxy as a fallback): EDM follows the system's proxy from the
   start.** The extension would need the `proxy` permission, and a browser disables an extension on
   update until each person accepts a new permission: every user would lose the catching for a
-  click. A browser takes the system's proxy itself, so a new dm does the same (Options › Advanced ›
+  click. A browser takes the system's proxy itself, so a new EDM does the same (Options › Advanced ›
   Proxy, "system"); with no proxy set in the system it goes direct as before. A saved setting is
   kept.
 * **Not built: 95, small files in reference A's 14 KB pieces.** A file under a megabyte arrives in
   well under a second on one connection; ten connections for it cost the server more than they
-  save the person, and servers that limit connections answer them with refusals. dm keeps one piece
+  save the person, and servers that limit connections answer them with refusals. EDM keeps one piece
   under 1 MiB, with helpers only when the first is slow (contract row B36 stays).
 * **Not built: 120, the app fetching through the open page.** The extension already hands the app
   what the page loaded (its answers, its renditions, the session's cookies for that download), which
   is what the fetch would be for; a way for the app to make the browser fetch addresses with the
   person's session is a door another local program could use.
 * **Not built: 125's three rules** (the caught address's player first, `object-fit: cover` loops
-  passed by, the largest of several). Reference A raises its bar unasked and must pick a player; dm
+  passed by, the largest of several). Reference A raises its bar unasked and must pick a player; EDM
   shows its panel on the player the person points at, plays or focuses, which is the one they mean.
   Instagram's and TikTok's own videos use `object-fit: cover`, so passing those by would hide the
   panel where it is wanted.
@@ -4878,7 +4878,7 @@ Each was decided by that rule:
   and scrolling from outside the browser; the panel inside the page already moves under a fixed
   header and out of a clipped parent (row 125's fixtures), and the cost is out of proportion.
 * **Not built: 84, dial-up and VPN redial.** Dial-up is gone and a VPN is the system's to connect;
-  a person expects dm to use the connection the computer has.
+  a person expects EDM to use the connection the computer has.
 
 ## 2026-11-06: Release profile, what was not changed
 
@@ -4898,8 +4898,8 @@ The 27-finding audit was not kept.
 At the maintainer's word (2026-11-06, asked with the choice "Symphonia crate"),
 Linux decodes AAC with `symphonia-codec-aac` 0.6.1 (MPL-2.0, pure Rust, used
 unmodified as a crates.io dependency, as `colored` and `option-ext` already
-were). dm's own frame decoder (`aac/decoder.rs`, `huff.rs`, `transform.rs`),
-which lacked the standard's Huffman tables, is removed; dm keeps its own M4A
+were). EDM's own frame decoder (`aac/decoder.rs`, `huff.rs`, `transform.rs`),
+which lacked the standard's Huffman tables, is removed; EDM keeps its own M4A
 reading (AudioSpecificConfig, sample tables, edit list), which refuses HE-AAC,
 more than two channels and 960-sample frames in words before decoding. A rate
 MP3 lacks is resampled by a Lanczos-windowed sinc (16 taps at the cut-off) to
@@ -4919,7 +4919,7 @@ GPL-2.0 also offer MIT or Apache), and every commit is the maintainer's apart
 from dependabot's version bumps, so no one else's consent was needed.
 `LICENSE` is GNU's text (sha256 3972dc97…6986); `NOTICE` holds the copyright,
 the "or later" grant and a section 7(b) term: keep `NOTICE` and the files'
-notices, and show "Based on Easy Download Manager (dm) by pranavo72bex" in the work's Appropriate Legal Notices and wherever it shows
+notices, and show "Based on Easy Download Manager (EDM) by pranavo72bex" in the work's Appropriate Legal Notices and wherever it shows
 its licence information, such as its README. The README is named as an
 example rather than as the only place: 7(b) covers preserving attributions in
 the material and in legal notices, and a term beyond it could be removed by a
@@ -4935,13 +4935,13 @@ Measured on this Mac (M-series), release builds, the same day:
 | all 3 (until today) | 25.9 MB | 0.17 s | | |
 | "s", digests/unpacking/TLS/drawing at 3 | 20.5 MB | 0.18 s | 0.27 s | 104 ms, list 0.11 s |
 | all "z" (same overrides) | 16.6 MB | 0.37 s | | |
-| **"z", and dm-core, symphonia at 3 too (chosen)** | **17.7 MB** | **0.13 s** | 0.47 s | 104 ms, list 0.11 s |
-| "z", dm-core, dm-shell and dm-desktop at 3 | 27.0 MB | | 0.30 s | |
+| **"z", and edm-core, symphonia at 3 too (chosen)** | **17.7 MB** | **0.13 s** | 0.47 s | 104 ms, list 0.11 s |
+| "z", edm-core, edm-shell and edm-desktop at 3 | 27.0 MB | | 0.30 s | |
 
 Throughput (`tests/throughput.rs`, two rounds each) and memory at rest
 (`memory-check.py`: 38.5 MB private against 38.8) were the same within
 noise. With fat LTO the binary crate's level applies to the merged program,
-so dm-desktop cannot be raised alone. Accepted: listing 20,000 rows over the
+so edm-desktop cannot be raised alone. Accepted: listing 20,000 rows over the
 control port (the command line, MCP) takes 0.2 s longer. Not done:
 `panic = "abort"` (the tray survives a panic with `catch_unwind`), jemalloc
 (no measured need), removing aws-lc-rs (the torrent library's every TLS
@@ -4974,7 +4974,7 @@ rewrite and force-push would change.
 
 librqbit 9 has no priority between files, only a file in or out
 (`only_files`), which it can change on a running torrent
-(`Session::update_only_files`). dm asks for the High files alone, and when the
+(`Session::update_only_files`). EDM asks for the High files alone, and when the
 library reports them finished adds the Normal ones, then the Low ones
 (`torrent::tiers`, `TorrentOptions::tiers`). A priority is an order, not a
 share of the bandwidth. The row's total is every wanted file's, as the
@@ -4989,12 +4989,12 @@ file, so files from before read as Normal.
 
 Measured with a YouTube stream address, which carries an `ip=` token bound to
 the address that asked for it: asked for over IPv6, the same address fetched
-over IPv4 is turned away (302) and over IPv6 served (206). dm's own reader asks
-and fetches over the same connection, and a download handed to dm reaches the
-address the browser was given: dm's client prefers IPv6 as the browser does
-(the address, asked for over IPv6 and handed to a running dm, completed, 433
+over IPv4 is turned away (302) and over IPv6 served (206). EDM's own reader asks
+and fetches over the same connection, and a download handed to EDM reaches the
+address the browser was given: EDM's client prefers IPv6 as the browser does
+(the address, asked for over IPv6 and handed to a running EDM, completed, 433
 KB). A token bound to the browser's address would fail only where the browser
-and dm leave the computer differently (a VPN or proxy in the browser alone).
+and EDM leave the computer differently (a VPN or proxy in the browser alone).
 No site was found where it fails, so `Start.ip` is not built; it is what to
 build if one is (reqwest's `resolve`, falling back to DNS). Row 122 measured
 the same day: without a sign-in nothing failed for want of the page's data.
@@ -5002,9 +5002,9 @@ the same day: without a sign-in nothing failed for want of the page's data.
 ## 2026-11-06: A GIF on Linux from the AV1 stream (gaps row 54)
 
 At the maintainer's word ("implement it"), reversing the earlier "not
-proposed": Linux has no H.264 decoder dm can use, and one of dm's own was not
+proposed": Linux has no H.264 decoder EDM can use, and one of EDM's own was not
 wanted (patents; openh264 built from source has no licence from Cisco). AV1 is
-royalty-free, and YouTube offers most videos in it inside MP4, which dm's
+royalty-free, and YouTube offers most videos in it inside MP4, which EDM's
 cutter already handles. A part asked for as GIF on Linux takes the AV1 picture
 (`youtube::read_for`, codec `av01`, at most 720 tall: a GIF is 480 across and
 a decoder without assembly is slow on more), and `frames/av1.rs` decodes its
@@ -5024,9 +5024,9 @@ no MSE/PE; `vendor/librqbit` is the published crate with
 `src/mse.rs` and the hooks for it, used through `[patch.crates-io]` as winit
 is. Policy: plaintext first, as before, and encrypted again where a peer hangs
 up on the plaintext handshake (an encryption-only peer does exactly that), so
-peers that took dm before see no change and the extra connection is made only
+peers that took EDM before see no change and the extra connection is made only
 for those that refused; incoming connections of both kinds are taken
-(`require_encryption`, off in dm, makes and takes encrypted ones only; the
+(`require_encryption`, off in EDM, makes and takes encrypted ones only; the
 tests use it). Ruled out: encrypted first for every peer (a second round trip
 to every plaintext-only peer, and a change for the peers that worked).
 Chosen to check against: libtorrent (the library most clients are built on),
@@ -5045,28 +5045,28 @@ threads, 478 to 483 handles. Set as on macOS, a third above what was
 measured: the working set's budget stays 100 MB and the private bytes' goes
 from 60 to 40 MB, so a regression of a third fails it and the system's own
 share does not. Beside reference A's numbers in row 137 (35 MB working set
-average, 13 MB private, 9 threads, 991 handles) dm keeps about twice the
+average, 13 MB private, 9 threads, 991 handles) EDM keeps about twice the
 working set and private bytes and runs about three times the threads, with
 half the handles; the three runs agree to within a megabyte of private bytes.
 What makes up the difference was not measured on Windows (on macOS: the
 window's drawing surfaces, fonts and the runtimes, row 137's old text).
 
-## 2026-11-07: macOS opens links and files with dm through Apple events (gaps row 105)
+## 2026-11-07: macOS opens links and files with EDM through Apple events (gaps row 105)
 
-The first click on a Mac with dm.app installed showed that a `magnet:` link
-or a `.torrent` file reached nothing, with dm closed or running. dm had added
+The first click on a Mac with EDM.app installed showed that a `magnet:` link
+or a `.torrent` file reached nothing, with EDM closed or running. EDM had added
 `application:openURLs:` to winit's application delegate at run time, as
 `dock.rs` adds the Dock's method, once AppKit said the app would finish
 launching; winit's class has no such method, so it was added, and still was
 never called: most likely because AppKit reads which methods its delegate
-answers when the delegate is set, and winit sets it before dm can add
+answers when the delegate is set, and winit sets it before EDM can add
 anything (not proved; the replacement was checked instead). Chosen: the Apple event manager's own
-handlers for `GURL` (a link) and `odoc` (files), on an object of dm's, put in
+handlers for `GURL` (a link) and `odoc` (files), on an object of EDM's, put in
 at `NSApplicationWillFinishLaunchingNotification`, which Apple names as the
 place for them: after AppKit's defaults (which would replace handlers put in
 earlier) and before the launch's own event is read. Ruled out: setting
 winit's delegate again after adding the method (it relies on AppKit's cache
-being read afresh, which is not documented), and a delegate of dm's own
+being read afresh, which is not documented), and a delegate of EDM's own
 (winit 0.30 panics on any other delegate).
 
 ## 2026-11-07: Whole MP4 files fetched by ranges are told apart by their first bytes (gaps row 155)
@@ -5091,7 +5091,7 @@ smaller): wrong whenever two pictures are loaded. Cost: one more request per
 such file, of 64 KB at most, refused for a private host the page is not on
 (`may_reread`).
 
-## 2026-11-07: Shared hosts are named in dm, not read from the public suffix list
+## 2026-11-07: Shared hosts are named in EDM, not read from the public suffix list
 
 A waiting row adopts a fresh address of the same "family" of servers (gaps
 row 57), and the family was a host's last two labels, so two customers of
@@ -5109,14 +5109,14 @@ named stays as before; the list is added to when one is found.
 ## 2026-11-08: Dial-up and VPN connections as reference A's, a download held until it is up (gaps row 93, G84)
 
 The maintainer's word of 2026-11-07 for G84: "If reference A has then implement it". Reference A's
-last Options tab was read and run beside dm with a VPN entry that refuses
+last Options tab was read and run beside EDM with a VPN entry that refuses
 (`docs/reference-behavior.md`, 2026-11-08). Chosen: its switch, fields, words and defaults
 (off; zero redial attempts, endlessly; 30 seconds between) as a section of Options ›
-Advanced on Windows, where dm's connection settings already are (contract row B43's six tabs
+Advanced on Windows, where EDM's connection settings already are (contract row B43's six tabs
 stay six); and its rule: a download that starts while the connection is down waits while it is
 dialled and is never sent without it, failing with "cannot connect to the Internet" when every
-try failed. The wait is a hook in the engine (`dm-core` `connect_first.rs`) that every download
-passes before its first request, and the dialling is dm-shell's (`dialup.rs`, Windows' RAS):
+try failed. The wait is a hook in the engine (`edm-core` `connect_first.rs`) that every download
+passes before its first request, and the dialling is edm-shell's (`dialup.rs`, Windows' RAS):
 downloads that start together wait on one dial, a pause or cancel while one waits is heard
 within a fifth of a second and the dialling stops once nobody waits, and a setting turned off
 while it redials lets the download go as it would have.
@@ -5124,17 +5124,17 @@ while it redials lets the download go as it would have.
 Ruled out: dialling once when the queue starts and letting the downloads go whatever came of
 it (the first draft): through a VPN a download sent around it would come from the address the
 person chose it to hide, and reference A sent nothing. Left out, and why: reference A's box
-asking for a user name and password when Options has none (dm dials with the ones Windows keeps
+asking for a user name and password when Options has none (EDM dials with the ones Windows keeps
 for the connection, and says Windows' reason when that fails), and its Apply button, which
-hands the sign-in to Windows (dm keeps its own: with Save password on in the system's store
-like the proxy's, off nowhere at all, forgotten when dm closes). Cost: a connection with no
+hands the sign-in to Windows (EDM keeps its own: with Save password on in the system's store
+like the proxy's, off nowhere at all, forgotten when EDM closes). Cost: a connection with no
 saved sign-in and none in Options fails where reference A would ask.
 
 ## 2026-11-08: The engine-wide settings are put in force at the start too (BUGLOG BUG-014)
 
-"Identify as dm only", the second network and now the dial-up connection live in the engine,
+"Identify as EDM only", the second network and now the dial-up connection live in the engine,
 not on the queue, and only a change of settings put them in force: after a restart the switch
-read on while dm sent the browser's name. One `engine_wide` in `shell.rs` now serves the start
+read on while EDM sent the browser's name. One `engine_wide` in `shell.rs` now serves the start
 and every change, at the maintainer's standing word of 2026-11-07 ("if found bug or improvement
 just implement it"); contract row B51 ("the change applies at once and is kept") is what it now
 does, so its words stand.
@@ -5145,7 +5145,7 @@ Every dialog became a window of its own on 2026-11-01 (contract row B42), and ef
 glow backend gives AccessKit to the root window only, so a screen reader read none of them.
 Chosen: a copy of eframe 0.37.0 in `vendor/eframe`, used through `[patch.crates-io]`
 as winit and egui-winit are, with one change in `src/native/glow_integration.rs` (search
-`dm:`): the proxy the root's adapter was given is kept, and a window made after it (a dialog,
+`EDM:`): the proxy the root's adapter was given is kept, and a window made after it (a dialog,
 or the root made again) is created hidden, given an adapter, and shown as asked (AccessKit
 panics on a window already shown). Only the root's adapter may turn AccessKit off, since the
 switch is egui's one context's. Behind `ADAPTER_PER_WINDOW`, off on Windows until it is
@@ -5162,18 +5162,18 @@ or dropped once upstream gives each viewport an adapter.
 
 Reference A's Scheduler (read on 2026-11-08, `docs/reference-behavior.md`) has "Hang up modem
 when done" (off) between "Open the following file when done" and "Exit … when done", each a
-tick of its own. dm's B49 said this was not offered, since dm had no dial-up connection to hang
-up; with G84 built it has, and the maintainer's words of 2026-11-04 (dm works as reference A,
+tick of its own. EDM's B49 said this was not offered, since EDM had no dial-up connection to hang
+up; with G84 built it has, and the maintainer's words of 2026-11-04 (EDM works as reference A,
 with its labels) and 2026-11-07 ("If reference A has then implement it") cover it. Chosen: a switch of
 the schedule (`Schedule::hang_up`, a queue's own hours have their own), in reference A's words,
 below the program to run, on Windows alone; at the moment that program runs, the connection
 named in Options › Advanced › Dial Up / VPN (with the switch on) is hung up if Windows has it
-open, whoever connected it, as the person asked for that connection to go. A dial of dm's under
+open, whoever connected it, as the person asked for that connection to go. A dial of EDM's under
 way is let finish first (the shared dialling lock), and Windows' end of the connection is waited
 for off the window's thread. The status line says it was hung up, or that no connection is set
 in Options; a refusal goes to the problems. Ruled out: hanging up every open connection (one the
 person keeps for something else would go too), and greying the switch while Options sets no
-connection (reference A leaves it on offer, and what dm says at the end names the setting).
+connection (reference A leaves it on offer, and what EDM says at the end names the setting).
 
 The end of the scheduled downloads moved with it: it came the first time the queue ran dry,
 before the rounds of Try a failed download again, so a hang-up there would have been followed by
@@ -5190,7 +5190,7 @@ requests had gone there (`RequestHeaders::reached`). A page can send its tab any
 `fetch`, a hidden frame, a preloaded `<video>`, then name that site's file in its player; and the
 browser, sending a request there from another site's page, keeps back every `SameSite` cookie
 (Lax, Strict, and by default one with no attribute), a sign-in above all. So "reached" said
-nothing of the sign-in, and dm sent what the browser had withheld. Chosen, at the maintainer's
+nothing of the sign-in, and EDM sent what the browser had withheld. Chosen, at the maintainer's
 standing word of 2026-11-07 ("if found bug or improvement just implement it") and within the
 answer of 2026-11-08 to keep every site working: a file on the page's own site, or the page
 itself, goes with the session as before (`decide::session_goes`); one on another site takes only
@@ -5207,15 +5207,15 @@ panel's does: closing it would have ended the site checks, which read the lines 
 (`sites-check.py` `LITE_STATE`); a page could still restyle a button inside it, which `asDrawn`,
 looking at the holder, does not see.
 
-## 2026-11-08: Headless keeps its window-free DmApp; the application's work is the Session's (architecture step 13)
+## 2026-11-08: Headless keeps its window-free EdmApp; the application's work is the Session's (architecture step 13)
 
 Step 13 of the architecture audit asked whether `--headless` should loop on the
 application alone, with no window toolkit. Its answers to `command.run` (the
-window's `Command`s: dm's every menu item) and to `ui.*` come from `DmApp`, the
+window's `Command`s: EDM's every menu item) and to `ui.*` come from `EdmApp`, the
 window's state, ticked against a stand-in `egui::Context` that is never drawn.
 Chosen (option (a) of the audit, the maintainer's word of 2026-11-08 that the
-existing behaviour must not break): headless keeps that `DmApp`, and everything
-it does that is not the window's moved into `dm_shell::app` instead. That covers
+existing behaviour must not break): headless keeps that `EdmApp`, and everything
+it does that is not the window's moved into `edm_shell::app` instead. That covers
 the read and what follows it, the schedules' tick, When done and its countdown,
 the hand-offs (`handoff::Hands`), and who may use the control port
 (`control_api::refused`, `person_only`, `batch`, `answer`). So headless and the
@@ -5228,14 +5228,14 @@ lines, but that was before `command.run` was counted. `Command` moving out of
 the window crate is left for when GPUI needs it.
 
 
-## 2026-11-09: The command registry is the application's; dm-core keeps `pub use reqwest` (architecture steps 15, 16 and 14)
+## 2026-11-09: The command registry is the application's; edm-core keeps `pub use reqwest` (architecture steps 15, 16 and 14)
 
 The maintainer, 2026-11-09: "do not rebase for now. just implement the
 UI-independent architecture fully then we will fix the merge conflict". The
 decision of 2026-11-08 had left `Command` in the window crate until GPUI
 needed it; finishing the architecture means doing it now. `Command` (names,
 English labels, keys), which commands apply to the rows chosen and the
-commands that are the application's alone are in `dm_shell::app::commands`
+commands that are the application's alone are in `edm_shell::app::commands`
 (step 15). Keys are a neutral `Chord` (the key, and whether Cmd/Ctrl and Shift
 are held), not egui's type, so a second toolkit binds the same shortcuts; the
 window keeps only `Shown` (a title in the language in force, the egui
@@ -5243,7 +5243,7 @@ shortcut) and `pressed`. What only a presentation sees of a row (retrying, the
 file gone, whether it plays) is asked through `commands::Looks`, not copied
 into the application. Ruled out: a `Command` enum per presentation (the
 control port's `commands.list` and `command.run` would have differed by
-toolkit), and moving egui's key types into dm-shell (`xtask layers` forbids a
+toolkit), and moving egui's key types into edm-shell (`xtask layers` forbids a
 toolkit there).
 
 Step 16 moved the rest of the audit's section 3 rows: what a row is called
@@ -5252,7 +5252,7 @@ and where its file will go (`names`), imports (`import`), extraction
 watch (`links::Clipboard`). Each old path re-exports.
 
 Step 14: `Entry::redacted()` (no cookies, request headers or form body, the
-address's password masked, with `shown_url` moved into dm-core beside it) is
+address's password masked, with `shown_url` moved into edm-core beside it) is
 what `queue.list` sends, so a new reader cannot forget a secret. `pub use
 reqwest` stays: the audit allowed either it or a client factory, a
 presentation never names it, and the two places the window does (the update
@@ -5275,24 +5275,24 @@ out the signature and `n` pieces with patterns its app sends it; its network lib
 puts the pieces in a small program of its own and runs it in Windows' own JScript9 engine
 (`IActiveScript`), with polyfills for that old engine. It ships no engine and fetches nothing.
 
-dm now does the same, with nothing fetched and no one else's script:
+EDM now does the same, with nothing fetched and no one else's script:
 
 - `youtube/player.rs` cuts the player itself. The player is one function whose statements define
-  its parts and then start it; dm keeps every statement but the calls made while it loads (an
+  its parts and then start it; EDM keeps every statement but the calls made while it loads (an
   expression statement that is not one assignment), so what is left defines and reaches for
   nothing. Its function that builds a stream's address (the one whose own statements include
   `x.set("alr","yes")`) is called as the player calls it, which deciphers a signature, and the
   method its address class adds to `set`, `get` and `clone` turns `n`. These are the player's shape,
   not its names, which change with every version; today's player (`a5c2aafe`) hides every name
   behind a string table and its signature steps inside numbered dispatchers, and the shape holds.
-  A tokenizer of dm's own (strings, templates, regular expressions, comments) splits the
+  A tokenizer of EDM's own (strings, templates, regular expressions, comments) splits the
   statements; nothing is parsed further.
 - `javascript.rs` runs the program in the computer's own engine. On Windows that is Windows' own
   Chakra (`chakra.dll`, in System32 on Windows 10 and 11), through its hosting functions, loaded
   from System32 only, with no compiling to machine code, no `eval`, 256 MB at most and 30
   seconds; a program there has JavaScript's own objects and no files, programs or network. In
-  the app it runs in a process of its own: dm's own program started as the engine's host
-  (`dm-desktop --javascript-host`, one request on its input and the answer on its output), as the
+  the app it runs in a process of its own: EDM's own program started as the engine's host
+  (`edm-desktop --javascript-host`, one request on its input and the answer on its output), as the
   warm page reader already is. Testing found that Chakra ends its whole process when a program
   passes its memory limit, whatever the program does to get there; in the app's own process that
   would have ended every download with it. A test or a tool with no host runs it in its own
@@ -5303,20 +5303,20 @@ dm now does the same, with nothing fetched and no one else's script:
 - Checked against the scripts it replaces, on the live player: the same `n` and signature answers,
   in Node and in Chakra (about 2 s, 27 MB); the cut is 0.5 s where the scripts' parser took 3.7 s.
 
-Ruled out: shipping the two scripts in dm (third party, and the maintainer's later words); running
+Ruled out: shipping the two scripts in EDM (third party, and the maintainer's later words); running
 the whole player against a stand-in browser (it starts at once and reaches for the page);
 JScript9 as reference A uses it (no `Symbol`, which today's player names while loading);
 `cscript.exe` (a separate host that policy may switch off and that security tools watch); WebView2
-(a window and a loader for a few functions); a JavaScript engine built into dm (third party, and a
+(a window and a loader for a few functions); a JavaScript engine built into EDM (third party, and a
 megabyte or more). Chakra holds pointers into the program's text and frees an unheld value at its
-next collection, so dm keeps both texts alive for the runtime's life, holds every value it reads
+next collection, so EDM keeps both texts alive for the runtime's life, holds every value it reads
 (`JsAddRef`), and never reads the long program's own value (reading it, a function, crashed the
 engine in testing).
 
 The weekly job that moved the scripts' pin (`solver-update.yml`, `scripts/update-solver.py` and its
 test) is gone. `.github/workflows/youtube-check.yml` takes its place: every Monday, on Windows, real
-videos through dm's own reader, the first kilobyte of each chosen stream asked for as a download
-asks (`youtube_read`, `DM_FETCH_FIRST`), and an issue opened, or added to, when one fails.
+videos through EDM's own reader, the first kilobyte of each chosen stream asked for as a download
+asks (`youtube_read`, `EDM_FETCH_FIRST`), and an issue opened, or added to, when one fails.
 
 
 ## 2026-11-09: A small slow file ends with its last range; the seams are still asked one at a time (gaps row 165)
@@ -5324,7 +5324,7 @@ asks (`youtube_read`, `DM_FETCH_FIRST`), and an issue opened, or added to, when 
 Context: Edge's check of a 3 MB file from a server that holds each connection to 1 MB/s took
 2.07 to 3.07 s on this Windows laptop (debug build) against a 2.8 s limit. Timed in parts, beside
 the browser and in the engine alone (a server paced as the check's): the check's own tab took a
-third of a second before the press, Edge and dm's host 0.4 to 0.9 s from the press to dm's first
+third of a second before the press, Edge and EDM's host 0.4 to 0.9 s from the press to EDM's first
 request, the host's question to the app's 0.11 s, and the download itself 0.8 s in the engine and
 1.0 s in the app. Of that 0.8 s, 80 ms or more came after the file was in: the last helping
 connection to finish its range watched a whole window (`HELP_WATCH`) for more work before it
@@ -5338,7 +5338,7 @@ Decision:
   (`a_download_from_a_slow_server_ends_with_its_last_range`, which fails without it).
 - `chrome-check.py` times that file from the press, as its words say ("a person clicks, and
   watches"), not from before it opens and loads the page. The limit stays 2.8 s: one connection
-  alone takes over 3 s, so it still says the helpers came, with at least four of dm's connections.
+  alone takes over 3 s, so it still says the helpers came, with at least four of EDM's connections.
   The check now says where its time went. In the whole QA after both: 1.40 and 1.59 s from the
   press (1.6 and 1.8 s counted the old way), all 64 rows holding.
 
@@ -5355,9 +5355,9 @@ The maintainer asked for the spec's last items to be built ("implement it.
 migrate it properly"). Two were coupling: the window made its own requests (the
 update check, a ZIP's files, a file's name and size, a page's links, a video's
 qualities, a playlist, a site crawl), and it held the engine's queue in six
-places. Each is now the application's (`dm_shell::app::{update, files, lookups,
+places. Each is now the application's (`edm_shell::app::{update, files, lookups,
 search}`, `Backend::{client, allowance_spent, remove_later}`), taking the
-`Backend` and answering a callback; dm-desktop names `reqwest` nowhere. The
+`Backend` and answering a callback; edm-desktop names `reqwest` nowhere. The
 clients the window built differed (some without the read timeout); every one
 is now `Backend::client`, the settings' proxy and timeout, inside each
 lookup's own overall limit.
@@ -5377,27 +5377,27 @@ channel with a fixed buffer (a slow subscriber would lose lifecycle events or
 make the publisher wait), and an event per byte count from the runner (the
 reads at four a second already carry progress).
 
-## 2026-11-09: macOS runs dm's JavaScript in its own JavaScriptCore (gaps row 164)
+## 2026-11-09: macOS runs EDM's JavaScript in its own JavaScriptCore (gaps row 164)
 
 On macOS the program that answers YouTube's checks, and a proxy script, ran in
 an installed Deno or in QuickJS fetched from GitHub at first use. The first
 YouTube download of a fresh install therefore needed GitHub, and failed the
 afternoon GitHub answered 504 (the reason Windows moved to its own Chakra,
-decisions 2026-11-08). macOS's JavaScriptCore is part of every macOS: dm loads
+decisions 2026-11-08). macOS's JavaScriptCore is part of every macOS: EDM loads
 the framework from its system path at first use (`dlopen`, so a macOS without
 it, or without the time-limit function, falls back as before rather than
 failing to start) and runs the program in a context of JavaScript's own objects,
 with the time it is given (`JSContextGroupSetExecutionTimeLimit`, exported by
-the framework from its private header), in dm's own host process as Chakra
+the framework from its private header), in EDM's own host process as Chakra
 runs. Two differences from Chakra, both recorded in `javascript.rs`: macOS has
 no limit on one program's memory to set (the host process keeps a program
 that runs away from the app, and the time limit ends it), and `eval` is left
 on (it reaches nothing a program does not already have; there is nothing of
 the computer in the context, which a test checks). A person or a test that
-names an engine (`DM_QJS`, `DM_DENO`, set empty to name none) gets that one,
+names an engine (`EDM_QJS`, `EDM_DENO`, set empty to name none) gets that one,
 on Windows too: the stand-in engines of the YouTube and proxy tests are used as
 before. Ruled out: linking the framework at build time (a missing symbol would
-stop dm from starting), and JavaScriptCore's Objective-C `JSContext` (the C
+stop EDM from starting), and JavaScriptCore's Objective-C `JSContext` (the C
 functions are enough and need no Objective-C runtime glue).
 
 ## 2026-11-09: Linux runs it in WebKitGTK's JavaScriptCore, and the JIT is off on both (gaps row 164)
@@ -5406,7 +5406,7 @@ WebKitGTK's `libjavascriptcoregtk` exports the same C functions as macOS's
 framework, the time limit among them (checked with `nm -D` on Debian 12's
 4.1 build), so the `jsc` module serves both, loading on Linux the first of
 `libjavascriptcoregtk-6.0.so.1`, `-4.1.so.0`, `-4.0.so.18` the system's loader
-finds. Where none is installed, dm runs Deno or QuickJS as before. It is not a
+finds. Where none is installed, EDM runs Deno or QuickJS as before. It is not a
 dependency of the packages: a GNOME desktop already has it and a KDE one may
 not, and requiring it would pull WebKitGTK's libraries onto every system for a
 fallback that works; the rpm recommends it (nfpm's `recommends`), the Arch
@@ -5423,7 +5423,7 @@ tools) keeps its JIT.
 
 Row 164 asked for `human-qa.py` B35 and B36 on Linux; what was run in their
 place is the reader on live YouTube in the Linux container (`youtube_read`
-with `DM_FETCH_FIRST`) with github.com unreachable and no Deno or QuickJS:
+with `EDM_FETCH_FIRST`) with github.com unreachable and no Deno or QuickJS:
 four videos, both live players, every chosen stream accepted. B35/B36 drive a
 real browser to YouTube, which the macOS QA run covers.
 
@@ -5460,18 +5460,18 @@ built or ruled out but four engine parts, at the maintainer's word of the day
   qa/after.md): no faster over loopback, 20 to 30 MB more memory over ten
   downloads of eight connections.
 
-## 2026-11-09: dm in Default apps (spec T5); the MediaSource hook removed (EDM-V1 stage 1)
+## 2026-11-09: EDM in Default apps (spec T5); the MediaSource hook removed (EDM-V1 stage 1)
 
 At the maintainer's word of the day ("go to reference in gaps.md and implement the improvement
 ... make it ready for production"), the two reference items left that are code:
 
-- **Listed in Windows' Settings › Default apps.** `register.rs` `default_apps_keys` writes dm's
-  own ProgIds `dm.magnet` (with `URL Protocol`) and `dm.torrentfile`, each with dm's command,
-  `HKCU\Software\dm\Capabilities` naming them under `URLAssociations` and `FileAssociations`,
-  and dm's line in `HKCU\Software\RegisteredApplications`. Separate ProgIds rather than the
-  `magnet` key and `dm.torrent`: being listed must not take a link or a file type from another
-  program, nor mark dm's own registration as present where it is not (`torrent_is_ours` reads
-  `dm.torrent`'s marker). Written at registration and once at a start where missing
+- **Listed in Windows' Settings › Default apps.** `register.rs` `default_apps_keys` writes EDM's
+  own ProgIds `EDM.magnet` (with `URL Protocol`) and `EDM.torrentfile`, each with EDM's command,
+  `HKCU\Software\EDM\Capabilities` naming them under `URLAssociations` and `FileAssociations`,
+  and EDM's line in `HKCU\Software\RegisteredApplications`. Separate ProgIds rather than the
+  `magnet` key and `EDM.torrent`: being listed must not take a link or a file type from another
+  program, nor mark EDM's own registration as present where it is not (`torrent_is_ours` reads
+  `EDM.torrent`'s marker). Written at registration and once at a start where missing
   (`refresh_windows_handlers`), removed on Uninstall (`unlist_from_default_apps`). Tested with a
   stand-in `reg`; not yet seen in Windows' Settings (a person on Windows).
 - **The MediaSource hook removed.** `document.js` replaced `URL.createObjectURL` and
@@ -5500,13 +5500,13 @@ left a list that read as unfinished when nothing in it could be done.
 ## 2026-11-09: A dubbed YouTube video's own language, not the track marked to play (issue #32)
 
 The player API marks one sound track `audioIsDefault`, and which one follows the language of
-the request: dm asks in English (`hl=en`), so for a video made in Spanish with an English dub
+the request: EDM asks in English (`hl=en`), so for a video made in Spanish with an English dub
 the English dub is marked and the Spanish original is not (seen on 2026-11-09 on every Spanish
 and Portuguese video tried with an English or automatic dub; an English video's original is
-marked, which is why it went unseen). dm had set aside every unmarked track as a dub, so it
+marked, which is why it went unseen). EDM had set aside every unmarked track as a dub, so it
 took the dub. The track's part is named by YouTube itself in the stream's address (`xtags`:
 `acont=original`, `dubbed`, `dubbed-auto`, `descriptive`) and in the track id (`.4` the
-original, `.3` a dub, `.10` an automatic dub). dm keeps the track named original, and the
+original, `.3` a dub, `.10` an automatic dub). EDM keeps the track named original, and the
 marked one only where no original is named; a video none of whose tracks would be kept keeps
 them all rather than have no sound. `vb=1` (a voice-boosted copy, at the same bitrate as the
 plain track for itag 140) is set aside with the loudness-evened `drc=1` copy. Not taken: asking
@@ -5517,25 +5517,25 @@ asked; the person's own language is a later choice for the quality list, not thi
 ## 2026-11-09: The window moves to GPUI, in phases, after an audit (branch `gpui-migration`)
 
 At the maintainer's word of 2026-11-09 (the "egui → GPUI Migration" specification), the
-egui presentation is to be replaced by GPUI, keeping `dm_shell::app` and dm-core and every row
+egui presentation is to be replaced by GPUI, keeping `edm_shell::app` and edm-core and every row
 of the behaviour contract. Phase 0, the audit, is in `docs/migration/` (no source changed).
 Taken from it: the seam is finished first under the egui window (Phase A: about 7,100 lines
-of dm-desktop that never touch egui moved to a toolkit-free crate, about 2,500 lines of
-application rules still in `DmApp` moved into `dm_shell::app`, the control port's `ui.*`
+of edm-desktop that never touch egui moved to a toolkit-free crate, about 2,500 lines of
+application rules still in `EdmApp` moved into `edm_shell::app`, the control port's `ui.*`
 answers made a toolkit-free contract, egui's performance measured), then a GPUI shell is
 built as a go/no-go spike judged first on screen readers in every dialog window (Phase B).
 Proposed pin `gpui-pre =0.3.12` with `gpui-component =0.9.1` (one maintainer publishes both;
 `gpui-ce` 0.3.0 is the fallback), confirmed only by that shell. Not taken: starting with
-GPUI views over `DmApp` as it is, which would copy its application rules into a second
+GPUI views over `EdmApp` as it is, which would copy its application rules into a second
 window, and replacing the control port's `ui.*` answers, which `human-qa.py` and MCP read.
 New B25 pictures, any contract row GPUI cannot hold as written, the go/no-go and the switch
 of the default window are the maintainer's to approve (`GPUI_MIGRATION_PLAN.md`, D1 to D5).
 
 ## 2026-11-10: The bottom line: faster than reference A in every benchmark, and easier to use
 
-The maintainer set the standard every change is judged by: dm's engine must be faster than
-reference A in every benchmark, and dm must be easier to use than reference A. It is at the
-top of `docs/gaps.md` and never closes. A speed row closes only when dm is faster on the same
+The maintainer set the standard every change is judged by: EDM's engine must be faster than
+reference A in every benchmark, and EDM must be easier to use than reference A. It is at the
+top of `docs/gaps.md` and never closes. A speed row closes only when EDM is faster on the same
 run, so row 166's old target, within 10% of reference A, is replaced by "faster". "Every
 benchmark" means every case of the side-by-side harness (`bench.mjs`) and any added to it later,
 with `idle` judged by CPU and memory at rest. Being easier to use does not override
@@ -5547,11 +5547,11 @@ words before it is made.
 Security review of 2026-11-11: the GPUI Scheduler's OK saved with `backend.set_settings`, past
 `Backend::set_settings_from` and its script rule (`Settings::keep_programs_of`). A control-port
 or MCP client could open the Scheduler (`command.run scheduler`), type a program into "Run this
-program when they are done" and click OK, and dm ran it as the person when the hours ended; the
+program when they are done" and click OK, and EDM ran it as the person when the hours ended; the
 egui Scheduler and GPUI Options refused the same. The Scheduler now saves through
 `Downloads::apply_settings`, as Options does, so a script's program is kept as it was and the
-window says so. The other direct `set_settings` callers in `dm-gpui` each start from the
-settings in force and change no program. A test in `dm-gpui` (`main.rs`) fails where a source
+window says so. The other direct `set_settings` callers in `edm-gpui` each start from the
+settings in force and change no program. A test in `edm-gpui` (`main.rs`) fails where a source
 file both names a program field (`.run_when_done`, `.on_complete`, `.proxy.script`,
 `.queue_schedules`) and calls `.set_settings(`.
 
@@ -5561,9 +5561,9 @@ At the maintainer's word of 2026-11-11 ("complete the windows part"; macOS was d
 carried on the Mac), the GPUI window was built, run and checked on a Windows computer. Taken on
 the way, each the recommended option of `docs/migration/GPUI_MIGRATION_PLAN.md`:
 
-- **The program's own description.** `dm-gpui/build.rs` gives `dm-gpui.exe` dm's icon and its
+- **The program's own description.** `edm-gpui/build.rs` gives `edm-gpui.exe` EDM's icon and its
   version, as the egui crate's does, and no manifest: GPUI links its own into every program built
-  on it (per-monitor DPI v2, as `dm.manifest` asks, plus asInvoker, the system's common controls
+  on it (per-monitor DPI v2, as `EDM.manifest` asks, plus asInvoker, the system's common controls
   and the segment heap), and a second `RT_MANIFEST` is a duplicate resource the linker refuses. A
   release opens no console (`windows_subsystem`), as the egui binary's does.
 - **What GPUI's Windows windows do not say.** Their title (`get_title` is the platform default,
@@ -5593,9 +5593,9 @@ the way, each the recommended option of `docs/migration/GPUI_MIGRATION_PLAN.md`:
   computer or a virtual machine with no GPU still draws; read from `gpui-pre-windows`'s
   `directx_devices.rs`, not run here (this computer has a GPU). CI's Windows runner has none,
   so its installer check is the run.
-- **The installer replaces the egui window's program.** Installed over a dm whose window was
-  egui's, `dm-desktop.exe` in the same folder is ended and deleted first, so the login item and
-  the browsers' registrations, which start a program that is then gone, follow `dm-gpui.exe` at
+- **The installer replaces the egui window's program.** Installed over an EDM whose window was
+  egui's, `edm-desktop.exe` in the same folder is ended and deleted first, so the login item and
+  the browsers' registrations, which start a program that is then gone, follow `edm-gpui.exe` at
   its first start (`autostart::takes_over`, `register::ensure_this_copy`).
 - **A hand-off is acted on at once.** The GPUI window coalesces the queue's changes over a
   quarter of a second; a wake to act on now (a browser's hand-off) that came in that quarter
@@ -5608,13 +5608,13 @@ the way, each the recommended option of `docs/migration/GPUI_MIGRATION_PLAN.md`:
   on every system (now at startup, before the window, menus, tray and jump list are made, held by
   a test); a greyed control took clicks, because GPUI lets an element block only what was made
   before it, and the block was on the control's own wrapper (now a layer over the control, which
-  lets the wheel through); a High Contrast theme changed while dm runs was drawn only when a window
+  lets the wheel through); a High Contrast theme changed while EDM runs was drawn only when a window
   next drew for another reason (now every window is drawn again when the palette changes, at the
-  next wake); and the docs and scripts that still named `dm-desktop.exe` for Windows.
+  next wake); and the docs and scripts that still named `edm-desktop.exe` for Windows.
 - **`cargo packager -p`.** Run without it in a crate's folder, cargo-packager makes every
   workspace package that has its metadata, so the egui window's installer was made too and,
-  renamed to `dm_…`, the two took one name. CI and the Makefile name the package now.
-- **Not taken:** a release `dm-gpui.exe` from Docker (`scripts/windows-build.sh`, `cargo xwin`):
+  renamed to `edm_…`, the two took one name. CI and the Makefile name the package now.
+- **Not taken:** a release `edm-gpui.exe` from Docker (`scripts/windows-build.sh`, `cargo xwin`):
   GPUI compiles its Direct3D shaders for a release with the Windows SDK's `fxc.exe`, and only
   when the build runs on Windows, so the cross-build stays the egui window's portable zip; CI
   and a Windows computer build the GPUI window's packages.
@@ -5622,7 +5622,7 @@ the way, each the recommended option of `docs/migration/GPUI_MIGRATION_PLAN.md`:
 ## 2026-11-11: Reference A's benchmark is frozen in the repository as the floor of every parameter
 
 The maintainer asked on 2026-11-11 for reference A's benchmark to be added to the repository. They
-wanted it there so that work on other systems can make dm as fast. They said it never changes,
+wanted it there so that work on other systems can make EDM as fast. They said it never changes,
 because it is the bottom line and a standard, and that every parameter goes in. What was decided:
 
 - **Where.** `bench/` holds the harness (`bench.mjs`), the judge (`compare.mjs`), the frozen
@@ -5633,14 +5633,14 @@ because it is the bottom line and a standard, and that every parameter goes in. 
 - **What is frozen.** All 84 of reference A's runs in the 46 result files of 2026-11-09 and
   2026-11-10 are in the file, each with every parameter, along with the machine, both apps'
   settings and the harness's parameters. The runs fall into four groups: `standard` (8
-  connections; dm's home on the SSD, both apps saving to the hard disk), `connections16`,
+  connections; EDM's home on the SSD, both apps saving to the hard disk), `connections16`,
   `allSsd` and `allSsdConnections16`. For each group and scenario, a floor is reference A's
   **best** value of each parameter in any whole run. That is the strictest bar it has set, and a
   run slowed by the harness (the `spawnSync` of 2026-11-09, the window helper left running) can
   only have made a floor easier. The fastest run's request pattern and timeline are kept for each
   standard scenario, as a record of how reference A goes about it.
 - **Every parameter is judged**, which widens the bottom line of 2026-11-10 ("faster in every
-  case; CPU and memory at rest"). dm's median must be lower than the floor in time from the
+  case; CPU and memory at rest"). EDM's median must be lower than the floor in time from the
   address and from the first request, the time to the first request, the finish after the last
   byte, bytes fetched twice, peak working set, private bytes, CPU and recovery after the outage.
   A tie fails, except at a floor of 0. Counts (requests, connections, bytes served) are recorded
@@ -5657,13 +5657,13 @@ because it is the bottom line and a standard, and that every parameter goes in. 
   of reference A goes into a new file beside it.
 - **Not taken.** Re-measuring reference A now: the maintainer asked for the benchmark that exists
   to be the fixed standard, and a new measurement would be a file of its own. A median floor:
-  dm could pass it while reference A has done better. curl as the ceiling: Windows' own wrote
+  EDM could pass it while reference A has done better. curl as the ceiling: Windows' own wrote
   512 MiB in 21.6 s and Git's is a debug build, where reference A took 3.7 s, so it measured the
   tool. Scaling the capped scenarios too: their floors are near the ideal, and the outage's fixed
   15 s would have made one impossible.
 - **Changed from the copy in `D:\compare`.** File names carry the run's key, so a second run no
-  longer saves `x (1).bin` and reads as not whole. dm is sampled by its process id, so an
-  installed dm left running is not counted. The sampler runs on macOS (`ps`) and Linux (`/proc`)
+  longer saves `x (1).bin` and reads as not whole. EDM is sampled by its process id, so an
+  installed EDM left running is not counted. The sampler runs on macOS (`ps`) and Linux (`/proc`)
   as well as Windows. `big40` is a scenario again (its parameters taken from its result file),
   `ceiling` is new, and every result file carries the system, the binary and the folders.
 - **Node, as it was.** `AGENTS.md` keeps out a JavaScript test suite. The benchmark stays plain
@@ -5671,7 +5671,7 @@ because it is the bottom line and a standard, and that every parameter goes in. 
   standard reference A was measured against: a server in another language would pace bytes
   differently and make the floors meaningless.
 
-`compare.mjs` on the laptop's runs of 2026-11-10, dm's release build of that day: dm is better
+`compare.mjs` on the laptop's runs of 2026-11-10, EDM's release build of that day: EDM is better
 end to end in `fast`, `per_conn`, `flaky` and `outage`, and worse in 22 parameters, which are
 gaps rows 171 and 175 to 177. `batch` has no floor (row 172), and `inet` is never one.
 
@@ -5686,7 +5686,7 @@ Download links 680 by 480; their pages scroll as they did. Each is `native::pick
 gnome)` with only the Windows value changed, so macOS and Linux open as before, and the text and
 every control keep their sizes. A window put somewhere else or resized still comes back as it
 was left (`frame.rs`). On Windows a dialog has no minimize button (`screen::open_window`: not
-the main window, whose title bar dm draws, nor the drop target), as Windows' own dialogs have
+the main window, whose title bar EDM draws, nor the drop target), as Windows' own dialogs have
 none. B25's Windows picture of the empty window (`docs/behaviour-baseline/gpui/windows/`) was
 drawn again at the new size with `human-qa.py --save-baseline` and looked at, at those words.
 
@@ -5698,13 +5698,13 @@ packages carry the GPUI window, as macOS's have since 2026-11-10, and the egui w
 (Inter, Selawik, the Fluent icon font) and its vendored patches are removed in a change of their
 own once Windows holds the contract in GPUI (G9). The GPUI window uses the system's fonts only.
 
-- **The installed command stays.** The .deb installs `dm-gpui` and a two-line `/usr/bin/dm-desktop`
-  that runs it (`packaging/dm-desktop`, through the deb's `files`): the README's commands,
-  an autostart entry and a browser's native-host manifest written by an earlier dm name
-  `/usr/bin/dm-desktop`, and an upgrade that removed it would have stopped a login launch until
-  dm was opened by hand. cargo-packager can neither rename a binary nor make a link; a copy of the
-  binary would have doubled the package. The .rpm and Arch package install it as `/usr/bin/dm`,
-  as before. dm writes its registrations again for the binary it runs as at each start.
+- **The installed command stays.** The .deb installs `edm-gpui` and a two-line `/usr/bin/edm-desktop`
+  that runs it (`packaging/edm-desktop`, through the deb's `files`): the README's commands,
+  an autostart entry and a browser's native-host manifest written by an earlier EDM name
+  `/usr/bin/edm-desktop`, and an upgrade that removed it would have stopped a login launch until
+  EDM was opened by hand. cargo-packager can neither rename a binary nor make a link; a copy of the
+  binary would have doubled the package. The .rpm and Arch package install it as `/usr/bin/EDM`,
+  as before. EDM writes its registrations again for the binary it runs as at each start.
 - **Dependencies follow the binary:** it links xcb, xkbcommon(-x11) and FreeType, and opens
   Vulkan, else GL through EGL (Mesa's llvmpipe draws with no GPU), and Wayland's client
   libraries; X11's Xcursor, Xi and libGL, winit's and glow's, are no longer needed.
@@ -5726,9 +5726,9 @@ own once Windows holds the contract in GPUI (G9). The GPUI window uses the syste
   an X11 window stands as it starts and as it moves. Upstream defines the call and makes it
   nowhere, so a screen reader placed every control as if the window stood at (0, 0).
 - **Dialogs on X11 are placed where they asked to be** (`syswindow::place`: the position and
-  static gravity in `WM_NORMAL_HINTS`, then a move), since GPUI shows a window before dm can
+  static gravity in `WM_NORMAL_HINTS`, then a move), since GPUI shows a window before EDM can
   place it and gives no position; the main window stays where the desktop places it.
-- Tried and dropped: setting the X11 app id from dm's build closure (GPUI already sets it from
+- Tried and dropped: setting the X11 app id from EDM's build closure (GPUI already sets it from
   `WindowOptions::app_id` before it shows the window); a per-window scale for View › Text size
   (deferred: macOS's slice, not Linux's).
 
@@ -5740,7 +5740,7 @@ every writer rather than guess, `Settings::save_to` was instrumented for one run
 each save logged its test thread's name, whether that thread held `support::settings_file()`, and
 its backtrace. One whole run of the window binary showed 38 tests saving without the guard:
 
-- **The Details hint (33 saves).** `DmApp::details_hint` marks the hint given and saves the whole
+- **The Details hint (33 saves).** `EdmApp::details_hint` marks the hint given and saves the whole
   of `applied` the first time a download runs while the progress window is off, which the tests'
   window is (`World::settings`). Every such test wrote the defaults (`read_timeout` 30 among them)
   over whatever a guarded test had just saved. `World::settings` now has the hint given, as it
@@ -5764,7 +5764,7 @@ After: three traced runs showed no save without the guard (1,193 saves, all held
 binary passed ten whole runs in a row. Taking the guard for the whole of every test was dropped:
 it would serialise the binary's 291 tests behind one lock.
 
-## 2026-11-11: The optimization spec, audited: what dm takes from it and what not
+## 2026-11-11: The optimization spec, audited: what EDM takes from it and what not
 
 The maintainer's spec of 2026-11-11 ("GPUI + Rust Optimization for Cross-Platform Desktop
 Applications") is audited requirement by requirement in `docs/optimization-audit.md`. What is not
@@ -5774,22 +5774,22 @@ Decided while auditing:
 - **The crates stay as they are.** The spec's layout (`ui`, `app-core`, `download-engine`,
   `network`, `storage`, and so on) is an illustration. Every rule it serves already holds: the
   engine and the application layer use no window toolkit (`cargo xtask layers`), and no
-  dependency cycle exists. Splitting `dm-core` into several crates would be churn with no
+  dependency cycle exists. Splitting `edm-core` into several crates would be churn with no
   boundary gained.
 - **The window keeps its cadence.** The spec suggests publishing progress 5 to 10 times a second
-  to start with. dm reads a queue change after 250 ms of coalescing, and redraws progress once a
+  to start with. EDM reads a queue change after 250 ms of coalescing, and redraws progress once a
   second while anything runs, as the egui window did. A faster cadence would change what people
   see, and would cost the CPU that row 176 is trying to win back. What the spec does buy is
   drawing only what changed (row 181), not a higher rate.
-- **Not applicable to dm:**
+- **Not applicable to EDM:**
   - Intel Macs, which are not built (README).
   - Notarization, which has no free route ("Released unsigned, with the free signing there is", 2026-10-16).
   - A GPU fallback on macOS, since every Mac on macOS 11 or later has Metal.
-  - Reduced motion, since dm has no animation.
-  - A narrower `dm-core` root. It exports 56 modules and items, each documented (`missing_docs`
+  - Reduced motion, since EDM has no animation.
+  - A narrower `edm-core` root. It exports 56 modules and items, each documented (`missing_docs`
     is on). Cutting the list down is a refactor that no rule asks for.
 - **`panic = "abort"` is open again for the GPUI window.** It was turned down on 2026-11-06 for
-  the egui tray's `catch_unwind`, and `dm-gpui` has none. What is left to weigh is tokio's
+  the egui tray's `catch_unwind`, and `edm-gpui` has none. What is left to weigh is tokio's
   isolation of a task's panic, against the size it saves. That weighing is row 189's, measured.
 - **The measurements in the audit's §9** were taken on this Mac while the other track built and
   benchmarked the engine on the same computer, so they hold only as upper bounds. They come from
@@ -5806,22 +5806,22 @@ drag can carry an `external_drag_payload`, which GPUI hands to the system as the
 the window (`PlatformWindow::start_external_drag`). On macOS that is AppKit's dragging session,
 which is not modal and offers a copy outside the program; on Wayland the data device. So:
 
-- **No `drag` crate in `dm-gpui`.** It would be a feature crate (the clean-room rule), and on
+- **No `drag` crate in `edm-gpui`.** It would be a feature crate (the clean-room rule), and on
   macOS a second drag beside GPUI's. GPUI's drag also draws the system's own icon for the file's
   kind, and a drag that comes back into the window is GPUI's again.
 - **X11 is added to the vendored GPUI** (`vendor/gpui-pre-linux`, `x11/drag_out.rs`),
-  where upstream declines: the egui window's XDND source (`dm-desktop` `xdnd.rs`), moved behind
+  where upstream declines: the egui window's XDND source (`edm-desktop` `xdnd.rs`), moved behind
   `start_external_drag`, on a connection and thread of its own, ending GPUI's drag with a client
   message to the window when it is over. Winit's display is not involved, so the Xlib calls of
   the egui version are gone.
-- **Wayland offers a copy only** (a `dm:` line in the vendored GPUI), as the egui window's winit
+- **Wayland offers a copy only** (a `EDM:` line in the vendored GPUI), as the egui window's winit
   does and as macOS does outside the program: a file manager that takes a move would carry the
   download away and its row would say the file is gone.
 - **The files are read as the drag leaves the window**, not as it begins, so a file deleted in
   between is not offered; a row is draggable when it, or a chosen row it carries, is finished,
   decided without asking the disk, since rows are drawn many times a second.
 - **Windows waits.** GPUI's Windows platform has no `start_external_drag`, so there a row's drag
-  stays inside the window. The choice (an OLE drag source of dm's own on `windows-sys`, as
+  stays inside the window. The choice (an OLE drag source of EDM's own on `windows-sys`, as
   `drops.rs` builds a drop target, or the `drag` crate the egui window already uses) is left to
   the Windows laptop, where it can be run.
 
@@ -5847,7 +5847,7 @@ keep it medium by default", then, the same day, "option of slider ... for scale 
   stop; the egui window's Small, Medium and Large as 80, 100 and 120; a percentage (80, "80%") as
   itself. View › Text size › Larger and Smaller (and Ctrl/⌘ with + and −) step a stop, held at
   60 and 120; Normal size (Ctrl/⌘ 0) is 100. The egui window keeps its own control.
-- **One scale for everything dm draws** (`dm-gpui` `zoom.rs`): every measure dm gives GPUI goes
+- **One scale for everything EDM draws** (`edm-gpui` `zoom.rs`): every measure EDM gives GPUI goes
   through `zoom::px`, and gpui-component's rem follows through its theme's font size, so words,
   rows, controls, paddings and pictures grow together, as egui's zoom scaled them. What the
   system reports (a window's frame, the screen, the pointer) stays as it is. Tried and dropped:
@@ -5873,12 +5873,12 @@ there an option to choose or create a new folder?" Links on the clipboard sent e
 category's folder, with no choice. The maintainer pasted the issue as the request.
 
 - **One Save to for both dialogs**, not a second copy: what the choice means moved out of
-  `links_import.rs` into `dm-desktop-base` `save_to.rs` (`SaveTo`, `SaveChoice`, which
+  `links_import.rs` into `edm-desktop-base` `save_to.rs` (`SaveTo`, `SaveChoice`, which
   `LinksImport` now holds as `save`), and how a GPUI dialog draws it and takes its clicks into
-  `dm-gpui` `savefolder.rs` (the heading, the three choices, the categories' pop-up, the field,
+  `edm-gpui` `savefolder.rs` (the heading, the three choices, the categories' pop-up, the field,
   Browse…). Same words as Download links, so no new translation was needed; a folder that cannot
   be made is said with the existing "{} could not be written: {}" and the system's reason in
-  dm's words (`format::file_error`).
+  EDM's words (`format::file_error`).
 - **The folder is made when the links are added**, Add for later's too (the engine made it only
   as a download started, so a folder typed for later did not appear until then). A file in the
   way, as the folder or above it, is said as a name taken on every system (macOS says "not a
@@ -5893,21 +5893,21 @@ category's folder, with no choice. The maintainer pasted the issue as the reques
   new-folder button (the portal has no option for it); on Windows `IFileOpenDialog` with
   `FOS_PICKFOLDERS` has New folder in its command bar. Read from the sources; no panel was opened
   here (a panel waits for a person, and this terminal cannot move the pointer).
-- The egui window (dm-desktop) is not shipped on any system since 6ab92583, so its clipboard
+- The egui window (edm-desktop) is not shipped on any system since 6ab92583, so its clipboard
   dialog is left as it was; its Download links follows the moved fields only.
 
 ## 2026-11-11: YouTube's panel waits for a list rather than hand the page over unasked (gaps row 178)
 
 `human-qa.py` on macOS failed B33 to B35 and B59 in two of four runs: once the first click on
-"Download video" handed the page to dm instead of listing the qualities, and once the player did
+"Download video" handed the page to EDM instead of listing the qualities, and once the player did
 not start when the check pressed play.
 
-- **Why the click handed over.** Reproduced on macOS by making dm's reading of the page slow (its
+- **Why the click handed over.** Reproduced on macOS by making EDM's reading of the page slow (its
   proxy set to a port that accepts and never answers; a scratch diagnostic, not committed): the
   player's own list was on the panel 0.1 s after the click, and 10 s later the panel said "Sent
-  to dm" and "The dm app is reading this page for its video", the list gone, nothing chosen. The
+  to EDM" and "The EDM app is reading this page for its video", the list gone, nothing chosen. The
   click took any answer from the background with fewer than two lines as final, even with the
-  player's list on screen: none handed the page over for dm to read (and fetch whole), one handed
+  player's list on screen: none handed the page over for EDM to read (and fetch whole), one handed
   that one over. Two things made such answers: the background cut the app's reading short after
   8 s whenever the page had shown a stream, and YouTube's player has fetched one by then (a single
   itag 18 stream was in the tab's kept streams that day), so a slow reading (a debug build, a busy
@@ -5929,9 +5929,9 @@ not start when the check pressed play.
   began, pausing it again.
 - Considered and not built: re-asking the app after a cut-short answer. The cut ask's host may be
   gone with its port, so the second ask would start a new reading and could be cut again.
-- **Measured on macOS, 2026-11-11** (debug dm-gpui, Chrome for Testing in a visible window, other
+- **Measured on macOS, 2026-11-11** (debug edm-gpui, Chrome for Testing in a visible window, other
   work running on the machine): `youtube-check.py` 10 of 10 runs passed, 68 of 68 checks each, no
-  page refused by YouTube; two runs listed dm's reading with sizes, eight the player's own list
+  page refused by YouTube; two runs listed EDM's reading with sizes, eight the player's own list
   first. The slow-reading diagnostic, old extension against new on the same build: the old
   handed the page over 10.1 s after the click; the new kept the player's two lines until the
   19 s video ended, 12 s after the click, nothing handed over. `press_play` saw a player paused
@@ -5948,27 +5948,27 @@ not start when the check pressed play.
   191 near the top. The check scrolled the link to the middle of the window, which took the page
   from 81 pixels down to 11, the bar grew back within a frame, and the link moved 63 pixels down
   (its middle from 433 to 496) after it was measured. The check measured again half a second
-  later, but with another scroll, which moved it the same way again. So dm and the extension
+  later, but with another scroll, which moved it the same way again. So EDM and the extension
   were never asked: no download began in the browser at all.
 - **What the page does with a real click.** Its `download.js` cancels the link's own navigation,
   opens the link in a new tab (`window.open(url, '_blank')`), where the browser downloads it, and
-  sends the page to `/donate/`. The extension caught the new tab's download and dm fetched it
+  sends the page to `/donate/`. The extension caught the new tab's download and EDM fetched it
   from the mirror the 302 named.
 - **The fix is the check's.** `link()` scrolls once; then the click waits (up to 10 s) for the
   link to be in the same place two measurements running, measured without a scroll, and to be
-  the topmost thing at its middle (`elementFromPoint`), and clicks there. Nothing changed in dm
+  the topmost thing at its middle (`elementFromPoint`), and clicks there. Nothing changed in EDM
   or the extension: a person clicks what is on the screen, which is where the link rests.
 - The earlier tries in the row (the first link a click reaches, an instant scroll, waiting for
   the link to hold still) are not in the history; if each still measured through the scroll
   in `link()`, as the check did, the link would read the same wrong place every time.
-- **Measured on macOS, 2026-11-11** (debug dm-gpui, Chrome for Testing, other work running on the
-  machine): `handover-check.py libreoffice` passed twice (the 299 MB `.dmg` whole in dm, nothing
+- **Measured on macOS, 2026-11-11** (debug edm-gpui, Chrome for Testing, other work running on the
+  machine): `handover-check.py libreoffice` passed twice (the 299 MB `.dmg` whole in EDM, nothing
   kept by the browser); the whole `handover-check.py` 68 of 68, all twelve pages OK.
 
-## 2026-11-11: The release profile measured for `dm-gpui`, and kept (gaps row 189)
+## 2026-11-11: The release profile measured for `edm-gpui`, and kept (gaps row 189)
 
 - **Measured** on this Mac (Apple M1, macOS 27.0.1, rustc 1.98.1, `aarch64-apple-darwin`, commit
-  `78ce2636`), each variant a full `cargo build --release -p dm-gpui` with 4 jobs, **with the other
+  `78ce2636`), each variant a full `cargo build --release -p edm-gpui` with 4 jobs, **with the other
   track building and benchmarking on the same computer**, so times are upper bounds. Peak memory
   is the largest process of the build (the LTO link). Runtime figures are `ui-bench.py --rows 100
   --only start,idle,transfer`, three runs taken in turn across the variants (medians):
@@ -5982,20 +5982,20 @@ not start when the check pressed play.
   | Symbols kept apart (line tables, `split-debuginfo = "packed"`) | 19,953,296 once stripped | 423 s | 5.69 GB | — | — | — | — |
 
   The 512 MB file came from the Python server at about 400 MB/s, the same for every variant
-  (1.2 to 1.3 s). The start with dm's binary evicted from the file cache varied from 0.4 to 1.8 s
+  (1.2 to 1.3 s). The start with EDM's binary evicted from the file cache varied from 0.4 to 1.8 s
   within each variant, so it ranks none of them. At 10,000 rows (`--only idle,list`, two runs
   each), GPUI's crates at 3 changed nothing measurable: one scroll 0.17 s against 0.16 to 0.17 s,
   a sort by a heading 0.27 s against 0.26 to 0.28 s, the search box's filter 0.36 s against 0.30
-  to 0.34 s. Those times are dm's own work on each wake (rows 180 and 181), not GPUI's drawing.
+  to 0.34 s. Those times are EDM's own work on each wake (rows 180 and 181), not GPUI's drawing.
 - **Kept as it is.** Thin LTO links faster and in less memory, but its binary is 40% larger, with
   no gain at run time. GPUI at 3 costs 11% and a slower build, for nothing measurable. The
   overrides for `egui` and `epaint` stay while the egui window is still built (G9).
 - **`panic = "abort"` not taken**, though it is the largest saving there is (4.1 MB, 21%) and
-  changes nothing measured at run time. dm's own code has no `unwrap`, `expect` or `panic`
+  changes nothing measured at run time. EDM's own code has no `unwrap`, `expect` or `panic`
   (clippy denies them), but what it depends on decodes what servers send: images, audio, torrents,
   HTTP. With unwinding, a panic there ends one task, and the other downloads and the window go on.
-  With abort, a server that sends something malformed would close dm and every download with it.
-  dm has no crash reporting (AGENTS.md rule 6), so nobody would learn why. Taking it needs a way
+  With abort, a server that sends something malformed would close EDM and every download with it.
+  EDM has no crash reporting (AGENTS.md rule 6), so nobody would learn why. Taking it needs a way
   to say what happened first, and is left to the maintainer.
 - **Symbols kept apart cost nothing in the binary** (1.2 KB more once stripped: line tables do not
   change the code), but 70 s more build and 1.3 GB more peak memory in the link. Fat LTO's link
@@ -6005,11 +6005,11 @@ not start when the check pressed play.
   installers, which the update manifest lists.
 - **`[profile.profiling]`** is the release with line tables, symbols and a packed dSYM, for
   `sample`, Instruments, samply, perf and WPA (docs/testing.md, Profiling).
-- **What the binary is made of** (`cargo bloat --release -p dm-gpui --crates`, symbols kept; `.text`
-  11.6 MiB of a 34.5 MiB unstripped file): `dm_core` 1.4 MiB (11.7%), `std` 1.3 MiB, `gpui` 1.3
-  MiB, unknown 887 KiB, `gpui_base` 646 KiB, `dm_shell` 520 KiB, `dm_gpui` 491 KiB, `librqbit` 390
+- **What the binary is made of** (`cargo bloat --release -p edm-gpui --crates`, symbols kept; `.text`
+  11.6 MiB of a 34.5 MiB unstripped file): `edm_core` 1.4 MiB (11.7%), `std` 1.3 MiB, `gpui` 1.3
+  MiB, unknown 887 KiB, `gpui_base` 646 KiB, `edm_shell` 520 KiB, `edm_gpui` 491 KiB, `librqbit` 390
   KiB, `gpui_component` 364 KiB, `aws_lc_sys` 298 KiB, `image` 290 KiB, `tokio` 290 KiB, `rustls`
-  228 KiB, `dm_desktop_base` 162 KiB, `usvg` 152 KiB, `librqbit_dht` 147 KiB, `rustybuzz` 136 KiB,
+  228 KiB, `edm_desktop_base` 162 KiB, `usvg` 152 KiB, `librqbit_dht` 147 KiB, `rustybuzz` 136 KiB,
   `retina` 131 KiB, `reqwest` 129 KiB, `ring` 128 KiB; 283 more crates 1.3 MiB.
 - **Owed.** The same table on Linux (the final Linux pass) and on Windows (the Windows laptop).
   The judged benchmark (`bench/bench.mjs fast per_conn`) was not run here: it is the other track's,
@@ -6018,17 +6018,17 @@ not start when the check pressed play.
 
 ## 2026-11-11: `cargo deny`, and what it refuses (gaps row 190)
 
-- `deny.toml` serves both workspaces (`desktop/`, and `crates/dm-catcher/` through `--config`). It
-  allows the licences dm's 1,100-odd crates carry that are compatible with GPL-3.0-or-later, and
+- `deny.toml` serves both workspaces (`desktop/`, and `crates/edm-catcher/` through `--config`). It
+  allows the licences EDM's 1,100-odd crates carry that are compatible with GPL-3.0-or-later, and
   allows OFL-1.1 and the Ubuntu font licence for `epaint_default_fonts` only, the egui window's
   fonts, until that window goes (G9). crates.io is the only source. Duplicates are warned about,
   not refused (about 100, from upstream crates moving at different speeds). The advisories ignored
   are `audit.toml`'s, each with its reason there.
-- **"Unmaintained" is refused only for crates dm depends on itself** (`unmaintained =
+- **"Unmaintained" is refused only for crates EDM depends on itself** (`unmaintained =
   "workspace"`). The four found (`instant`, `rustls-pemfile`, `rustybuzz`, `ttf-parser`) come in
-  under the pinned GPUI (`gpui-pre` 0.3.12, `gpui-component` 0.9.1), where dm cannot replace them.
+  under the pinned GPUI (`gpui-pre` 0.3.12, `gpui-component` 0.9.1), where EDM cannot replace them.
   Refusing them would keep the check red until upstream moves. cargo audit still lists them weekly.
-- dm's own crates were marked `publish = false`, which they always were in fact: cargo-deny
+- EDM's own crates were marked `publish = false`, which they always were in fact: cargo-deny
   counts a path dependency of a publishable crate as a wildcard version.
 - Checked with cargo-deny 0.20.2 on this Mac: `advisories ok, bans ok, licenses ok, sources ok` for
   both workspaces.
@@ -6087,7 +6087,7 @@ harness allows): `fast` 0.211 to 0.230 s from the address against 0.329 to 0.448
 1.0% fetched twice against 3.3 to 6.0, 16 requests against 36 to 60; `per_conn` 0.0% against
 0.1; `flaky` 0.0 to 0.1% against 0.3 to 0.5; `batch` 2.9 to 3.2 s against 3.3 s, 2.2% against
 4.4; `big40` 0.05% against 0.15; `outage` 0.3% against 0.6, its time unchanged. `fast`'s
-`lastByteToDoneMs` (77 ms against a scaled floor of 68) is the harness's: dm says Completed 5 ms
+`lastByteToDoneMs` (77 ms against a scaled floor of 68) is the harness's: EDM says Completed 5 ms
 after the last byte, and the harness asks `queue.list` every 100 ms plus a round trip from the
 moment it hands the address over, so a download that ends about 150 ms in is seen at the third
 look, 80 to 95 ms later, every time.
@@ -6121,7 +6121,7 @@ address, 1.8 and 1.6% fetched twice; `per_conn` 8.084 and 8.088 s, 0.0% in all t
 
 **What is fetched twice now**, request by request (each run's `perRequest`: the bytes of every
 request against those of every other): in `fast`, the probe's answer, cut at the end of the first
-range with what the server had already sent past it, 4 MiB when dm reads quickly and 9 MiB when the
+range with what the server had already sent past it, 4 MiB when EDM reads quickly and 9 MiB when the
 computer is busy and the socket buffers fill; then 7 seams of 1 KiB, the file's last 512 bytes and
 64 bytes before each range, 8 KB in all. In `per_conn`, 10 to 16 KB of the probe's answer past the
 first range and the 8 KB of checks: 0.03%. In `flaky`, 25 to 41 KB each time a range is halved
@@ -6131,7 +6131,7 @@ exactly where the cut left its range), no range was asked for twice at the end, 
 overlapped its range beyond the 64 bytes asked on purpose. What remains is what was in flight when a connection was let go, which no
 request made after it can take back.
 
-**The finish, measured.** dm was traced (each range whole, each check asked and answered, assembly,
+**The finish, measured.** EDM was traced (each range whole, each check asked and answered, assembly,
 the runner, Completed; with the server's own times; not committed) under a copy of the harness that
 looks every 5 ms rather than 100. From the last byte of the file to Completed: `fast` 5.7 to 7.3 ms,
 `per_conn` 14.2 to 17.6, `flaky` 6.6 to 9.5. Of `per_conn`'s, 11 to 14 ms were the checks of the range
@@ -6146,9 +6146,9 @@ After: `fast` 4.4 to 5.9 ms, `per_conn` 8.9 to 12.1, `flaky` 6.2 to 7.8. On a re
 asked at once are a round trip less at the end of nearly every download.
 
 **Why the harness still sees 9 to 107 ms.** `bench.mjs` asks `queue.list` every 100 ms (each answer
-takes 1.2 ms, median of 40) from the moment it hands the address over, so what it reports is dm's
+takes 1.2 ms, median of 40) from the moment it hands the address over, so what it reports is EDM's
 finish plus the wait for its next look. Against `flaky`'s floor of 71 ms a median of three runs comes
-out over it about one time in three whatever dm does in those few milliseconds: two of the five
+out over it about one time in three whatever EDM does in those few milliseconds: two of the five
 medians taken this day did (73 and 76.5 ms). `fast`'s floor scales with the ceiling measured in the
 same run, 68.8 ms with a 0.225 s ceiling and 80.7 with 0.264, and its verdict follows where the look
 falls.
@@ -6157,20 +6157,20 @@ falls.
 0.86 to 1.7 s in its busier ones, with the reference client's own ceiling between 0.225 and 0.38 s;
 judged against a floor scaled by that ceiling, `fast`'s time was worse with one run's ceiling and
 better with another's though the medians were the same, 0.329 s. The bench's server is one thread:
-eight native readers that write nothing take 512 MiB from it in 128 to 172 ms, but dm's seven range
+eight native readers that write nothing take 512 MiB from it in 128 to 172 ms, but EDM's seven range
 requests besides the probe, sent within half a millisecond of each other, were taken up 2 to 37 ms
 after the probe while the server streamed its answer, and the range taken up last ended last.
 
 Tried and dropped:
 - Leaving the staged file to grow on macOS rather than making it full length first. Eight threads
   writing a region of 64 MiB each front to back, as the ranges do, took 293 to 416 ms into a file set
-  to 512 MiB first and 155 to 200 ms into one left to grow; but dm's `fast` over eight pairs of runs,
+  to 512 MiB first and 155 to 200 ms into one left to grow; but EDM's `fast` over eight pairs of runs,
   the two builds alternated run by run, was 0.285 s with the file made full length and 0.272 s
   without (medians), five pairs of eight faster with it. Not a gain anyone could measure, against a
   branch for one system and a resume that would have had to make the file full length before its
   check reads a range's end. Not kept.
 - Leaving the probe's answer unread until the other ranges' requests are answered, so a server of
-  one thread takes them up first: it tunes dm to the bench's server. A server with a thread or a
+  one thread takes them up first: it tunes EDM to the bench's server. A server with a thread or a
   task per connection has no such queue, and on a real link the first range's connection would stop
   for a round trip.
 - Asking the probe for a closed range (`bytes=0-N`) so nothing is cut: it would save `fast`'s 4 to 9
@@ -6212,7 +6212,7 @@ copy of the bench's server driving one download at a time (not committed):
 What changed:
 
 1. `queue.list` is answered on the control port's own thread (`control::listen_reading`, the
-   reader in `dm-gpui/src/port.rs`), from a snapshot of its own with each finished row by its
+   reader in `edm-gpui/src/port.rs`), from a snapshot of its own with each finished row by its
    file's size as the window's read gives it, and who may ask as the window says
    (`control_api::refused`): the window is neither woken nor drawn for it, and the answer does not
    wait behind a frame. Anything else a script asks is the window's, as before. First tried as an
@@ -6250,8 +6250,8 @@ fetched twice as before. The peak working set was 111 MiB against the old build'
 alternated runs, and 133 to 142 in the whole run, as far from its floor as it was (row 175).
 
 **Why one run's CPU is not the next one's.** Counted per run, cycles over CPU time came to 1.1 to
-3.0 GHz and dm's time on the fast cores to 10 to 39 % of it, while the instructions moved by a few
-percent: the same work took up to two and a half times as long, by where the system ran dm's
+3.0 GHz and EDM's time on the fast cores to 10 to 39 % of it, while the instructions moved by a few
+percent: the same work took up to two and a half times as long, by where the system ran EDM's
 threads and how fast, and in the computer's quiet hours most. That is how the old build measured
 1,860 ms earlier in the day, 1,550 in the quiet hour and 760 in the busier one, and why builds were
 compared by instructions, alternated, never by one run's `cpuMs`.
@@ -6261,7 +6261,7 @@ over its floor of 71, and 83 to 87 in the run of `per_conn` and `flaky` before i
 harness's look every 100 ms falls: with a copy of its server and its looks, both builds came out
 either 5 to 20 ms or 90 to 110 (the old: 98, 5, 99, 96, 109, 19; the new: 92, 94, 100, 10, 8, 106),
 the run finishing just before a look or just after it, and a `flaky` run is nearly the same length
-each time. Looked at every 5 ms, dm said Completed 6 to 12 ms after the server's last byte with the
+each time. Looked at every 5 ms, EDM said Completed 6 to 12 ms after the server's last byte with the
 new build and 4 to 18 with the old.
 
 Tried and dropped:
@@ -6270,19 +6270,19 @@ Tried and dropped:
 - GPUI and taffy built at opt-level 3, as egui and epaint are: the binary 0.99 MB larger
   (19,901,696 bytes to 20,888,432) for 5 to 8 % fewer instructions with the window on screen. A
   frame is GPUI's layout and prepaint of the whole tree (`sample`: 77 of 90 samples on the main
-  thread were `Window::draw`, half of it taffy's layout, dm's own `render` 3), which the level
+  thread were `Window::draw`, half of it taffy's layout, EDM's own `render` 3), which the level
   barely moves. What would: drawing again only the parts that change (GPUI's cached views), which
   the window's one view and its record of the words on screen do not allow as they are.
 - Not tried, written down: reading a slow connection's bytes in fewer, larger reads by pausing
-  between them. The bench's server sending 64 KiB pieces in place of 16 KiB took dm's engine from
+  between them. The bench's server sending 64 KiB pieces in place of 16 KiB took EDM's engine from
   0.83 to 0.88 G instructions to 0.56 to 0.66, so the share per piece is real; but every pause
   would add to the finish after the last byte (row 177) and to the time a cut connection waits to
-  be asked again, and the kernel still wakes dm for each piece that arrives.
+  be asked again, and the kernel still wakes EDM for each piece that arrives.
 
 ## 2026-11-12: Memory on macOS: a download's large blocks go back to the system, and what any GPU window costs (gaps row 175)
 
 What the benchmark reads on macOS is the resident size `ps` gives (`rss`), every 400 ms;
-`peakWorkingSetMB` is its highest in a run. It counts the pages in dm's own page tables: its heap
+`peakWorkingSetMB` is its highest in a run. It counts the pages in EDM's own page tables: its heap
 and stacks, its code, the system's data files it has read, the pages of the system libraries' data
 it has touched, and of GPU memory only what the CPU has written; not the libraries' code, which
 every program shares. `vmmap` lists more as resident than that: the window's drawables (two of its
@@ -6290,30 +6290,30 @@ three 1800 by 1200, 8.4 MiB each, at rest) are drawn by the GPU and composited b
 a bare window measured below is 83.1 MB with none drawn and 84.5 with three. A Metal buffer or
 texture counts only as the CPU writes it: in a test program a 32 MiB shared buffer counted nothing
 when made, 4 MiB once 4 MiB were written, and a texture as its rows were uploaded. It is not the physical
-footprint (`footprint`), which counts only what dm alone holds and was 49 MB at rest against
-107 MiB resident. dm-gpui (release, Apple M1, macOS 27, a home of its own, the window on screen) was
+footprint (`footprint`), which counts only what EDM alone holds and was 49 MB at rest against
+107 MiB resident. edm-gpui (release, Apple M1, macOS 27, a home of its own, the window on screen) was
 taken apart with `vmmap`, `footprint` and `heap`, at rest and around downloads driven through the
 control port by a copy of the bench's server (not committed).
 
 **At rest**, 106 to 108 MiB, steady over two minutes; of what `vmmap` lists, beside the drawables:
-- the heap, 17.5 MiB: 11.5 MB in use (4.2 MB of it dm's and GPUI's own: GPUI's two arena chunks of
+- the heap, 17.5 MiB: 11.5 MB in use (4.2 MB of it EDM's and GPUI's own: GPUI's two arena chunks of
   1 MiB, its scene, taffy's nodes, the keyboard layouts; the rest AppKit's menus and their SF
   Symbols, CoreText, the Objective-C runtime) and 5.7 MB freed during the start and kept;
-- the system's data files dm has read, 14.3 MiB, clean pages: the SF Symbols catalogues (5 MiB,
+- the system's data files EDM has read, 14.3 MiB, clean pages: the SF Symbols catalogues (5 MiB,
   pulled in by the menus' separators), LaunchServices' store (2.2), the system font (1.7), the
   keyboard layouts (1.6), the appearance catalogues and ICU;
-- dm's own code, 8.2 MiB of its 17.3, clean;
+- EDM's own code, 8.2 MiB of its 17.3, clean;
 - GPUI's Metal buffers, 3.9 MiB listed: the frame's instance buffer (2 MiB) and the glyph atlas
   (1 MiB), of which only what each frame writes and the glyphs uploaded count;
-- and the rest, the system frameworks' own data pages dm has touched: AppKit loads the same 1,140
+- and the rest, the system frameworks' own data pages EDM has touched: AppKit loads the same 1,140
   images whatever a program links.
 
 **What any GPU window costs.** A 60-line Objective-C program that opens an `NSWindow` of the same
 size with a `CAMetalLayer`, with no menus, text or Rust, is 81 to 83 MiB resident: 81.1 with
 nothing drawn, 82.3 to 83.3 with one to three drawables drawn (four runs). Linked with every
-framework dm-gpui links it is the same (the same 1,140 images). So no GPU window on this computer
+framework edm-gpui links it is the same (the same 1,140 images). So no GPU window on this computer
 comes near reference A's floor, measured on Windows (39.2 MiB at rest, 20.9 to 21.6 while
-downloading); dm's own share at rest is the 24 to 26 MiB above that program: its code (8.2 MiB),
+downloading); EDM's own share at rest is the 24 to 26 MiB above that program: its code (8.2 MiB),
 its heap beyond the program's (14 to 16 MiB of small-block regions against 8.7, the start's
 leftovers among them), the data files its menus and keyboard read (about 3), what GPUI writes of its
 Metal buffers, and the frameworks' pages its own calls touch.
@@ -6332,7 +6332,7 @@ ends: halfway through a 3 GiB download from the local server, 7.7 MiB of them we
 read buffers of 416 KiB (hyper grows each a step at a time from 8 KiB to 408), eight of tokio's
 copies of what is being written (up to 640 KiB) and eight write buffers of 64 KiB.
 
-**What changed.** `dm_core::memory::Allocator`, dm-gpui's global allocator on macOS, maps each block
+**What changed.** `edm_core::memory::Allocator`, edm-gpui's global allocator on macOS, maps each block
 of 64 KiB or more on its own (`mmap`, tagged "App-Specific Tag 1" for `vmmap`) and unmaps it the
 moment it is freed. Smaller blocks stay with the system's allocator, so the many small ones cost
 no call to the system each. Windows and Linux keep the system's allocator: not measured there.
@@ -6341,7 +6341,7 @@ no call to the system each. Windows and Linux keep the system's allocator: not m
 - `node bench/bench.mjs idle fast per_conn`, three rounds of three: `idle` 107.0 and 107.1 (no
   change); `fast` 131.7 MiB (123.9 to 134.9) to 119.2 (109.8 to 126.4); `per_conn`, after the
   `fast` runs, 134.6 (132.2 to 136.0) to 120.8 (119.8 to 121.9).
-- `flaky` (three) and `outage` (one), three rounds, each from a fresh dm: `flaky` 120.8 (105.1 to
+- `flaky` (three) and `outage` (one), three rounds, each from a fresh EDM: `flaky` 120.8 (105.1 to
   121.9) to 117.2 (110.3 to 119.7); `outage` 121.7 and 122.0 to 114.0 to 120.4 (the old build's
   third, 62.6, came while the system was short of memory and took back pages of its own).
 - The driver: after two `fast` and two `per_conn` and ten seconds, 134.4 MiB to 116.3 (the heap
@@ -6360,7 +6360,7 @@ to 127, `big40` 127 to 129, every other parameter as before; the build of the ni
 133 to 142 in its whole run. What is left at rest is the window itself, which this does not touch;
 in a download, the Download complete window from the first one on (about 5 MiB beyond what the same
 download costs with no window: its own GPUI state and the code and data its first drawing reads),
-and dm's code and data files read for the first time.
+and EDM's code and data files read for the first time.
 
 Tried and dropped:
 - `malloc_zone_pressure_relief`: releases nothing on macOS 27.
@@ -6397,8 +6397,8 @@ For an outage of any length the lanes leave seven gaps of 250 ms between asks an
 
 **What a request can and cannot do.** During the outage the bench's server reads each request
 and drops it; only one that reaches it after the outage is answered. So the wait after the server
-returns is the time to dm's next request: nothing can be held open at the server, and nothing
-tells dm when to send. With a request every 100 ms the wait is between 0 and 100 ms, 50 on
+returns is the time to EDM's next request: nothing can be held open at the server, and nothing
+tells EDM when to send. With a request every 100 ms the wait is between 0 and 100 ms, 50 on
 average, and 0 (the floor) about one time in a hundred. Reference A's 0 is about six hundred
 requests a second (8,054 to 10,200 dropped in 15 s), and even so its four runs read 0, 1, 6 and
 16 ms.
@@ -6415,7 +6415,7 @@ count of requests bringing bytes in that `grow` reads):
   wait after an outage does not hang on how long the outage lasted. Turns counted from the
   outage's first instant would read a few milliseconds in the bench, fifteen seconds being a whole
   number of tenths, while an outage a few milliseconds longer waits a tenth more: a reading of the
-  bench, not of dm, so not built.
+  bench, not of EDM, so not built.
 - From twenty seconds in, the round is a twenty-fifth of how long the failing has lasted, up to
   2 s from fifty seconds on: a long outage is asked about four times a second, as the lanes asked.
 - The first byte any request of the download gets (`Together::bringing`, where `grow`'s count was
@@ -6483,12 +6483,12 @@ Not done, written down:
   aborted). The rows go back to Queued, as a restart made of Running ones before. A restart still
   fetches each part's last 64 KiB again (`RESUME_CHECK`), as after any pause: skipping it needs a
   stop that syncs the part and marks its ledger, an engine change left to the engine's track.
-- **`ui-bench.py`'s paging under load is a dm of its own with 60 downloads** (10 at once, dm's
+- **`ui-bench.py`'s paging under load is an EDM of its own with 60 downloads** (10 at once, EDM's
   most), so the CPU figure with 20 stays comparable with the stored baseline.
 
 ## 2026-11-12: Slow work off the window's thread; panels that do not hold it (gaps rows 183, 180)
 
-- **One errand thread, in the order asked** (`dm-shell` `app/errands.rs`, `Backend::later`). A
+- **One errand thread, in the order asked** (`edm-shell` `app/errands.rs`, `Backend::later`). A
   handler's slow work (a command on the chosen rows, Start and Stop Queue, Move/Rename, Update
   download link's and Properties' OK, Delete's Trash, Export, the settings file after a drag) is
   handed to it, and its answer comes back as a future the window awaits and applies on its own
@@ -6508,9 +6508,9 @@ Not done, written down:
 - **The panels.** `rfd`'s sync panels run a modal loop on the window's thread for as long as
   they are open. `rfd`'s async ones are, on macOS, a sheet on the window in front (and a sheet on
   "Download complete", which closes as Open with… acts, would go with it); GPUI's prompt has no
-  filter and no starting folder. So on macOS dm begins the NSOpenPanel and NSSavePanel itself with
+  filter and no starting folder. So on macOS EDM begins the NSOpenPanel and NSSavePanel itself with
   a completion handler (`services.rs`, `objc2-app-kit`, no `unsafe` needed): the same free
-  panel, filters (Download lists, dm settings, WAV, cookies.txt, Applications) and starting
+  panel, filters (Download lists, EDM settings, WAV, cookies.txt, Applications) and starting
   folder as before. Elsewhere `rfd`'s async dialogs; checked on Linux and Windows in their passes.
 - **A drag of a column or toolbar button is the window's look alone** (`Backend::keep_look`): in
   force at once, nothing applied to the queue, the file written by an errand that writes the
@@ -6539,7 +6539,7 @@ Not done, written down:
   `save`), made `SAVE_EVERY` after it as a save within `SAVE_EVERY` of a write always was. Before,
   each such change waited out the write, then wrote the whole list itself, one after another on
   a slow disk. `flush` still waits for the write under way, as a caller that asks for the list
-  on disk (quitting) needs. Measured by `dm-core/tests/locks.rs`, every write of the queue file
+  on disk (quitting) needs. Measured by `edm-core/tests/locks.rs`, every write of the queue file
   made to take 2 s (`Queue::slow_writes_by`, for tests): a change made during the write answered
   in 4.05 s before this (the old code, given only that hook), and in under 100 ms after; a read of
   the list under 10 ms, and two paced downloads further on in every half second of the write,
@@ -6563,7 +6563,7 @@ Not done, written down:
   disk from a copy of the plan, not under its lock.
 - **The order**, written above `Inner`: `saving`, then `slots`, then `order`; every other lock is a
   leaf, taken last and let go before anything else is locked or awaited. A scan of every tokio
-  guard in `dm-core` finds none held across an `.await` but these.
+  guard in `edm-core` finds none held across an `.await` but these.
 - **Not done: `slots` and `order` as plain mutexes**, which would make the compiler refuse a guard
   held across an await there too. About sixty sites in the engine's busiest code, for code that
   already lets them go before each await (the scan above); worth it only if a guard across an
@@ -6600,13 +6600,13 @@ Not done, written down:
 
 ## 2026-11-12: The computer's heavy work takes turns, and a Cancel stops a digest or a join (gaps row 185)
 
-- **Turns, not a pool of threads of their own** (`dm_core::heavy`): a digest of a finished file,
+- **Turns, not a pool of threads of their own** (`edm_core::heavy`): a digest of a finished file,
   the join of its parts, an MP3 or a GIF made from a video, and a ZIP's extraction each take a
   turn first: as many at once as half the cores, at least one, set apart from how many downloads
   and connections run. The work still runs on tokio's blocking pool (an extraction on its thread
   of its own, waiting there for its turn); work on the runtime waits for its turn on the runtime
   (`Notify`), holding no thread, so queued digests never hold the threads every file write
-  needs. A pool of dm's own would have been a second set of threads doing what the blocking pool
+  needs. A pool of EDM's own would have been a second set of threads doing what the blocking pool
   does; a tokio `Semaphore` alone could not be waited on by the extraction's own thread.
 - **A digest is no longer worked on the runtime's threads between reads**: it reads and hashes
   on the blocking pool, and looks at the download's control between pieces of 256 KiB. A join
@@ -6618,33 +6618,33 @@ Not done, written down:
   Cancel and leaves no file under the name (`download/mod.rs`).
 - **Not stopped part-way, on purpose**: one part copied to another drive by the system's own copy
   (`std::fs::copy`: `fcopyfile`, `copy_file_range`, `CopyFileEx`) is one call; its speed across
-  drives was measured worth having (row 166), and a loop of dm's own in its place is unmeasured on
+  drives was measured worth having (row 166), and a loop of EDM's own in its place is unmeasured on
   Windows. JavaScript's evaluation (Windows' engine, a thread of its own) takes no turn: it is
   short, held to 2 to 3 s, and a video's start waits on it, so it must not queue behind a digest.
 - **The blocking pool keeps tokio's size** (512 threads, reaped after 10 s unused), said where the
-  runtime is made (`dm-desktop-base` `boot.rs`): every connection's writes go to it, each awaited
+  runtime is made (`edm-desktop-base` `boot.rs`): every connection's writes go to it, each awaited
   before its connection reads on, so it never holds more than there are connections, and the heavy
   work no longer waits in it. A smaller pool would queue writes behind one another at the most
-  connections dm runs; nothing measured asks for one.
+  connections EDM runs; nothing measured asks for one.
 - **A slow disk slows the download and does not grow memory**, as designed and now tested
-  (`dm-core/tests/slow_disk.rs`, with `slow_part_writes_to`, a test hook on every write of a part):
+  (`edm-core/tests/slow_disk.rs`, with `slow_part_writes_to`, a test hook on every write of a part):
   writes held to 1 MB/s, eight connections to a server that would send 50 MB/s; over 6 s the
   download wrote 6.3 MB (1.03 MB/s) and the process grew 4.7 MB (most of it the test server's own
   buffers), within the 10 MB allowed. The hook is one atomic load a write when no test sets it.
 
 ## 2026-11-12: A frame's costs counted, in a debug build (gaps row 180)
 
-- **Counted where they are made, while a thread draws** (`dm-shell` `app/costs.rs`): the main
+- **Counted where they are made, while a thread draws** (`edm-shell` `app/costs.rs`): the main
   window's `render` and the rows' builder (`table::rows`, run as the list is laid out, after
   `render`) mark the window's thread as drawing; `Backend::block_on` and `Backend::settings`
   count themselves when the thread they run on is. Only in a debug build: in a release build the
   marks and counts are empty functions, and `ui.frames` says `"drawing": null`.
-- **The disk is counted by a library preloaded into dm, not by dm** (`scripts/fs-count.c`, built by
+- **The disk is counted by a library preloaded into EDM, not by EDM** (`scripts/fs-count.c`, built by
   `stress-check.py frame` with the system's `cc` and loaded with `DYLD_INSERT_LIBRARIES`, or
-  `LD_PRELOAD` on Linux). dm reaches the disk through hundreds of calls in its own code, the
+  `LD_PRELOAD` on Linux). EDM reaches the disk through hundreds of calls in its own code, the
   standard library's and the system's (AppKit, fonts); wrapping its own would have missed the
   rest. The library counts each thread's `stat`, `open`, `access`, `opendir`, `realpath`,
-  `getattrlist` and the like, and says the calling thread's count as `dm_fs_calls`, which the
+  `getattrlist` and the like, and says the calling thread's count as `edm_fs_calls`, which the
   debug build reads (`dlsym`) as a draw begins and ends. Without the library the disk is reported
   as not counted, not as zero.
 - **What it found:** one call. When a finished row finished ("Last try") was written in the frame
@@ -6666,7 +6666,7 @@ Not done, written down:
   kept Import on the window's thread because its rows are marked the window's own
   (`Session::own`) once their ids are known, and a read in between would have taken them for rows
   started elsewhere (a browser's hand-off). The ids cannot be known before the queue gives them
-  (`dm-core` is not changed here), so instead the read does not judge new rows while an import
+  (`edm-core` is not changed here), so instead the read does not judge new rows while an import
   runs: `Session::adding` (on the window's thread) counts one, the errand imports and says the ids
   it was given (`Adding::added`, under the same lock as the count going down), and each read takes
   those ids and the count before it reads the queue (`Detector::read_holding`). An adding begins
@@ -6683,7 +6683,7 @@ Not done, written down:
   against a set of the listed addresses made once: going through every row for each link was
   10,000 times 10,000 comparisons, and imported a second time a list of 10,000 held the window
   more than a minute before it asked.
-- **`ui.choose {path}`**: the control port answers the next of dm's panels with a path (within 30 s,
+- **`ui.choose {path}`**: the control port answers the next of EDM's panels with a path (within 30 s,
   then forgotten, so a stray one does not answer a person's panel later; refused to an assistant
   over MCP). A script cannot reach the system's panel; Import is measured through it.
 - **Measured** (macOS, Apple M1, release, the other track benchmarking; `stress-check.py import`,
@@ -6695,7 +6695,7 @@ Not done, written down:
   answer through the second case is 278 to 312 ms, the question's window opening and closing
   (265 ms with a list of 10 links): row 194.
 
-## 2026-11-12: A question's sheet slides with dm working on
+## 2026-11-12: A question's sheet slides with EDM working on
 
 Gaps row 194: a question held the GPUI window's thread about 0.27 s as it opened and again as it
 closed. Measured before anything was changed (macOS, Apple M1, the release code with symbols): the
@@ -6706,19 +6706,19 @@ each; `sample` put that under `-[NSWindow _beginWindowBlockingModalSessionForShe
 working. AppKit slides a sheet in a run loop mode of its own, which is not one of the common
 modes, so the main dispatch queue (GPUI's foreground executor) is not served until the slide is
 over; GPUI begins the sheet inside its window's making and ends it in a task of the main queue.
-Nothing of dm's (settings, translations, the list, fonts, Metal set-up: 9 to 18 ms of the 288)
+Nothing of EDM's (settings, translations, the list, fonts, Metal set-up: 9 to 18 ms of the 288)
 was the cost.
 
-- **dm begins and ends the sheet** (`dm-gpui/src/sheets.rs`): the question is made as GPUI's
+- **EDM begins and ends the sheet** (`edm-gpui/src/sheets.rs`): the question is made as GPUI's
   `Floating` window, unshown, given a `Dialog`'s level back, drawn once, and then
-  `beginSheet:completionHandler:` is called from a run loop timer of dm's own, where nothing of
+  `beginSheet:completionHandler:` is called from a run loop timer of EDM's own, where nothing of
   GPUI's is under way; `endSheet:` the same way, and the GPUI window is removed once the sheet is
   off. While a sheet slides, a repeating 4 ms timer in AppKit's mode runs one pass of the default
   mode (`CFRunLoopRunInMode`), which serves the main queue: GPUI's tasks, frames and the control
   port's answers run as between any two frames. One sheet moves at a time, in order. A slide
   begun by that work (from inside GPUI) runs none of it, so GPUI is never entered while its `App`
   is in use. Quitting while a sheet slides waits for it (AppKit dropped a `terminate:` asked
-  inside the slide, and dm ran on); quitting otherwise takes every sheet off at once, as before.
+  inside the slide, and EDM ran on); quitting otherwise takes every sheet off at once, as before.
   The mode's name is private: were it renamed, the timer would never run and a slide would hold
   the window as it did, nothing worse.
 - **Measured** (other work running): "Already in the list" opened and closed ten times, `ui.texts`
@@ -6738,7 +6738,7 @@ was the cost.
 
 ## 2026-11-12: A pause writes what has come, syncs, and marks it, so a resume does not check it again (gaps row 186)
 
-- **What a stop cost twice** (`dm-core/tests/shutdown.rs`, 20 downloads on 2 connections, stopped
+- **What a stop cost twice** (`edm-core/tests/shutdown.rs`, 20 downloads on 2 connections, stopped
   part-way): 2,981,120 bytes, about 73 KiB a connection, of which 64 KiB was each part's end asked
   for again at the resume and compared (`RESUME_CHECK`), a check that exists because a ledger can
   outlive its bytes across a power cut; the rest what had come and was dropped as the range let go.
@@ -6757,7 +6757,7 @@ was the cost.
   ends in under 2 s with 40 ranges.
 - **Measured**: 0.78 to 1.47 MB fetched twice in five runs (19 to 36 KiB a connection), the
   restart's own share 30 to 460 KB. What is left is counted by the test's server as it yields
-  pieces to the connection, including what never reached dm (its send buffer, and pieces yielded
+  pieces to the connection, including what never reached EDM (its send buffer, and pieces yielded
   before it sees the connection closed); the row's 16 KiB is not met as the test measures it.
 - **The sync waited for past the grace** (2026-11-12, after): a range still syncing when the grace
   ran out was stopped, but its `sync_data` and its mark went on, on their blocking thread, after the
@@ -6771,7 +6771,7 @@ was the cost.
 ## 2026-11-12: A server that limits connections and requests is kept to (gaps row 197)
 
 - **Found**: on a local copy of a mirror run by nginx with `limit_conn` and `limit_req` (two at
-  once, a request a second, as Hetzner's mirrors answer) dm took 1.6 times as long as one
+  once, a request a second, as Hetzner's mirrors answer) EDM took 1.6 times as long as one
   connection, and four times on Hetzner's own mirror. Each turned-away connection ended for good;
   each range's next request was refused and waited out with backoff while nothing came; the
   seams' checks took the request the server would have given a range; and a halving whose request
@@ -6806,14 +6806,14 @@ was the cost.
   workspaces: formatting, clippy (desktop, browser on the host and as WebAssembly), cargo-deny's
   licences, bans and sources (advisories stay with `audit.yml`: they need the database fetched),
   the tests (nextest where installed, then doctests; else `cargo test`, doctests included). Every
-  step runs and the failures are listed at the end. **Dropped: a Python or shell script**: dm
+  step runs and the failures are listed at the end. **Dropped: a Python or shell script**: EDM
   already has three languages in its gate; xtask is Rust and runs anywhere cargo does.
 - **`rust-toolchain.toml` at the repository root** pins 1.98.1 with clippy, rustfmt, llvm-tools
-  and the wasm32 target, so `crates/dm-catcher/` is pinned as well; the workflows name the same version.
+  and the wasm32 target, so `crates/edm-catcher/` is pinned as well; the workflows name the same version.
   Raised by hand in a change of its own.
 - **`[workspace.lints]`** holds `missing_docs` and the three clippy lints that were pasted into
   six crate roots. They now reach each crate's tests too, which found two gaps (an undocumented
-  `unsafe` in the window tests, no crate docs on dm-desktop's binary). The `not(test)` denials of
+  `unsafe` in the window tests, no crate docs on edm-desktop's binary). The `not(test)` denials of
   `unwrap`, `expect` and `panic` stay in each crate's root: `[lints]` cannot exempt tests, and
   clippy's `allow-*-in-tests` reach `#[test]` functions only, not an integration test's helpers.
 - **`clippy.toml`**: the version clippy may suggest for, and `dbg!` refused.
@@ -6821,11 +6821,11 @@ was the cost.
   test, each named in `.config/nextest.toml`; `ci-failed-tests.py` now runs on a passing run too,
   so a retried test is named as flaky where everyone can read it.
 - **CI builds the shipped window**: `ci.yml`'s hand-off check and `store-check.yml` build and
-  start `dm-gpui`, with GPUI's Linux libraries installed.
+  start `edm-gpui`, with GPUI's Linux libraries installed.
 
 ## 2026-11-12: Nothing fetched and run: the computer's own JavaScript engine alone (gaps rows P1, D1)
 
-- **Removed**: `dm-core/src/tools.rs` (QuickJS fetched from a pinned GitHub release where a
+- **Removed**: `edm-core/src/tools.rs` (QuickJS fetched from a pinned GitHub release where a
   computer had no engine), the lookups of an installed `deno` or `qjs`, the command-line engine
   path in `javascript.rs` and `pac.rs` (with the hardening prelude only it needed), the setting
   `fetch_tools`, Options › Downloads' "Get the video tools when needed" with its hint, the row's
@@ -6841,7 +6841,7 @@ was the cost.
   QuickJS: `youtube_cover.rs`, and `proxy.rs` where a Linux has no engine.
 - **Owed on Linux** (row P1 stays until then): the AppImage started on a system without WebKitGTK
   reads a YouTube video, and `out-of-box-check.py` on a minimal Debian with github.com blocked.
-- **D1**: PRIVACY.md and README.md say what dm does now: nothing fetched to run.
+- **D1**: PRIVACY.md and README.md say what EDM does now: nothing fetched to run.
 
 ## 2026-11-12: The window's small dead ends (gaps rows U1, U3, U7, U9)
 
@@ -6869,7 +6869,7 @@ was the cost.
   do, the ones chosen not ones it acts on, or nothing in the list for it).
 - **U8**: "Delete file after" in the GPUI row menu (the four times, the shared one ticked) and in
   Properties (a pop-up OK keeps), for rows that have or will have a file; Never stops the countdown.
-- **U6** (part): the egui window's stepping (`selection::stepped`, moved to dm-desktop-base for
+- **U6** (part): the egui window's stepping (`selection::stepped`, moved to edm-desktop-base for
   both windows) drives the GPUI list's Home, End, page keys and Shift runs, from a keyboard place
   of its own (`Downloads::cursor`) beside the click's anchor; the keys are window-wide bindings,
   which a text field's own (in its context) come before, as ↑ and ↓ already were.
@@ -6913,10 +6913,10 @@ was the cost.
 ## 2026-11-12: AI assistants off by default; embedded YouTube players; TLS made once (gaps rows F7, Y12, S14)
 
 - **F7**, the recommended option taken (the maintainer's standing word to take it): `allow_mcp`
-  is off in a new install, as dm's rule has it that nothing listens unless turned on
+  is off in a new install, as EDM's rule has it that nothing listens unless turned on
   (2026-11-01, above). A settings file that names the switch keeps its value; one written before
-  the switch existed now reads it as off. `dm mcp` with no dm to talk to says where to turn it on.
-  **Dropped: turned on by the first `dm mcp`**: a program an assistant starts would then turn on
+  the switch existed now reads it as off. `EDM mcp` with no EDM to talk to says where to turn it on.
+  **Dropped: turned on by the first `EDM mcp`**: a program an assistant starts would then turn on
   what the person never did.
 - **Y12**: an embed, live, no-cookie or YouTube Music address is read as its video's watch page
   (`page_data::watch_address`); the extension's player list takes the same forms, so a YouTube
@@ -6927,16 +6927,16 @@ was the cost.
 
 ## 2026-11-12: Where `fast`'s 90 ms after the last byte goes (gaps row 177)
 
-- **A trace of the finish** (`dm-core/src/finish_trace.rs`): `DM_FINISH_TRACE=<file>` appends
+- **A trace of the finish** (`edm-core/src/finish_trace.rs`): `EDM_FINISH_TRACE=<file>` appends
   each stage's name and wall-clock milliseconds (a range whole, its seams checked, the
   connections ended, assembled, named, placed). Off, a stage costs one look at a value read once.
   The benchmark's poll for the finished file is `BENCH_DONE_POLL_MS` (100 by default, as
   reference A was measured).
 - **Found**: three `fast` runs, polled every 5 ms: 79 to 93 ms after the server's last write,
-  of which dm's own finish, from its last read to the file renamed into place, is 1 to 2 ms. The
+  of which EDM's own finish, from its last read to the file renamed into place, is 1 to 2 ms. The
   ranges end over 46 to 63 ms, the last ones as what the server had already written drains from
   its 1 MiB writes and the sockets' buffers. **Not done**: a harness that times the last byte as
-  dm received it (TCP does not say), or ranges cut to end closer together; both are row 177's.
+  EDM received it (TCP does not say), or ranges cut to end closer together; both are row 177's.
 
 ## 2026-11-12: A security audit, as Cloudflare's skill runs one (quick profile)
 
@@ -6948,12 +6948,12 @@ was the cost.
 - **The `magnet:` fix is at the launch, not in the registry**: `one_link_launch` makes a launch
   whose first word is a `magnet:` link that link alone, for every reader of the arguments (the
   options, `--control`, `--headless`, the modes). **Dropped (for now): registering
-  `"<dm>" --open "%1"`**: it changes the keys every installed dm wrote, for the same effect.
+  `"<EDM>" --open "%1"`**: it changes the keys every installed EDM wrote, for the same effect.
 - **Inside addresses are judged where a document names them** (`redirects::named_inside`), with
   the judgement a redirect already had: from a public document to an inside address is refused;
   inside to inside, or public to public, is not.
 - **A script's settings change keeps the folders** (`keep_places_of`), as it kept the programs;
-  an imported settings file does not, as a person moving dm brings their folders.
+  an imported settings file does not, as a person moving EDM brings their folders.
 - **Row 199**: one rule for every window and dialog, held where a folder reaches the queue
   (`Backend::add_with`, `add_each`, `relocate`, `move_to`) rather than in each dialog: a folder
   outside the download folder (or reaching out of it by `..`) is refused for `SCRIPT_ACTS_FOR`
@@ -6976,18 +6976,18 @@ was the cost.
   (`Arc::make_mut` in `Slot::entry_mut`, four times a second while it runs and a list read
   earlier holds it) shares the file list; editing a file's choice or priority copies the list
   alone. The queue file is written as before.
-- **Y19** (extension): `decide::protection` judges as `dm-core` does: any `ContentProtection`
+- **Y19** (extension): `decide::protection` judges as `edm-core` does: any `ContentProtection`
   scheme but the bare `mp4protection:2011` marker, and any key (`#EXT-X-KEY` or
   `#EXT-X-SESSION-KEY`) with a format other than `identity` or an address that is not a web one.
 - **Y23**: HLS takes Connections per file at once (the setting's bounds hold it), not eight.
 - **Next for Y19 and Y23**: a note a running download puts on its row (`Update::Note`), for
-  "higher qualities are protected" and for live segments the playlist dropped before dm got them.
-- **The row's note** (`download::Update::Note`, `Entry::said`, `dm_core::NOTES`): a download
+  "higher qualities are protected" and for live segments the playlist dropped before EDM got them.
+- **The row's note** (`download::Update::Note`, `Entry::said`, `edm_core::NOTES`): a download
   sends one of a fixed list of English notes (a number where its template has `{}`); the queue
   keeps it on the row, finished or not, and the Status column says it after the state in the
   person's language (`rows::note_in`). Used for Y19 (`dash::Plan::protected_above`) and Y23 (a
   live playlist's sequence numbers that skip).
-- **S19**: a resolver of dm's own (`dm-core/src/dns.rs`, set in `http_client::builder_with`)
+- **S19**: a resolver of EDM's own (`edm-core/src/dns.rs`, set in `http_client::builder_with`)
   keeps each name's addresses for 60 s, at most 512 names, a failed lookup not kept; a miss
   asks tokio's `lookup_host`. It is also where row 200 can judge the address a name gives.
 
@@ -7000,27 +7000,27 @@ compiled and linted for Windows by `scripts/windows-check.sh clippy` and for Lin
 - **G10, the drag out on Windows**: not the `drag` crate (a third party's, and its own COM
   objects) but the shell's: the files as shell items (`ILCreateFromPathW`,
   `SHCreateShellItemArrayFromIDLists`), their data object as Explorer's (`BHID_DataObject`) and
-  `SHDoDragDrop` with the shell's own drop source, so no COM object of dm's is written. Its
-  modal loop runs from a message posted to the window (`WM_DM_DRAG_OUT`), outside GPUI's
+  `SHDoDragDrop` with the shell's own drop source, so no COM object of EDM's is written. Its
+  modal loop runs from a message posted to the window (`WM_EDM_DRAG_OUT`), outside GPUI's
   updates, in a vendored `gpui-pre-windows` as `gpui-pre-linux` is for X11's.
 - **191, long paths**: `longPathAware` cannot be declared, because the manifest is GPUI's own
   and `gpui-pre-platform`, `gpui-component` and `gpui-base` each turn it on; a second manifest
   is a duplicate resource the linker refuses. So the shell is handed a path of 260 letters or
   more as its 8.3 short form (`shell::for_shell`). Dropped: vendoring `gpui-pre` (the whole
   core of GPUI) for one line of its manifest.
-- **G11, Mica**: the check moved toolkit-free (`dm_desktop_base::mica`); the frame (title bar,
+- **G11, Mica**: the check moved toolkit-free (`edm_desktop_base::mica`); the frame (title bar,
   toolbar, side panel, status bar) is drawn clear (`theme::frame`) and the list's column solid,
   as the egui window kept the list solid.
 - **U16**: the Dock's bar is an `NSProgressIndicator` over the program's picture in the tile's
   content view, dropped (the Dock's own picture again) when nothing sized runs; Linux's is
   Unity's `LauncherEntry` signal, which the docks and panels that show a launcher's progress all
-  read, sent from a thread of its own. Both in whole hundredths. The window's title stays "dm"
+  read, sent from a thread of its own. Both in whole hundredths. The window's title stays "EDM"
   for now: scripts and the control port find the main window by it.
 - **U15**: on macOS a notification is waited on in step, as on Linux (`notify-rust`'s
   `wait_for_response`, which macOS answers while GPUI's main run loop runs), at most eight at
   once.
-- **Row 202, closed (2026-11-12)**: not dm's. The test server let the probe's open-ended
-  request through uncounted, so dm saw three connections served at once and kept a third ranged
+- **Row 202, closed (2026-11-12)**: not EDM's. The test server let the probe's open-ended
+  request through uncounted, so EDM saw three connections served at once and kept a third ranged
   request out, which the server held. Counting every connection, as nginx's `limit_conn` does,
   every run held exactly the first wave's four ranges and none twice; the test now asserts both.
 
@@ -7045,9 +7045,9 @@ my side. only things take care of security and coding is finished and all the ga
 finsished", after "if all coding part finished then merge all the branches to main and we will test
 in main itself", and that Windows and Linux are only tested, with no coding there.
 
-- **G9**: egui is removed: the `dm-desktop` crate, its vendored `winit`, `egui-winit` and `eframe`,
+- **G9**: egui is removed: the `edm-desktop` crate, its vendored `winit`, `egui-winit` and `eframe`,
   its fonts and everything rows A2 and A3 name; the tests that hold shared behaviour move to
-  `dm-desktop-base`, `dm-shell` or `dm-gpui` first.
+  `edm-desktop-base`, `edm-shell` or `edm-gpui` first.
 - **Every row marked "decide" or awaiting "the maintainer's word"** (G8's packaging choices, P2 to
   P5, F1, F4, F8, F9, F11 to F13, F15, U10, U11, U14, U17, U20, U22, U24, U26, U30 to U32, U34,
   Y7, Y27, A4, A16, R1, R4): the option the row recommends is taken, and a contract row it changes
@@ -7059,9 +7059,9 @@ in main itself", and that Windows and Linux are only tested, with no coding ther
 ## 2026-11-13: The GPUI window's tests drive it as a script does (egui removal)
 
 The egui window's 570 tests drove it through `egui_kittest`. The GPUI window had no tests of its
-own beyond pure functions: dm-gpui is a binary, with no library for a test crate to open.
+own beyond pure functions: edm-gpui is a binary, with no library for a test crate to open.
 
-- **Harness**: `dm-gpui/src/harness.rs`, a test module. It opens the real `Downloads` in GPUI's
+- **Harness**: `edm-gpui/src/harness.rs`, a test module. It opens the real `Downloads` in GPUI's
   test platform (`gpui-pre`'s `test-support`, `TestAppContext`) over a real queue with a fake
   system (`Fake`, as the egui harness's). A test asks it through the control port's own methods
   (`ui.click`, `ui.texts`, `ui.windows`, `command.run`…), sent down the window's request
@@ -7097,22 +7097,22 @@ Taken at the maintainer's word of 2026-11-12, the row's recommendation being eac
 or built:
 
 - **Icon sets of a person's own**: declined. The toolbar has three looks (icons and words, icons,
-  words) drawn from dm's own icons in the system's colours; a set of a person's own is a file format,
+  words) drawn from EDM's own icons in the system's colours; a set of a person's own is a file format,
   a loader and a look per system to keep, for what the three looks already give.
-- **Sending a link from a phone**: declined for now. It needs dm to listen on the network beyond
+- **Sending a link from a phone**: declined for now. It needs EDM to listen on the network beyond
   the loopback, and a pairing to keep it to the person's own phone: a new way in from outside the
   computer, against the security stance (the control port listens on the loopback alone). The
-  browser extension on the phone's own browser, where there is one, sends to a dm on the same
+  browser extension on the phone's own browser, where there is one, sends to an EDM on the same
   device; a link sent another way (mail, a chat) is pasted or dropped.
 
 ## 2026-11-13: BitTorrent's library, a recorded exception (gaps row P3)
 
 Taken at the maintainer's word of 2026-11-12, the row's recommendation: the vendored `librqbit`
 (`vendor/librqbit`, with its SHA-1 wrapper since gaps row P7) is a recorded exception to
-"no third-party package that is a feature": a library compiled into dm, never a program it runs or
-fetches, and patched in dm's tree (`dm:` marks, `vendor/README.md`). Writing BEP 3, 5, 9,
-10, 11, 29 and the stream encryption of dm's own is months of work for no gain a person sees. It is
-to be kept behind one crate of its own (`dm-torrent`, with gaps row A6) so it can be replaced piece
+"no third-party package that is a feature": a library compiled into EDM, never a program it runs or
+fetches, and patched in EDM's tree (`EDM:` marks, `vendor/README.md`). Writing BEP 3, 5, 9,
+10, 11, 29 and the stream encryption of EDM's own is months of work for no gain a person sees. It is
+to be kept behind one crate of its own (`edm-torrent`, with gaps row A6) so it can be replaced piece
 by piece, and brought to upstream 9.1.0 (a bencode recursion limit, a bounds fix, a listener panic)
 as upstream source plus one patch; both are the row's remaining work.
 
@@ -7124,26 +7124,26 @@ first request is refused in a way only an HTTP/2-only server refuses (505, an HT
 GOAWAY read as an answer, a TLS handshake that offers only `h2`; `http_client::refuses_http1`), the
 download is asked again from the start over a client that speaks HTTP/2 from its first byte
 (`http2_client`), its ranges sharing that one connection. reqwest's `http2` feature is the `h2`
-crate, in Rust. That client goes out directly: a server that refuses HTTP/1.1 behind a proxy dm was
-told to use is not reached. Test: `dm-core/tests/http2_only.rs`, a server that speaks HTTP/2 alone.
+crate, in Rust. That client goes out directly: a server that refuses HTTP/1.1 behind a proxy EDM was
+told to use is not reached. Test: `edm-core/tests/http2_only.rs`, a server that speaks HTTP/2 alone.
 
 ## 2026-11-13: The egui window removed (G9, A2, A3)
 
-At the maintainer's word of 2026-11-12 (above): the `dm-desktop` crate, its fonts (Inter,
+At the maintainer's word of 2026-11-12 (above): the `edm-desktop` crate, its fonts (Inter,
 Selawik, the Fluent icon font), its vendored `winit`, `egui-winit` and `eframe`, kittest, the
-egui baseline pictures, `make app-egui`, `DM_WINDOW=egui` and `scripts/tabular-digits.py` are
+egui baseline pictures, `make app-egui`, `EDM_WINDOW=egui` and `scripts/tabular-digits.py` are
 gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 packages to
 1,022.
 
-- **What dm-gpui borrowed moved into it**: `icons/` (the installers', the tray's and the Windows
+- **What edm-gpui borrowed moved into it**: `icons/` (the installers', the tray's and the Windows
   program's icon) and `macos/Info.plist`. Its `Cargo.toml` is where the Makefile, the workflows
-  and the Arch and rpm packages read dm's version; the test that held it to the egui crate's
-  now holds it to dm-core's, dm-shell's and dm-desktop-base's, which `--version`, the native
+  and the Arch and rpm packages read EDM's version; the test that held it to the egui crate's
+  now holds it to edm-core's, edm-shell's and edm-desktop-base's, which `--version`, the native
   host's hello and the User-Agent print.
-- **Names kept from the egui window's program**: the .deb's `/usr/bin/dm-desktop`, which runs
-  dm-gpui; the NSIS installer taking away an earlier `dm-desktop.exe`; the login item and
-  registration code that recognise an old `dm-desktop` entry; `--help`'s and the extension
-  popup's `dm-desktop --register`. They are what an installed dm and its users already have;
+- **Names kept from the egui window's program**: the .deb's `/usr/bin/edm-desktop`, which runs
+  edm-gpui; the NSIS installer taking away an earlier `edm-desktop.exe`; the login item and
+  registration code that recognise an old `edm-desktop` entry; `--help`'s and the extension
+  popup's `edm-desktop --register`. They are what an installed EDM and its users already have;
   the program's own name is row A4's.
 - **No Windows build in Docker**: `scripts/windows-build.sh` built the egui window's portable zip,
   as the GPUI window's release build needs the Windows SDK's `fxc.exe` (2026-11-11). It is gone,
@@ -7154,24 +7154,24 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
   "Port")`, the menus' titles, `check("hide-html", "Hide HTML files", …)`, the side panel's
   headings). Read alone, it called 94 words unsaid, 40 of them said. The check now counts a
   literal of the window's source that a catalog translates as a word it says; the 54 left,
-  which nothing in dm-gpui, dm-desktop-base or dm-shell names (the egui window's key names,
+  which nothing in edm-gpui, edm-desktop-base or edm-shell names (the egui window's key names,
   Find what, Small, Medium and Large, its column and row menus' words), are out of all 13
   catalogs.
-- **Not rewritten**: the comments in dm-gpui that say a behaviour is "as the egui window's"; they
+- **Not rewritten**: the comments in edm-gpui that say a behaviour is "as the egui window's"; they
   say where it came from (row A20).
 
-## 2026-11-13: dm's own JavaScript interpreter in place of the computer's engine (gaps rows F15, 201, P1, P2)
+## 2026-11-13: EDM's own JavaScript interpreter in place of the computer's engine (gaps rows F15, 201, P1, P2)
 
 - **Asked**: the maintainer, 2026-11-13: "secury 201 we can do it by porting it to rust". Row
   F15's own route, set aside earlier for its size, chosen.
-- **Made**: the crate `dm-js`, of no dependencies: a lexer and parser, a tree-walking
+- **Made**: the crate `edm-js`, of no dependencies: a lexer and parser, a tree-walking
   interpreter (scopes, closures, prototypes, classes, destructuring, exceptions, promises and
   `await`), the built-in objects YouTube's player uses (typed arrays, `DataView`, `Date`, `Map`,
   `Proxy`, `BigInt`, …) and a backtracking engine for JavaScript's patterns. A run has a time
-  limit, a call depth and a thread of its own (`dm_js::evaluate`); nothing of the computer is in
+  limit, a call depth and a thread of its own (`edm_js::evaluate`); nothing of the computer is in
   reach, and `Date` has no clock (a fixed moment, UTC).
 - **Checked**: on YouTube's live player (3,065,866 bytes) it gave the same `n` and signature
-  answers as JavaScriptCore, in 0.75 s; with dm-js alone, live videos were read and their
+  answers as JavaScriptCore, in 0.75 s; with edm-js alone, live videos were read and their
   streams accepted by YouTube on macOS (four), Linux (three, Debian 12) and Windows (the
   windows-check.yml runner; a second video met YouTube's bot check on the runner's address).
 - **Removed**: the computer's engines (`javascript/chakra.rs`, `jsc.rs`), the host process
@@ -7179,17 +7179,17 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
   seccomp, Windows' low integrity), which row 201 asked for because those engines were not
   Rust; the Linux packages' dependency on WebKitGTK's JavaScriptCore (.deb, .rpm, Arch, the
   AppImage's carried library) and the build images'. A test may still put a stand-in program in
-  dm-js's place (`javascript::set_host`).
+  edm-js's place (`javascript::set_host`).
 - **Ruled out**: an engine crate (Boa and the like: third party); keeping the computer's engine
-  behind dm-js (two engines to keep, and the sandbox with them).
-- **Owed**: generators are refused in words (YouTube's player defines them but dm does not call
-  them); dm-js runs in dm's own process, so a script's memory has no limit of its own beyond
+  behind edm-js (two engines to keep, and the sandbox with them).
+- **Owed**: generators are refused in words (YouTube's player defines them but EDM does not call
+  them); edm-js runs in EDM's own process, so a script's memory has no limit of its own beyond
   the time limit (a typed array or string is held to 1e9 elements).
 
 ## 2026-11-15: A newer app never stops an older extension (gaps row A22)
 
 * **Why**: the maintainer, 2026-11-15: the app updates itself but the extension waits on a
-  store, and an extension that lags must not stop dm working; the extension keeps the bare
+  store, and an extension that lags must not stop EDM working; the extension keeps the bare
   minimum and the logic moves to the app, without changing what the app or the extension does.
 * **Read any reply**: `Reply::from_frame` reads every version from 1 up, for the fields it
   knows. It refused a version above its own and told the person to update the extension; no
@@ -7197,13 +7197,13 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
   strict on the host: a caught download goes at 2 so a version-1 app does not answer it (the
   2026-10-17 entry), which protects the browser's copy.
 * **Abilities by name, not by version**: `Hello::features` and `Greeting::features` hold names
-  from `dm_protocol::feature`; `renews` is said both ways for 3.4.0. A version bump makes an
+  from `edm_protocol::feature`; `renews` is said both ways for 3.4.0. A version bump makes an
   older side refuse frames; an unknown name is ignored.
 * **The extension says who it is**: `Greeting` (version, abilities) in its hello, kept by the
   host in `extension.json`, so the app can work out what an older extension can do. A bare
   hello (3.4.0) reads as an empty greeting, and an older app ignores the fields.
-* **Frozen frames**: `dm-protocol/tests/wire/extension-3.4.0.json` holds every frame 3.4.0
-  sends and every reply it reads; tests in dm-protocol and dm-shell hold every later app to
+* **Frozen frames**: `edm-protocol/tests/wire/extension-3.4.0.json` holds every frame 3.4.0
+  sends and every reply it reads; tests in edm-protocol and edm-shell hold every later app to
   them. Each extension release adds its own file and none is edited.
 * **Not done yet** (row A22): app-served menus, the host judging caught downloads against its
   own catch rules, notification words from the app, and the streams panel's judging moved to
@@ -7214,13 +7214,13 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
 * **Why**: the maintainer, 2026-11-15: the extension does the bare minimum and the app does the
   most, so that an app update is never held up by an extension a store has not yet updated.
   Four places where the extension still decided are now the app's, each behind a name in
-  `dm_protocol::feature` said in both hellos, and each changing nothing a person sees with the
+  `edm_protocol::feature` said in both hellos, and each changing nothing a person sees with the
   app as it is.
 * **Menus** (`menus`): the app's hello serves the right-click menu (`served_menus`, Options'
   hidden items already out). An item names a mechanism the extension knows (`menu_does`: link,
   media, all links, selected links, `app`) instead of the extension knowing items by id, and an
   `app` item's click goes to the app whole (`menu.clicked`). Kept in the extension: reading a
-  page's links (a page script) and having the browser download a link dm refuses, which need
+  page's links (a page script) and having the browser download a link EDM refuses, which need
   the browser. Titles: the extension's own translation for an item it knows, the app's English
   for one it added (the app has no translations of the extension's words).
 * **Catching** (`judges-catch`): the extension asks `catch.judge` and the app answers by its
@@ -7236,7 +7236,7 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
   today sends none, so the browser's language is kept; a refusal whose words the app had said
   is not notified again.
 * **Panel list** (`lists-streams`): the code that makes the list from the streams kept
-  (`panel_list`, with `Stream`) moved to `dm_protocol::media`, so both sides build it from one
+  (`panel_list`, with `Stream`) moved to `edm_protocol::media`, so both sides build it from one
   source and the app's newer copy makes the list (`media.streams`), the extension's where the
   app is older or silent for 3 s. What counts as a stream in a response stays the extension's:
   forwarding every response the browser gets to a host process started per message costs far
@@ -7248,7 +7248,7 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
   the app (`every_frame_a_released_extension_sends_is_answered`) and read by the extension
   (`the_app_drives_the_menu_the_catch_its_words_and_the_panel_list`).
 * **Held before a merge**: the maintainer, 2026-11-15: over 95% coverage, so an update is
-  checked properly before it merges. The contract (dm-protocol, the extension's deciding parts,
+  checked properly before it merges. The contract (edm-protocol, the extension's deciding parts,
   the native host's `host*` files) is measured by `scripts/contract-coverage.py` (`make
   coverage`, CI's "Extension–app contract coverage" job) and each file is held to
   `docs/contract-coverage-floor.txt` (95% of lines), a floor only ever raised, beside the
@@ -7269,7 +7269,7 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
 * **Dropped**: no gain to pay for a second write path. The writes of 64 KiB (gaps row 176,
   2026-11-11) already took the cost out. Worth trying again only where the blocking pool costs
   more (Windows); gaps row S6 says how it would be judged.
-* **Kept**: `DM_FINISH_TRACE` names a seam check that differed and a lead that differed, with
+* **Kept**: `EDM_FINISH_TRACE` names a seam check that differed and a lead that differed, with
   the span, so the one run that fetched a whole file twice (gaps row 206) can be traced.
 
 
@@ -7278,17 +7278,17 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
 * **Seen**: on the Windows laptop (i5-6200U, debug build) `layout::five_hundred_rows_draw_inside_a_frame_budget`
   took 157 to 197 ms a frame against its 160. Timed with the rows on screen held to 1, 5, 30,
   100, 500 and 2,000: 40, 58, 159, 184, 186 and 197 ms, so the cost follows the rows on screen,
-  not the list. dm's own part (`render` and the rows' builder) was about 14 ms; leaving the
+  not the list. EDM's own part (`render` and the rows' builder) was about 14 ms; leaving the
   cells out took the frame to 48 ms. The rest was GPUI's layout and painting, built at
   opt-level 0 in the dev profile, where the release profile builds it at 3.
 * **The release build had none of it**: `ui-bench.py` on the same laptop at 10,000 rows, one
   scroll 0.077 to 0.087 s, a sort 0.084 to 0.097 s, at or under macOS arm64's stored baseline.
 * **Done**: `[profile.dev.package.*]` at opt-level 2 for the crates the release profile
-  optimises for drawing (`gpui-pre`, `taffy` and each system's `gpui-pre-*`). dm's own crates
-  stay at 0 with their debug assertions, so a debug build still debugs dm.
+  optimises for drawing (`gpui-pre`, `taffy` and each system's `gpui-pre-*`). EDM's own crates
+  stay at 0 with their debug assertions, so a debug build still debugs EDM.
 * **Measured** (the laptop, `cargo test -j 2`): the frame test 20 to 25 ms a frame where it was
-  157 to 197; the whole `dm-gpui` suite, 389 tests, 195 s where it was 641 to 887 s the same day.
-  The cost: those crates' first debug build, 742 s for `dm-gpui`'s tests from a target folder
+  157 to 197; the whole `edm-gpui` suite, 389 tests, 195 s where it was 641 to 887 s the same day.
+  The cost: those crates' first debug build, 742 s for `edm-gpui`'s tests from a target folder
   that had the rest; after that they are not built again.
 * **Not changed**: the test's budgets (160 ms on Windows, 200 on Linux, 100 on macOS), set for
   CI's runners, which draw without a GPU; lower them only after CI has run with this.
@@ -7296,11 +7296,11 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
 ## 2026-11-17: One Cargo workspace, rooted in desktop/, the extension in it (gaps rows X8, A15)
 
 * **Done**: every dependency's version once in `Cargo.toml`'s `[workspace.dependencies]`
-  (X8); `crates/dm-catcher/` a member of that workspace through `package.workspace = "../desktop"` (A15).
-  One `Cargo.lock` (`Cargo.lock`; `crates/dm-catcher/Cargo.lock` deleted), one target folder
+  (X8); `crates/edm-catcher/` a member of that workspace through `package.workspace = "../desktop"` (A15).
+  One `Cargo.lock` (`Cargo.lock`; `crates/edm-catcher/Cargo.lock` deleted), one target folder
   (`target`), and `cargo test --workspace`, clippy, `cargo fmt --all`, `cargo deny` and
   `cargo audit` cover the extension's crate. The WebAssembly is built with
-  `--profile extension` (release, opt-level "s", panic "abort": what crates/dm-catcher/'s own release
+  `--profile extension` (release, opt-level "s", panic "abort": what crates/edm-catcher/'s own release
   profile was), so `scripts/package.sh` reads `wasm32-unknown-unknown/extension/`.
 * **Rooted in desktop/, not the repository's top**: the row offered either. Moving the root up
   would rename `target` in about sixty places (every script's default binary, the
@@ -7308,13 +7308,13 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
   on one machine; rooted in desktop/ the only paths that moved are the extension's lock and
   build. The move to the top stays possible and is a rename of paths alone.
 * **The lock**: the extension's crates now resolve from the desktop lock, a few patch versions
-  older than crates/dm-catcher/'s was (bitflags 2.13.1, cfg-if 1.0.4, indexmap 2.14.1 and the like);
+  older than crates/edm-catcher/'s was (bitflags 2.13.1, cfg-if 1.0.4, indexmap 2.14.1 and the like);
   wasm-bindgen stays pinned at 0.2.127. `xtask layers` refuses a version written in any
   member's manifest, the extension's included.
 
-## 2026-11-17: One module layout, dm-gpui in folders, tests in files of their own (gaps row A13)
+## 2026-11-17: One module layout, edm-gpui in folders, tests in files of their own (gaps row A13)
 
-* **Done**: dm-gpui's 48 flat files into `window/` (the main window: list, table, bars, menus,
+* **Done**: edm-gpui's 48 flat files into `window/` (the main window: list, table, bars, menus,
   theme, each wake), `dialogs/` (each window beside the main one), `options/` (`options.rs` with
   `options/pages.rs`, was `options_pages.rs`), `widgets/` and `platform/` (the system's window
   calls, tray, notifications, clipboard, drags and drops); `main.rs`, the control port
@@ -7326,19 +7326,19 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
   (17,808 lines) moved to `foo/tests.rs`, or `foo/<what>_tests.rs` beside it for a second set;
   `download/capped_tests.rs` is `download/tests/capped.rs`. `cargo xtask layers` refuses a
   `mod.rs` and an inline test module over 100 lines; the scans that leave tests out (privacy,
-  translations, dm-gpui's program guard) know a test file by those two names.
-* **`ftp/target/`**: the repository's `.gitignore` drops every `target/`; dm-core's FTP `target`
+  translations, edm-gpui's program guard) know a test file by those two names.
+* **`ftp/target/`**: the repository's `.gitignore` drops every `target/`; edm-core's FTP `target`
   module's folder is excepted by name.
 
 ## 2026-11-18: Where a person's files live, in one module (gaps row X1)
 
-* **Done**: `dm-core/src/folders.rs` answers every question of where a folder is: `home` and
+* **Done**: `edm-core/src/folders.rs` answers every question of where a folder is: `home` and
   `downloads` and `local_data` (the `dirs` crate's), `home_variable` (`$HOME` alone, what
   macOS's launch agent and the login item's checks are written against), `home_or_profile`
   (`$HOME`, else `%USERPROFILE%`: the browsers' folders), `xdg_config`, `xdg_data`,
   `launch_agents`, `application_support` and `windows_programs`. The 15 places in
-  `dm-desktop-base`, `dm-gpui` and `dm-shell` that worked these out themselves call it, and
-  `dm-shell` no longer depends on `dirs`. Each answer is what it was: a pure move.
+  `edm-desktop-base`, `edm-gpui` and `edm-shell` that worked these out themselves call it, and
+  `edm-shell` no longer depends on `dirs`. Each answer is what it was: a pure move.
 * **Tests without touching the process**: each variable-reading function has an `_in` form
   taking the environment's lookup, so `folders/tests.rs` gives Linux's, macOS's and Windows'
   variables side by side without setting any (tests run in parallel threads).
@@ -7351,24 +7351,24 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
 ## 2026-11-18: What tests share, in a crate of its own (gaps row X10)
 
 * **Done**: `desktop/test-support/secrets.rs`, pulled in by `#[path]` from seven files in six
-  crates (dm-core's lib and its integration tests' `common`, dm-shell, dm-protocol, dm-gpui,
-  xtask, the extension), is `dm_test_support::secrets` in `crates/dm-test-support`,
+  crates (edm-core's lib and its integration tests' `common`, edm-shell, edm-protocol, edm-gpui,
+  xtask, the extension), is `edm_test_support::secrets` in `crates/edm-test-support`,
   named in each crate's `[dev-dependencies]`; the callers' `test_secrets` name is kept by a
   `use ... as`. Nothing a person runs changed: the crate is never a normal dependency, so it
   is not in the program.
 * **A crate, not a `test-support` feature on each crate**: the only thing shared is the
-  secrets, which belong to no crate's subject, and dm-core may depend on nothing of dm's but
-  dm-js, so a feature on any existing crate would add an edge the layering refuses or carry
-  test code in a shipped crate behind a flag. dm-core's own fixtures (`tests/common/`: its
+  secrets, which belong to no crate's subject, and edm-core may depend on nothing of EDM's but
+  edm-js, so a feature on any existing crate would add an edge the layering refuses or carry
+  test code in a shipped crate behind a flag. edm-core's own fixtures (`tests/common/`: its
   `Options`, a server, a temporary folder) stay its own until a second crate needs them; they
-  would then move into `dm-test-support` behind a dev-dependency on dm-core.
+  would then move into `edm-test-support` behind a dev-dependency on edm-core.
 * **Kept so**: `cargo xtask layers` refuses a `#[path]` that leaves its crate's folder, and
-  `dm-test-support` as a normal dependency of any crate (no crate lists it among those it may
+  `edm-test-support` as a normal dependency of any crate (no crate lists it among those it may
   use).
 
 ## 2026-11-18: The window's spacing named once (gaps row A19, its widgets part)
 
-* **Done**: dm-gpui's `widgets/space.rs` holds the spacing scale (`XXS` 2, `XS` 4, `S` 6, `M` 8,
+* **Done**: edm-gpui's `widgets/space.rs` holds the spacing scale (`XXS` 2, `XS` 4, `S` 6, `M` 8,
   `M_L` 10, `L` 12, `XL` 16, `XXL` 20, `XXXL` 24 points), `LINE` (1: a rule, a border, the gap
   that shows one) and three corners (`CORNER_S` 4, `CORNER_M` 6, `CORNER_L` 8). The 99 gaps,
   paddings, margins, one-point lines and corners written as those literals use the names; each
@@ -7383,84 +7383,84 @@ gone. `cargo tree` has no egui, eframe or winit; `Cargo.lock` went from 1,151 pa
   control. `cargo xtask layers` refuses a gap, padding or margin written as a literal on the
   scale, so the scale stays the one place.
 
-## 2026-11-18: dm's media code, a crate of its own (gaps row A6, step 1)
+## 2026-11-18: EDM's media code, a crate of its own (gaps row A6, step 1)
 
-* **Done**: `crates/dm-media` holds what was dm-core's `aac`, `fmp4`, `frames` (with
+* **Done**: `crates/edm-media` holds what was edm-core's `aac`, `fmp4`, `frames` (with
   `av1.rs`, `win.rs`), `gif`, `mf`, `mkvmux`, `mp3` (with `decode/`, `tables.rs`), `mp4mux`,
   `tsmux`, `subtitles` and `shape`: 14,700 lines and 89 tests moved as they were. It uses none
-  of dm's crates, no tokio and no sockets (`cargo xtask layers` holds it so); its decoders
+  of EDM's crates, no tokio and no sockets (`cargo xtask layers` holds it so); its decoders
   (symphonia's AAC, rav1d, Media Foundation's `windows` features) went with it, out of
-  dm-core's manifest. Release builds keep it at `opt-level = 3`, as dm-core's media code was.
-* **dm-core's paths stay**: `aac`, `fmp4`, `frames`, `shape` and `subtitles` are re-exported
-  (`pub use dm_media::aac;`); `mp4mux`, `mkvmux`, `tsmux`, `mp3` and `gif` are small modules
-  of dm-core that `pub use dm_media::<m>::*` and add the engine's part: the `_async` calls
+  edm-core's manifest. Release builds keep it at `opt-level = 3`, as edm-core's media code was.
+* **edm-core's paths stay**: `aac`, `fmp4`, `frames`, `shape` and `subtitles` are re-exported
+  (`pub use edm_media::aac;`); `mp4mux`, `mkvmux`, `tsmux`, `mp3` and `gif` are small modules
+  of edm-core that `pub use edm_media::<m>::*` and add the engine's part: the `_async` calls
   (`spawn_blocking`, or `heavy::run` for the MP3 and the GIF), the MP3 and GIF written with
   `write_atomic`, and the two that need a page (`gif::possible_for` asks `youtube`,
-  `mp3::choice_after` makes a `videopage::Choice`). So `dm_core::mp4mux::join` and every other
-  caller in dm-shell, dm-gpui, the examples and the integration tests are unchanged.
+  `mp3::choice_after` makes a `videopage::Choice`). So `edm_core::mp4mux::join` and every other
+  caller in edm-shell, edm-gpui, the examples and the integration tests are unchanged.
 * **The MP3 and the GIF come back as bytes** (`mp3::convert_bytes`, `gif::from_video_bytes`):
-  writing a file safely is the engine's (`write_atomic`), and a second copy of it in dm-media
+  writing a file safely is the engine's (`write_atomic`), and a second copy of it in edm-media
   was the alternative.
 * **A narrow API across the line, not the internals made public**: the RTMP recorder asked
-  `tsmux`'s sound-frame reader and HEVC parser for three numbers each; dm-media answers with
+  `tsmux`'s sound-frame reader and HEVC parser for three numbers each; edm-media answers with
   `tsmux::mpeg_audio` (an `MpegAudio` of four fields) and `tsmux::hevc_picture_size`, so its
   `Frame`, `Sound` and `HevcSps` stay its own. Made public as they were: `picture_size`,
   `mp4mux::{init_shape, plan_plain_part, write_plain_part, PlainPart}`, `mkvmux::needs_matroska`.
 * **Test files**: the small MP4 and WebM files both crates' tests build
   (`mp4mux::testing::{fragmented, plain, samples_in}`, `mkvmux::testing::tiny_webm`) are behind
-  dm-media's `testing` feature, which dm-core turns on in `[dev-dependencies]` alone, so the
-  program does not carry them. The media fixtures stay in `dm-core/tests/fixtures`, which
-  dm-core's integration tests also read; dm-media's tests find them by `crate::fixtures()`.
+  edm-media's `testing` feature, which edm-core turns on in `[dev-dependencies]` alone, so the
+  program does not carry them. The media fixtures stay in `edm-core/tests/fixtures`, which
+  edm-core's integration tests also read; edm-media's tests find them by `crate::fixtures()`.
 * **Checked on Windows for the other systems**: `cargo check` and clippy `-D warnings` of
-  dm-media, all targets, for `x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` (no linker
+  edm-media, all targets, for `x86_64-unknown-linux-gnu` and `aarch64-apple-darwin` (no linker
   needed), so its macOS code (AudioToolbox, VideoToolbox) and Linux code (rav1d) compile as
-  moved. dm-core cannot be checked so (ring's build wants that system's C compiler); its facades
+  moved. edm-core cannot be checked so (ring's build wants that system's C compiler); its facades
   have no system's code. Linking and running them on macOS and Linux are step 8's.
 
-## 2026-11-18: BitTorrent's engine behind dm's own words: dm-torrent (gaps rows A6 step 2, P3)
+## 2026-11-18: BitTorrent's engine behind EDM's own words: edm-torrent (gaps rows A6 step 2, P3)
 
-* **Done**: `crates/dm-torrent` is the one crate that names librqbit. It offers a
+* **Done**: `crates/edm-torrent` is the one crate that names librqbit. It offers a
   `Session` (started from a `Setup`: output folder, private or not, listening or not, blocklist,
   cancel token, both ceilings, a SOCKS5 proxy), a `Torrent` added to it from a `Source` (a
   magnet or a .torrent's bytes) with its `files`, `stats` (`Stats`, `State`), name, info-hash and
-  folder, and `metainfo` (a .torrent's trackers and its info dictionary byte for byte). dm-core's
+  folder, and `metainfo` (a .torrent's trackers and its info dictionary byte for byte). edm-core's
   `torrent.rs` drives a download and a finished torrent's sharing through these, call for call
   as it drove librqbit; every message a person can see is worded as it was. librqbit stays a
-  dev-dependency of dm-core: its torrent tests run a librqbit peer of their own and make
+  dev-dependency of edm-core: its torrent tests run a librqbit peer of their own and make
   .torrent files with it.
-* **Not a move of `torrent.rs`**: what a torrent download means to dm (the row's options, its
+* **Not a move of `torrent.rs`**: what a torrent download means to EDM (the row's options, its
   stop, the staged folder and the move into place, the .torrent fetched over HTTP with the
   row's sign-in, `Swarm`, the sharing registry, tiers) is woven into the engine
   (`download::{Options, Finished, Update, or_stop, finish, claim_dir}`, `auth`, `cookies`,
-  `probe`, `category`), and the queue calls it, so a crate holding it would need dm-core and
-  dm-core would need it. The line is drawn at the library instead: the part that would change
-  if librqbit were replaced piece by piece (row P3) is dm-torrent's, and nothing else names it.
-* **Kept so**: `cargo xtask layers` lets dm-core depend on dm-torrent and dm-torrent on none of
-  dm's crates; it may open sockets (the swarm's), and no window toolkit.
+  `probe`, `category`), and the queue calls it, so a crate holding it would need edm-core and
+  edm-core would need it. The line is drawn at the library instead: the part that would change
+  if librqbit were replaced piece by piece (row P3) is edm-torrent's, and nothing else names it.
+* **Kept so**: `cargo xtask layers` lets edm-core depend on edm-torrent and edm-torrent on none of
+  EDM's crates; it may open sockets (the swarm's), and no window toolkit.
 
-## 2026-11-18: dm's network, a crate of its own: dm-net (gaps row A6, step 3)
+## 2026-11-18: EDM's network, a crate of its own: edm-net (gaps row A6, step 3)
 
-* **Done**: `crates/dm-net` holds what was dm-core's `agents`, `auth`, `ntlm`,
+* **Done**: `crates/edm-net` holds what was edm-core's `agents`, `auth`, `ntlm`,
   `connect_first`, `control`, `cookies`, `decode`, `dns`, `error`, `hex`, `http_client`,
   `javascript`, `limit`, `pac`, `processes`, `proxy`, `redirects` and `second_path` (6,300 lines
   with their tests), with `lock`, `retry_after` (from `retry`) and `tls_config` (from
-  `rtmp/connect.rs`). dm-core re-exports each under its old name, so `dm_core::Error`,
-  `dm_core::client`, `dm_core::pac` and every `crate::` path in the engine are unchanged. dm-core
-  no longer names dm-js, md4, brotli-decompressor or webpki-roots; dm-net does.
+  `rtmp/connect.rs`). edm-core re-exports each under its old name, so `edm_core::Error`,
+  `edm_core::client`, `edm_core::pac` and every `crate::` path in the engine are unchanged. edm-core
+  no longer names edm-js, md4, brotli-decompressor or webpki-roots; edm-net does.
 * **The ties the row named, untied by moving them together, not by cutting them**: `Error`
   calls `agents::limited`, `pac::refusal` and `retry_after`, all now beside it; `pac` runs its
-  script through `javascript` (dm-js and a test's stand-in host), which came along, the YouTube
-  reader then reaching it through dm-core's re-export; `connect_first` takes `Control`, the stop
+  script through `javascript` (edm-js and a test's stand-in host), which came along, the YouTube
+  reader then reaching it through edm-core's re-export; `connect_first` takes `Control`, the stop
   flag, which is the network's as much as the engine's (it depends on `Error` alone). The TLS
-  set-up every HTTP client and the stream protocols share is dm-net's, as the HTTP client was
+  set-up every HTTP client and the stream protocols share is edm-net's, as the HTTP client was
   its first user.
-* **Made public for dm-core, as they were**: `decode::{coding_of, decoded, Coding, Stopped}`,
+* **Made public for edm-core, as they were**: `decode::{coding_of, decoded, Coding, Stopped}`,
   `second_path::{fetched_by, client_for_piece, second_client}`, `agents::{ceiling_for,
   remember_ceiling}`, `javascript::run`, `connect_first::before_download`. The tests of the
-  error's wording and of an AppImage's folders moved from dm-core's `src/tests.rs` with them.
-* **Kept so**: `cargo xtask layers` lets dm-net use dm-js alone and dm-core use dm-net; `cargo
-  xtask privacy` now reads dm-media, dm-net and dm-torrent's shipped code for addresses too (it
-  read dm-core's alone, and these were dm-core's).
+  error's wording and of an AppImage's folders moved from edm-core's `src/tests.rs` with them.
+* **Kept so**: `cargo xtask layers` lets edm-net use edm-js alone and edm-core use edm-net; `cargo
+  xtask privacy` now reads edm-media, edm-net and edm-torrent's shipped code for addresses too (it
+  read edm-core's alone, and these were edm-core's).
 
 ## 2026-11-18: The read of 10,000 rows: one walk, one lookup a row (gaps row 210)
 
@@ -7481,7 +7481,7 @@ Python scripts set UTF-8 themselves (`reconfigure` after the imports and an expl
 on every text read, write and subprocess call) rather than relying on `python -X utf8` or
 `PYTHONUTF8`, so how a script is started cannot change what it reads. `human-qa.py` stops at a
 missing or one-colour first window picture rather than reporting rows it could not see.
-Packaging goes through `cargo xtask package`, which runs cargo-packager in `crates/dm-gpui`,
+Packaging goes through `cargo xtask package`, which runs cargo-packager in `crates/edm-gpui`,
 rather than a second packager configuration at the root, which would duplicate the settings and
 break `beforePackagingCommand` and the relative paths; a root `.cargo/config.toml` gives
 `cargo xtask` from the root. Not taken: `incremental = false` in the cargo configuration, which
@@ -7503,9 +7503,9 @@ download.
 
 ## 2026-11-18: The site watch, daily on Linux (gaps row W6)
 
-`.github/workflows/sites.yml` runs daily on Linux, not Windows: dm reads YouTube with its own
-interpreter (dm-js) on every system, and `chrome-check.py`'s setup already runs under Xvfb in
-`ci.yml`. Both checks run with `DM_SKIP_LOCAL=1`, because the loopback checks are `ci.yml`'s. A
+`.github/workflows/sites.yml` runs daily on Linux, not Windows: EDM reads YouTube with its own
+interpreter (edm-js) on every system, and `chrome-check.py`'s setup already runs under Xvfb in
+`ci.yml`. Both checks run with `EDM_SKIP_LOCAL=1`, because the loopback checks are `ci.yml`'s. A
 site is judged as `video-sites-check.py` judges it: "no public video post found", "no video
 player appeared", a bot-check phrase or a failed watch-page load, and a file still arriving when
 the wait ends are not judged and open no issue (a page change that hides the player therefore
@@ -7522,7 +7522,7 @@ cross-built on windows-latest, so `smoke.py` runs on the machine the build is fo
 named (`aarch64-pc-windows-msvc`), so the build is Arm's whatever Rust the image has. `ring` 0.17
 builds its C for that target with clang only (MSVC's cl is refused), so the job uses the
 runner's clang, or installs LLVM 20.1.8's woa64 build. The Arm runner also runs x64 programs
-under emulation, so the installed `dm-gpui.exe`'s PE machine field is checked (0xAA64; the x64
+under emulation, so the installed `edm-gpui.exe`'s PE machine field is checked (0xAA64; the x64
 build is held to 0x8664). `+crt-static` for the target, as for x64, since the installer brings
 no C runtime. The update check needed no change: `installer_in` already took `arm64` for
 `aarch64`, and an arm64 Windows is offered nothing rather than the x64 installer when a release
@@ -7543,9 +7543,9 @@ holds every row to the numbers it had; Windows' sizes are to be set again in tha
 - A test reads the finished MP4's `tx3g` track back from its sample tables: the YouTube
   stand-in serves captions, and with Options' subtitles on the file carries the written track
   with its times and words; with them off nothing is fetched. The stand-in's own origin
-  (`DM_YOUTUBE_HOST`, the whole origin) is the one other caption address taken.
-- `subtitles::to_srt`, `to_vtt` and `write_beside` (dm-media) write SRT and WebVTT from the cues
-  dm read. SRT keeps italic, bold and underline and reads the entities; WebVTT keeps the text as
+  (`EDM_YOUTUBE_HOST`, the whole origin) is the one other caption address taken.
+- `subtitles::to_srt`, `to_vtt` and `write_beside` (edm-media) write SRT and WebVTT from the cues
+  EDM read. SRT keeps italic, bold and underline and reads the entities; WebVTT keeps the text as
   written; a `-->` in the text cannot start a timing line. Not called by default: files left
   beside a video change what a person gets, so that waits for the maintainer's word.
 - Translations are listed, not fetched: the reading's `translated_subtitles` holds the languages
@@ -7570,7 +7570,7 @@ decide.
 ## 2026-11-18: The update manifest is signed, by a key the maintainer makes (gaps row F6)
 
 `latest.json` is believed only with `latest.json.sig` beside it: base64 of the Ed25519 signature
-of the manifest's exact bytes, by the public key built into `dm-shell/src/app/update.rs`
+of the manifest's exact bytes, by the public key built into `edm-shell/src/app/update.rs`
 (`SIGNING_KEY`), checked with `ring` (already rustls's provider). The signature is a separate
 file rather than a field in the manifest, so nothing has to be put into a fixed form before
 signing, and the manifest stays exactly what an installed 0.9.0, `scripts/package-managers.py`
@@ -7579,8 +7579,8 @@ address; if a release is published between the two, that one check fails and the
 missing, foreign, malformed or mismatched signature is refused as "the release is not signed by
 the project", in the update failure's existing words. The site rules in the manifest need the
 same signature. `cargo xtask update-key` makes the pair; `cargo xtask sign-manifest` signs with
-`DM_UPDATE_SIGNING_KEY` and refuses a key dm does not carry, so the release job fails before
-drafting rather than publishing a manifest every dm would refuse. This differs from
+`EDM_UPDATE_SIGNING_KEY` and refuses a key EDM does not carry, so the release job fails before
+drafting rather than publishing a manifest every EDM would refuse. This differs from
 2026-10-25/27, when an unset secret broke 0.8.0: the key in the code is a placeholder with no
 private half until the maintainer runs step 3 of `docs/RELEASING.md`, and until then a release
 tag stops at the signing step. Tests make a fresh pair each run, so no private key is committed.
@@ -7601,7 +7601,7 @@ compare the program inside each. R1 (signing the installers) waits for the maint
 The help is `docs/user-guide.md` plus pages in `docs/guide/` (one per Options tab and per dialog,
 the topics, and `failures.md`). Its completeness is held by `cargo xtask help-check`, which reads
 the sentences from the source (`NOTES`, the error types' `#[error]` texts, the network and file
-error words, dm-core's and dm-net's `Error::Internal` and `Connection` sentences, and the words of
+error words, edm-core's and edm-net's `Error::Internal` and `Connection` sentences, and the words of
 Options' pages) rather than a hand list, so a new sentence fails the check until it has an entry.
 An entry is the sentence word for word, with `…` for a placeholder. Help's search in the window
 waits for the maintainer: the Help menu is held by `docs/parity.md` and two window tests.
@@ -7624,14 +7624,14 @@ files, 32 MB a file, 1 GB a save. The window's box waits for the maintainer (con
 
 The encoder takes any MPEG-1 Layer III rate from 32 to 320 kbit/s (`mp3::KBPS`) as a parameter of
 its callers; with none it makes what it always made (192 stereo, 128 mono, byte for byte), and
-dm's download asks for none, as no window offers a choice: a control in Options or the quality
+EDM's download asks for none, as no window offers a choice: a control in Options or the quality
 list changes a listed window (B43) and waits for the maintainer's word. Opus in a WebM is read by
 the system's own decoder, as AAC is (2026-10-31): on Windows, Media Foundation's WebM reader and
 Opus decoder (`mf::opus_decoder`); `mp3::takes` converts a WebM only when its sound is Opus and
 the system decodes it, and a Vorbis or soundless WebM is refused in words. Its words are read
 from its Info and Matroska tags (`mkvmux::tags`) for the ID3 header. Checked on a WebM of silent
 Opus packets the test makes, and on YouTube's format 251 against the same video's 140 (0.999
-correlated). Not taken: an Opus decoder of dm's own (RFC 6716's SILK, CELT and hybrid) or a crate
+correlated). Not taken: an Opus decoder of EDM's own (RFC 6716's SILK, CELT and hybrid) or a crate
 (the maintainer's word first); macOS (AudioToolbox reads no WebM) and Linux stay owed.
 
 ## 2026-11-18: YouTube formats served only as numbered pieces (gaps row Y14)
@@ -7639,7 +7639,7 @@ correlated). Not taken: an Opus decoder of dm's own (RFC 6716's SILK, CELT and h
 A format typed `FORMAT_STREAM_TYPE_OTF` has no single file of byte ranges: `&sq=0` is its first
 boxes, and the pieces follow as `&sq=1` on. It used to be dropped, which cost such a video its
 higher qualities. It is now read and chosen by the usual rules, except that a part never takes it
-(it has no index to cut by). dm's reading marks it `http_dash_segments`. The first piece says how
+(it has no index to cut by). EDM's reading marks it `http_dash_segments`. The first piece says how
 many pieces follow (`Segment-Count: N`, read from its bytes), and the DASH piece fetcher
 (`download::dash::download_numbered`) fetches `&sq=0` to `&sq=N` like any DASH track's pieces,
 then gathers them into one file, joined with the sound as before. The player's answer carries no
@@ -7652,7 +7652,7 @@ Dropped: reading YouTube's DASH manifest (`dashManifestUrl`), which needs a seco
 ## 2026-11-18: A video that wants a sign-in is asked again with the browser's session (gaps row Y4)
 
 When the player says a sign-in is wanted (`LOGIN_REQUIRED`, an age check, or a private or
-members-only reason) and the session for YouTube holds a `SAPISID` (or `__Secure-3PAPISID`), dm
+members-only reason) and the session for YouTube holds a `SAPISID` (or `__Secure-3PAPISID`), EDM
 asks again as its own TV client and then as the web client at the version the watch page names.
 The request carries the cookies, `Authorization: SAPISIDHASH <time>_<sha1(time SAPISID origin)>`
 and `Origin`/`X-Origin` `https://www.youtube.com`, as YouTube's web clients send them. The TV
@@ -7661,14 +7661,14 @@ token. A session with no SAPISID is not used, as nothing can be signed with it. 
 only in memory for that read, and a hop to another host drops it. Without a session the refusal
 and its wording are unchanged.
 
-## 2026-11-18: Archives with a password: dm's own AES, the password proved before anything is written (gaps row F10)
+## 2026-11-18: Archives with a password: EDM's own AES, the password proved before anything is written (gaps row F10)
 
-A ZIP's AES (AE-1, AE-2; 128, 192, 256 bits) is dm's own, over the aes and sha1 crates already
+A ZIP's AES (AE-1, AE-2; 128, 192, 256 bits) is EDM's own, over the aes and sha1 crates already
 built: PBKDF2-HMAC-SHA1 with 1000 rounds, a little-endian counter from 1, and the 10-byte
 HMAC-SHA1 code. It is not the zip crate's `aes-crypto` feature, which would add hmac 0.13, pbkdf2
 0.13 and constant_time_eq to the tree. The older PKWARE cipher is the zip crate's, which needs no
-feature. A 7z's AES-256 is dm's own: CBC, and a SHA-256 key over 2^n rounds of salt, UTF-16LE
-password and round number, n at most 24 as 7-Zip allows. dm decrypts a folder of AES alone or AES
+feature. A 7z's AES-256 is EDM's own: CBC, and a SHA-256 key over 2^n rounds of salt, UTF-16LE
+password and round number, n at most 24 as 7-Zip allows. EDM decrypts a folder of AES alone or AES
 under Copy, LZMA or LZMA2, in either coder order (7-Zip lists the reading coder first, py7zr AES
 first), and an encrypted list of files. A ZIP password is its UTF-8 bytes. With no password the
 error is `Encrypted`, with today's words; with a wrong one, `WrongPassword`. A 7z and the PKWARE
@@ -7679,12 +7679,12 @@ therefore read as a wrong password. The ZIP fixtures come from libarchive, the 7
 (libarchive writes no encrypted 7z). The window does not ask for a password yet: it has no prompt
 with a text field, and a new dialog needs the maintainer's word.
 
-## 2026-11-18: CI reports the contract's rows and watches dm's benchmark against itself (gaps row R5)
+## 2026-11-18: CI reports the contract's rows and watches EDM's benchmark against itself (gaps row R5)
 
 `contract-linux.yml` runs `linux-human-qa.sh` unchanged on ubuntu-latest for each pull request,
 each push to main, and by hand. It is continue-on-error (reported, not gating): the person's run
-of `human-qa.py` in sight stays the gate. `bench.yml` runs dm's release alone weekly and compares
-it, through `bench/against-last.mjs`, with the `bench-dm` artifact of the last passing run on the
+of `human-qa.py` in sight stays the gate. `bench.yml` runs EDM's release alone weekly and compares
+it, through `bench/against-last.mjs`, with the `bench-EDM` artifact of the last passing run on the
 same branch. A parameter is worse at more than 20% plus the harness's slack (0.25 s, 150 ms, 0.5
 point, 3 MiB). The machine-bound times (fast, big40) are scaled by ceiling-now over ceiling-then
 both ways, unlike the frozen floor's min(1, …): the previous run is a measurement on another
@@ -7705,7 +7705,7 @@ with a clear key is cleared after the join, not a segment at a time as AES-128 i
 stream's samples change length when emulation prevention comes off, so they are cleared as
 `tsmux` makes the MP4, each segment's key and vector looked up by the file offset where its PES
 starts. `cbcs` keeps lengths, so a fragmented MP4 is cleared in place, its entry renamed to the
-`frma` format and `sinf` made `free`, instead of rebuilding the index. Decryption is in dm-media
+`frma` format and `sinf` made `free`, instead of rebuilding the index. Decryption is in edm-media
 (`aes` and `cbc`, already in the build). Refused rather than guessed: SAMPLE-AES AC-3 and E-AC-3,
 packed audio, live recordings and pairs of playlists, and `cbcs` with `seig` sample groups.
 
@@ -7731,14 +7731,14 @@ its limit is unknown, and a check taking a place can get a range refused).
 
 ## 2026-11-18: criterion benches, by hand only (gaps row 190)
 
-criterion 0.8 is a dev-dependency of dm-core and dm-shell only; it was already in Cargo.lock
-through GPUI, so nothing new is built into dm. Three benches with `harness = false`: `plan`,
+criterion 0.8 is a dev-dependency of edm-core and edm-shell only; it was already in Cargo.lock
+through GPUI, so nothing new is built into EDM. Three benches with `harness = false`: `plan`,
 `naming` and `large_list`. They run under the release profile, so they time what ships, and are
 run by hand on one quiet machine against a saved baseline (`--save-baseline` / `--baseline`).
 They never run in CI or `cargo test`: shared runners are too noisy. `large_list` uses a real
 queue rather than made-up rows, so the read includes the snapshot, the detector and the events;
-it carries its own do-nothing platform, as dm-shell's test backend exists only in its unit tests
-and dm-test-support may not depend on dm-shell. Written on the Windows laptop after builds
+it carries its own do-nothing platform, as edm-shell's test backend exists only in its unit tests
+and edm-test-support may not depend on edm-shell. Written on the Windows laptop after builds
 stopped there: none has run yet (the Mac's first run records the numbers).
 
 ## 2026-11-18: A typed path for Import and Export; a sentence about one row dropped (gaps row U41)
@@ -7757,39 +7757,39 @@ the rule's reason. Clearing it sooner when the row stops would need the main lis
 `window/list.rs`, for no gain a person would see. Written on the Windows laptop with no build:
 compiled first on the Mac.
 
-## 2026-11-18: Windows ends dm's session through windows, not signals (gaps row 186)
+## 2026-11-18: Windows ends EDM's session through windows, not signals (gaps row 186)
 
 A logoff, shutdown or restart on Windows sends `WM_QUERYENDSESSION` and `WM_ENDSESSION` to
 top-level windows, and the process may be ended once they answer; a console's logoff and shutdown
 events never reach a program with user32 loaded. GPUI's hidden window calls `exit(0)` right after
 its quit handlers, so the window does its Exit work (`wind_down`: `Backend::shut_down`, the port
-closed, the frame saved) in `on_app_quit`. dm also keeps a hidden tool window of its own
+closed, the frame saved) in `on_app_quit`. EDM also keeps a hidden tool window of its own
 (`signals/session_end.rs`) that stops and awaits the downloads before it answers `WM_ENDSESSION`:
 it covers `--headless`, which has no GPUI window, and a system dialog holding the window's thread.
 A second `Queue::shut_down` beside the first is harmless (it finds the rows stopping, or nothing).
-Ctrl+Break is listened for as Windows' nearest to SIGTERM. `stress-check.py quit` ends dm on
-Windows as a logoff does. Rejected: counting the bytes dm received twice from the test through
+Ctrl+Break is listened for as Windows' nearest to SIGTERM. `stress-check.py quit` ends EDM on
+Windows as a logoff does. Rejected: counting the bytes EDM received twice from the test through
 reqwest's `connector_layer` (`Conn` is opaque); that check needs a counter in `ranged.rs`'s read
 loop. Written with no build on the Windows laptop: compiled and run on Windows next.
 
-## 2026-11-18: The BitTorrent library as published 9.1.0 plus dm's patch (gaps row P3)
+## 2026-11-18: The BitTorrent library as published 9.1.0 plus EDM's patch (gaps row P3)
 
 librqbit and its SHA-1 wrapper are vendored as the published 9.1.0 crates, remade by
-`vendor/vendor.sh` (SHA-256 pinned, nothing of theirs run), with dm's changes kept as
+`vendor/vendor.sh` (SHA-256 pinned, nothing of theirs run), with EDM's changes kept as
 `vendor/patches/*.patch`, each hunk explained (encrypted peer connections, the listener's
 collected checks, file names checked before any file is made, one crypto library and no axum,
 pure-Rust SHA-1). The other `librqbit-*` crates come from crates.io at 9.1.0. Files the build
 does not use are not vendored (webui, resources, examples, the crates' own locks,
 `Cargo.toml.orig`, cargo's marks), and upstream's one test that needs `resources/` is left out by
-the patch. Upstream's `else => continue` in the listener is kept beside dm's own fix there. An
+the patch. Upstream's `else => continue` in the listener is kept beside EDM's own fix there. An
 upgrade: change the version and hashes, run the script, mend the hunks that fail, write the patch
-again as a `git diff`. 9.1.0 accepts `socks5h://`; dm-core's `swarm_proxy` still rewrites it to
+again as a `git diff`. 9.1.0 accepts `socks5h://`; edm-core's `swarm_proxy` still rewrites it to
 `socks5://` (behaviour unchanged; its comment is now out of date).
 
 ## 2026-11-18: A held name is connected to at its public addresses alone (gaps row 200)
 
 A name a public address leads to (a redirect, a playlist or DASH piece, a mirror, a page link)
-that looks public is held for 10 minutes (`dns::must_be_public`, since 2026-11-12). dm's
+that looks public is held for 10 minutes (`dns::must_be_public`, since 2026-11-12). EDM's
 resolver now drops inside addresses from the very answer reqwest connects to, and refuses the
 name (`dns::LedInside`) where none remain, so an answer that is both public and inside no longer
 reaches inside, and a name that answers public and then 127.0.0.1 is refused once it turns: the
@@ -7798,7 +7798,7 @@ is said in `INWARD_REDIRECT`'s words and is not retried (`redirects::execute`,
 `error::network`). At most 4,096 names are held; a new one past that is refused as inward rather
 than let through unheld. A first hop, a typed address, a LAN name typed by choice and redirects
 between inside hosts are unchanged. Under an HTTP or `socks5h` proxy the proxy resolves, so only
-an address written inside is judged; `socks5` resolves through dm's resolver and is judged. Tests
+an address written inside is judged; `socks5` resolves through EDM's resolver and is judged. Tests
 answer names through a test-only override in `dns::look_up`, never the hosts file. Left:
 `videopage::page_data::fetch_choices` and RTMPT build clients of their own outside the resolver;
 a held name is refused for 10 minutes even when a person then types it. Written with no build:
@@ -7815,7 +7815,7 @@ with the sound its container takes; otherwise the line's height, frame rate and 
 existing rules, then the next lower, and with nothing that low the nearest higher picture rather
 than failing; the log names what was taken. The row's words are unchanged. Sound lines carry no
 number: both sides already pick the best sound by the same rule, and the MP3 line keys on
-`audio/m4a`. Where the page holds no player data, the list is built from dm's own reading (30 s
+`audio/m4a`. Where the page holds no player data, the list is built from EDM's own reading (30 s
 limit), as the 2026-10-27 decision intended before that fallback was removed. Not done: a new
 field on `Choice` (it would pass through the browser's hand-over and the queue). Its tests were
 written on the Windows laptop and not run: run on the Mac.
@@ -7837,7 +7837,7 @@ bounds (5 ms, 2 ms in debug) guessed: compiled, run and measured on the Mac.
 
 ## 2026-11-18: A file-storage service's share link becomes the file's own address (gaps row W7)
 
-A share address is turned into the file's own address in dm-core (`filehost`), not through the
+A share address is turned into the file's own address in edm-core (`filehost`), not through the
 shipped `rules.json`: those rules feed the extension's page reading and are additive data, and
 they cannot say "fetch this page and submit its form". The address is resolved in `probe()` and
 again at each start of the download, so a short-lived address (Drive's uuid, MediaFire's
@@ -7852,7 +7852,7 @@ stay hand-overs. Tried and dropped: OneDrive's documented
 `api.onedrive.com/v1.0/shares/u!…/root/content` (404 for a public link in 2026). Written with no
 build on the Windows laptop: compiled and run on the Mac, then `sites-check.py --file-hosts`.
 
-## 2026-11-18: Safari's extension is an app extension made without Xcode, whose Rust program starts dm's own host (gaps row R4)
+## 2026-11-18: Safari's extension is an app extension made without Xcode, whose Rust program starts EDM's own host (gaps row R4)
 
 Asked by the maintainer on 2026-11-18: "if possible add browser extension for safari as well.
 and test on safari." Safari loads a web extension only from inside an app: an app extension
@@ -7861,27 +7861,27 @@ the extension's native messages to that extension's program (`NSExtensionRequest
 to a native messaging host. This Mac has the command line tools and no Xcode, so neither Xcode's
 converter nor its template is used: `scripts/safari-extension.sh` lays the bundle out, writes its
 Info.plist (`assets/macos/safari/`), and signs it, the extension with its sandbox first
-and then dm.app around it (not `--deep`, which would sign the extension again without one).
+and then EDM.app around it (not `--deep`, which would sign the extension again without one).
 
-- **The program is Rust, with no Swift or Objective-C file** (`crates/dm-safari`): its
+- **The program is Rust, with no Swift or Objective-C file** (`crates/edm-safari`): its
   `main` makes the handler class the Info.plist names (`DMSafariHandler`) through the
   Objective-C runtime with `objc2`, already in Cargo.lock through GPUI (no crate added), and
   hands the program to Foundation's `NSExtensionMain`. Foundation's objects are reached by
   name (`AnyClass::get`, `msg_send!`), so no `objc2-foundation` feature changes for the rest
   of the workspace.
-- **It links nothing of dm's: it starts `dm --native-host` for each message** (the app's own
-  program, found through dm.app's Info.plist) and gives Safari the answer, so what the host says
+- **It links nothing of EDM's: it starts `EDM --native-host` for each message** (the app's own
+  program, found through EDM.app's Info.plist) and gives Safari the answer, so what the host says
   is the host's alone and the extension cannot drift from it; the price is a process per
-  message, as Chrome's and Firefox's hosts already are. Rejected: linking dm-shell's host into
-  the extension (the engine twice in dm.app, and a second copy to keep in step).
+  message, as Chrome's and Firefox's hosts already are. Rejected: linking edm-shell's host into
+  the extension (the engine twice in EDM.app, and a second copy to keep in step).
 - **The sandbox.** macOS runs an app extension only sandboxed, and the host it starts is in the
-  same sandbox. The entitlements give it what the host needs: dm's own folder (a home-relative
-  temporary exception for `Library/Application Support/dm-engine/`) and `network.client` (the
-  one probe of the server, the running dm's doorbell on loopback). `HOME` inside the sandbox is
+  same sandbox. The entitlements give it what the host needs: EDM's own folder (a home-relative
+  temporary exception for `Library/Application Support/edm-engine/`) and `network.client` (the
+  one probe of the server, the running EDM's doorbell on loopback). `HOME` inside the sandbox is
   the extension's container, so the program gives the host the person's own home from the user
-  database. A dm the host must start is opened through `/usr/bin/open` when the host finds
+  database. An EDM the host must start is opened through `/usr/bin/open` when the host finds
   itself sandboxed (`APP_SANDBOX_CONTAINER_ID`): started directly it would have been sandboxed
-  too. A portable dm (its data beside the app) is outside the exception and is not served.
+  too. A portable EDM (its data beside the app) is outside the exception and is not served.
 - **One message at a time.** In Safari a port's messages (`connectNative`) reach the program
   but its answers do not come back on the port, so the extension's `Port` sends each request
   with `runtime.sendNativeMessage` there and hears the answer as a port's frame
@@ -7893,13 +7893,13 @@ and then dm.app around it (not `--deep`, which would sign the extension again wi
   "Download all links", the popup, the panel where the page allows it. `manifest.safari.json` is
   Firefox's with a non-persistent background page (`persistent: false`) and without the
   `downloads` and `notifications` permissions Safari does not know.
-- **Signed ad hoc**, as dm.app is: Safari runs it only with Develop › Allow Unsigned Extensions,
+- **Signed ad hoc**, as EDM.app is: Safari runs it only with Develop › Allow Unsigned Extensions,
   which asks for the person's password and is forgotten when Safari quits. A Developer ID (R1)
   or the App Store (the maintainer's developer account) is what removes that.
-- In the .dmg (2026-11-19): **the .dmg is opened again after the packager**, its dm.app
+- In the .dmg (2026-11-19): **the .dmg is opened again after the packager**, its EDM.app
   replaced by the one with the extension, compressed (UDZO) and signed under its own name as the
   packager signed it (`safari-extension.sh --dmg`). Rejected: cargo-packager's
-  `beforeEachPackageCommand`, which runs before the .dmg with dm.app made and would have needed no
+  `beforeEachPackageCommand`, which runs before the .dmg with EDM.app made and would have needed no
   second pass, but is one setting for every system: on Windows it runs through `cmd`, where the
   maintainer's laptop has no `sh` (`cargo xtask package`), and through `cargo xtask` the Intel
   build would have made an x86_64 xtask the Apple silicon runner cannot run without Rosetta.
@@ -7932,14 +7932,14 @@ it (`cXNyPTE`, base64 of `qsr=1`), never the video. The title loses a site's tra
 `register.rs` used to start `reg.exe` for every key it wrote, removed or asked about (each launch's
 check, `--register`, Options › Browser's four questions as the page opens) and `firewall.rs` for
 its reading of the rules; its note said "no registry crate and no `unsafe` for six keys". The
-count grew past twenty lists, each a program started, so `dm_shell::registry` now carries out the
+count grew past twenty lists, each a program started, so `edm_shell::registry` now carries out the
 same lists through `windows-sys`'s registry calls (`RegCreateKeyExW`, `RegSetValueExW`,
 `RegDeleteTreeW`, `RegDeleteValueW`, `RegOpenKeyExW`, `RegQueryValueExW`, `RegEnumValueW`), no
-crate added (`windows-sys` was already dm-shell's).
+crate added (`windows-sys` was already edm-shell's).
 
 * **The lists stay `reg.exe`'s words.** `register` still builds `add … /v … /t REG_SZ /d … /f`
   and its tests read those lists on every system; `registry::parse` turns one into a `Call`, and
-  only `registry::run` (Windows) touches the registry. A list dm does not write (another type
+  only `registry::run` (Windows) touches the registry. A list EDM does not write (another type
   than `REG_SZ`, a root other than `HKCU` or `HKLM`, an unknown flag) is refused in words.
 * **`export` and `import` stay `reg.exe`'s.** The copy kept of another program's magnet or
   `.torrent` key is a `.reg` file a person can open or double-click; writing and reading that
@@ -7949,8 +7949,8 @@ crate added (`windows-sys` was already dm-shell's).
 ## A sound language, one for every kind of stream (2026-11-19, gaps row Y10)
 
 A video offered in several languages kept only its own sound: YouTube's original, HLS's
-`DEFAULT` rendition, DASH's `main` set. `dm_core::sound_language` now holds one language asked
-for, process-wide like Identify as dm (`set_sound_language`, from the setting `sound_language` in
+`DEFAULT` rendition, DASH's `main` set. `edm_core::sound_language` now holds one language asked
+for, process-wide like Identify as EDM (`set_sound_language`, from the setting `sound_language` in
 `shell::engine_wide`, at the start and at each change), and each reader asks it as it picks:
 
 * **Matched by its parts, in order.** `es` is spoken by `es`, `es-US` and `es_419`; `pt-BR` by
@@ -8002,7 +8002,7 @@ with the free space where the joined file is written, before the join:
 * **What was fetched is kept.** The refusal comes before the join touches anything; Retry after
   room is made joins the tracks already there.
 * **HLS keeps its `.ts`.** A stream with no room for its MP4 is saved as the gathered transport
-  stream, as one dm cannot remux is: a stream that plays beats none.
+  stream, as one EDM cannot remux is: a stream that plays beats none.
 * **Free space alone,** not the claims other downloads hold (`Room`): their claims are for bytes
   still to come, and a join a moment away is not held back for them. Where the free space cannot
   be read, nothing is refused.
@@ -8017,7 +8017,7 @@ tests and manifest (`migration_words`).
 
 * **Whole words.** A line is split at anything but a letter or digit, so `egui_extras` and a
   test named `…_egui_…` are found, and `VTDecompressionSessionDecodeFrame` or the installer's
-  NSIS step `dmReplaceEguiWindow` (which takes away the older `dm-desktop.exe`) are not: that
+  NSIS step `dmReplaceEguiWindow` (which takes away the older `edm-desktop.exe`) are not: that
   step is still needed on a computer that has the older program, and its name is not a comment.
 * **xtask is not read.** Its list of window crates names `egui` and `eframe` to refuse them as
   dependencies.
@@ -8027,7 +8027,7 @@ tests and manifest (`migration_words`).
 ## Newcomer pages not written (2026-11-19, gaps row D5)
 
 The maintainer, 2026-11-19: "D5 new comer dev page is not needed". The row (a download's whole
-way, how to add a site rule, an Options field or a dialog, the control port's methods, dm's home
+way, how to add a site rule, an Options field or a dialog, the control port's methods, EDM's home
 files, the environment switches as pages under `docs/`) is closed without them; `AGENTS.md`'s
 glossary stays as it is.
 
@@ -8036,11 +8036,11 @@ dev page remove it". Closed with D5: D6 (`docs/decisions.md` split into files, a
 X3 (a table of which test runs on which system in `docs/testing.md`) and X6 (`docs/platforms.md`).
 Rows whose only result is a page for developers are not taken up.
 
-## dm-desktop-base in three folders; one Mode (2026-11-19, gaps row A5)
+## edm-desktop-base in three folders; one Mode (2026-11-19, gaps row A5)
 
 The crate's 48 modules are in `platform/` (the system's services), `view/` (dialog models and
-words with no toolkit) and `run/` (the ways dm runs); the folder modules are private and `lib.rs`
-re-exports each module, so every `dm_desktop_base::x` path stays and no other crate changed.
+words with no toolkit) and `run/` (the ways EDM runs); the folder modules are private and `lib.rs`
+re-exports each module, so every `edm_desktop_base::x` path stays and no other crate changed.
 The binary's modes are one `run::modes::Mode`, parsed in the order the two if-chains took them
 (`--headless` last, after the check for a mistyped flag, where `main.rs` took it); it replaces
 `modes::without_window` and `main.rs`'s own branching. The migration's `--accessibility`,
@@ -8065,13 +8065,13 @@ subtitles off, or none listed, every path runs as before.
 ## A format number in each saved object, not in the lists (2026-11-19, gaps row A8)
 
 `settings.json`, the Options export, `going.json`, `extension.json`, `plan.json` and `window.json`
-carry `"format": 1` (`dm_core::saved::Stamped`); a file without one reads as format 0, one with a
-higher number is read as far as this dm knows its fields (none of them refuses unknown fields).
+carry `"format": 1` (`edm_core::saved::Stamped`); a file without one reads as format 0, one with a
+higher number is read as far as this EDM knows its fields (none of them refuses unknown fields).
 `queue.json`, `secrets.json` and `formats.cache.json` stay bare JSON lists, which can hold no
-field: written as an object they would be set aside as unreadable by any dm before this one, and a
+field: written as an object they would be set aside as unreadable by any EDM before this one, and a
 downgrade would open on an empty list. The queue's number is in its journal's first line instead.
 Reading takes a list or an object (`rows_from_slice`), so a file written either way reads. Every
-name dm keeps in its home is in `dm_core::paths`, once.
+name EDM keeps in its home is in `edm_core::paths`, once.
 
 ## The HLS remux reads its segments, and frees them only when it must (2026-11-19, gaps row Y21)
 
@@ -8119,7 +8119,7 @@ Both take the read's request (its address with `bpctr` and `has_verified`, `PAGE
 
 ## An HLS rendition with no audio group takes the master's sound when its codecs are a picture's alone (2026-11-20, gaps row 205)
 
-As a browser's player does. A rendition with no CODECS, with a sound codec among them, or with a codec dm does not know is left as before (an unknown codec may be a sound). Where that pair cannot be joined the download is refused, as a grouped pair is, not saved silent.
+As a browser's player does. A rendition with no CODECS, with a sound codec among them, or with a codec EDM does not know is left as before (an unknown codec may be a sound). Where that pair cannot be joined the download is refused, as a grouped pair is, not saved silent.
 
 ## The row menu is the system's menu (2026-11-20, gaps row U27)
 
@@ -8127,23 +8127,23 @@ Built as the title menus are, a `gpui::Menu` shown as a `NativeMenu`. "Delete fi
 
 ## One file chooser and one clipboard path in the window (2026-11-20, gaps row P6)
 
-The chooser is `services::ask` (dm's own panels on macOS, rfd's async ones elsewhere): GPUI's `prompt_for_paths` takes neither file kinds nor a starting folder. The clipboard of dm's own code is arboard, through `Platform::clipboard` and `set_clipboard`: GPUI's needs the window's thread, the watch reads every second off it, and on Windows GPUI's read copies and hashes any picture on the clipboard. The text fields keep gpui-component's clipboard, inside the toolkit. `tray-icon` (with `muda`) and `notify-rust` stay as plumbing GPUI lacks. Known cost: on Wayland with no XWayland arboard cannot copy (row 218).
+The chooser is `services::ask` (EDM's own panels on macOS, rfd's async ones elsewhere): GPUI's `prompt_for_paths` takes neither file kinds nor a starting folder. The clipboard of EDM's own code is arboard, through `Platform::clipboard` and `set_clipboard`: GPUI's needs the window's thread, the watch reads every second off it, and on Windows GPUI's read copies and hashes any picture on the clipboard. The text fields keep gpui-component's clipboard, inside the toolkit. `tray-icon` (with `muda`) and `notify-rust` stay as plumbing GPUI lacks. Known cost: on Wayland with no XWayland arboard cannot copy (row 218).
 
 ## Copies through GPUI's clipboard on Wayland (2026-11-20, gaps row 218)
 
-On Linux under Wayland (`WAYLAND_DISPLAY` set) dm's own copies go through GPUI's clipboard on the window's thread, decided by `Platform::copies_through_window`; elsewhere, and in the window tests' fake, through arboard. arboard's `wayland-data-control` was not taken: it needs `wl-clipboard-rs`, not in the lock, and GNOME's compositor offers no data-control protocol.
+On Linux under Wayland (`WAYLAND_DISPLAY` set) EDM's own copies go through GPUI's clipboard on the window's thread, decided by `Platform::copies_through_window`; elsewhere, and in the window tests' fake, through arboard. arboard's `wayland-data-control` was not taken: it needs `wl-clipboard-rs`, not in the lock, and GNOME's compositor offers no data-control protocol.
 
-## dm's own clock in place of chrono (2026-11-20, gaps row 215)
+## EDM's own clock in place of chrono (2026-11-20, gaps row 215)
 
-`dm_net::clock` (dm-net is the lowest crate the four share; dm-core re-exports it) with no new crate: libc on Unix, windows-sys (its `Win32_System_Time` feature) on Windows. Unix: `localtime_r`'s `tm_gmtoff`, `tzset` declared by hand and called at most once a second, as chrono looks again (glibc would keep the first zone for the process). Windows: `GetTimeZoneInformationForYear` and `SystemTimeToTzSpecificLocalTime`, so an old date gets its year's rules, as chrono gave; outside 1601 to 30827 the local time is None (chrono clamped). The parsers copy chrono 0.4.45's grammar item by item (2- and 3-digit years, named and military zones, nested comments, the offset's colon in RFC 3339, signed years and leading space in `%` patterns), so every date read before reads the same. `time` and `jiff` were looked at and not taken (row 215's note of 2026-11-19).
+`edm_net::clock` (edm-net is the lowest crate the four share; edm-core re-exports it) with no new crate: libc on Unix, windows-sys (its `Win32_System_Time` feature) on Windows. Unix: `localtime_r`'s `tm_gmtoff`, `tzset` declared by hand and called at most once a second, as chrono looks again (glibc would keep the first zone for the process). Windows: `GetTimeZoneInformationForYear` and `SystemTimeToTzSpecificLocalTime`, so an old date gets its year's rules, as chrono gave; outside 1601 to 30827 the local time is None (chrono clamped). The parsers copy chrono 0.4.45's grammar item by item (2- and 3-digit years, named and military zones, nested comments, the offset's colon in RFC 3339, signed years and leading space in `%` patterns), so every date read before reads the same. `time` and `jiff` were looked at and not taken (row 215's note of 2026-11-19).
 
 ## Extra trusted roots once, before the first TLS config (2026-11-20, gaps row 217)
 
-`DM_BENCH_CA` is read by dm-core (dm-net reads no `DM_` switch, the layers rule) at `boot::start`, before `share_one_client` builds the first client, and handed to `dm_net::trust::trust_also`, which refuses once the cached config exists rather than rebuild it. It works in release builds because the benchmark measures them; whether a shipped dm should honour it is left to the security review.
+`EDM_BENCH_CA` is read by edm-core (edm-net reads no `EDM_` switch, the layers rule) at `boot::start`, before `share_one_client` builds the first client, and handed to `edm_net::trust::trust_also`, which refuses once the cached config exists rather than rebuild it. It works in release builds because the benchmark measures them; whether a shipped EDM should honour it is left to the security review.
 
 ## Download notes named (2026-11-20)
 
-`dm_core::download::notes` names each note (`PARTS_LEFT_OUT`, `UNPACKED`, …) and builds `NOTES` from them in the same order; no `NOTES[n]` index is left in the code, as one once sent the wrong sentence (07c56e68).
+`edm_core::download::notes` names each note (`PARTS_LEFT_OUT`, `UNPACKED`, …) and builds `NOTES` from them in the same order; no `NOTES[n]` index is left in the code, as one once sent the wrong sentence (07c56e68).
 
 ## A premiere's wait is a row note, not a hold (2026-11-20, gaps row Y5)
 
@@ -8153,54 +8153,54 @@ W11's hold is for the whole queue and pauses rows; a premiere is one running dow
 
 A transport stream cannot be cleared in place, so its locks are written to `track{n}.locks` beside the gathered track, before it is named, and the join clears it; a fragmented MP4 is cleared in place before it is named. A gathered track found after a stop is so always either cleared or has its locks.
 
-## YouTube's framed stream: dm's own reader, no token (2026-11-20, gaps row Y2)
+## YouTube's framed stream: EDM's own reader, no token (2026-11-20, gaps row Y2)
 
-The protobuf and UMP readers are dm's own. A framed format is used only where nothing with an address gives its quality, and an answer whose formats are all framed only after every other client was asked; a framed stream that fails falls back to the formats with addresses. No proof-of-origin token is minted (a decision of its own, not taken): where the stream asks one, dm says so. The message field numbers are from the protocol's published descriptions and unchecked against the service until a live run.
+The protobuf and UMP readers are EDM's own. A framed format is used only where nothing with an address gives its quality, and an answer whose formats are all framed only after every other client was asked; a framed stream that fails falls back to the formats with addresses. No proof-of-origin token is minted (a decision of its own, not taken): where the stream asks one, EDM says so. The message field numbers are from the protocol's published descriptions and unchecked against the service until a live run.
 
 A live broadcast is recorded through it only where its player names no HLS playlist (the playlist is the live stream's address, taken first as a format with an address is). The recording starts at the broadcast's head, as a live HLS recording starts at the last segments its playlist lists, not at the start of what can be played back. No end of the stream itself is known from the published descriptions, so it ends when the broadcast has stood still a few pieces' length and reading the video again finds it no longer live through the framed stream; a stop keeps what was recorded, as for HLS (2026-11-20).
 
-## macOS's row menu is an NSMenu of dm's own, gpui-component not vendored (2026-11-20, gaps row U27)
+## macOS's row menu is an NSMenu of EDM's own, gpui-component not vendored (2026-11-20, gaps row U27)
 
 NativeMenu (gpui-component 0.9.1) has no key equivalent, and vendoring the whole crate (4.4 MB) for one field was judged too heavy. On macOS the row menu alone is built by `platform/popmenu.rs` from the same `gpui::Menu`, its keys looked up as the drawn menu does and set as GPUI's menu bar sets them, popped up and dispatched as NativeMenu does. The title menus and toolbar arrows stay on NativeMenu and show no keys on macOS.
 
-## A slow name in the benchmark through dm's own question for `.test` names (2026-11-20, gaps row W2)
+## A slow name in the benchmark through EDM's own question for `.test` names (2026-11-20, gaps row W2)
 
-dm could not be pointed at a DNS server, and the hosts file needs an administrator. `DM_BENCH_DNS` makes dm ask a named server for names under `.test` alone (reserved for testing, so no real name is ever sent there), and every other name of the system as before. Reference A asks the system, so it joins the case only where a person has pointed the system at the harness's server. Like `DM_BENCH_CA`, the switch is read in release builds: on the security review's list.
+EDM could not be pointed at a DNS server, and the hosts file needs an administrator. `EDM_BENCH_DNS` makes EDM ask a named server for names under `.test` alone (reserved for testing, so no real name is ever sent there), and every other name of the system as before. Reference A asks the system, so it joins the case only where a person has pointed the system at the harness's server. Like `EDM_BENCH_CA`, the switch is read in release builds: on the security review's list.
 
 ## A playlist refused with a 403 is asked again (2026-11-20, issue #45)
 
 Dailymotion's CDN refuses about one ask in ten of a master playlist with an empty 403 and serves the next. A 403 on a playlist, and on the probe of a playlist's address, is asked twice more, 1 s then 2 s on; the extension asks once more. A playlist re-signed under the same path, query names and itag, id or mime is one panel line at its newest address, the rule `RequestHeaders::renewed` already follows at hand-off. The site checks close a sign-in dialog over a player before judging the panel, as a person would, and name a wall a wall.
 
 
-## dm on Android: Jetpack Compose over the Rust engine through UniFFI (2026-11-20, gaps row N1)
+## EDM on Android: Jetpack Compose over the Rust engine through UniFFI (2026-11-20, gaps row N1)
 
 At the maintainer's word of 2026-11-20 ("yes go ahead with compose and uniffi"). The phone app
 is a Gradle project in `mobile/android/`, its window written in Jetpack Compose (Kotlin), Android
 8.0 (API 26) and up. The engine is the desktop's, unchanged in what it does: one `cdylib`,
-`crates/dm-android`, over `dm_shell::app::backend::Backend` (the same rules the desktop's
+`crates/edm-android`, over `edm_shell::app::backend::Backend` (the same rules the desktop's
 window and the headless run follow), bound to Kotlin with UniFFI's proc macros; the bindings are
-generated from the built library (`cargo run -p dm-android --features bindgen --bin
+generated from the built library (`cargo run -p edm-android --features bindgen --bin
 uniffi-bindgen`), never written by hand or checked in. What the phone does for the engine
 (notifications, the clipboard, opening a file) comes back through one foreign trait,
-`AndroidSystem`, which `dm-android` turns into dm-shell's `Platform`. Settings cross as the JSON
-dm already saves them as, so every Options line exists on the phone without a second copy of
+`AndroidSystem`, which `edm-android` turns into edm-shell's `Platform`. Settings cross as the JSON
+EDM already saves them as, so every Options line exists on the phone without a second copy of
 each. The features are the desktop's in a phone's shape (a list, a details sheet, Options as one
 scrolling page), not the desktop's window shrunk. Goal 3 of the audit of 2026-11-11 now reads
 "GPUI the only window toolkit on desktop". Dropped: GPUI on Android (no backend), a Rust UI
 toolkit on Android (no share sheet, notifications or storage pickers first-hand), hand-written
 JNI (every call written twice).
 
-## On Android the app hands dm its folders and its store for secrets (2026-11-20, gaps rows N2, N11)
+## On Android the app hands EDM its folders and its store for secrets (2026-11-20, gaps rows N2, N11)
 
 A phone names no home or Downloads folder to a library (`dirs` finds neither) and has no
-keyring a library can reach. So `dm-android` hands both in before the engine starts:
-`dm_core::folders::set_phone_folders` (the app's files folder, the folder new downloads go to;
+keyring a library can reach. So `edm-android` hands both in before the engine starts:
+`edm_core::folders::set_phone_folders` (the app's files folder, the folder new downloads go to;
 `home`, `downloads` and `local_data` answer with them, or `None`, never a relative path), and
-later, through `AndroidSystem`, `dm_core::secretstore::set_android_store` (a store over the
+later, through `AndroidSystem`, `edm_core::secretstore::set_android_store` (a store over the
 Android Keystore). Until a store is handed in, the file of secrets is kept in clear in the app's
 own folder, as on a desktop without a store. Dropped: a key in a file beside the secrets (0600
-in dm's home), which protects nothing the app's private folder does not; a default download
-folder of `<Downloads>/dm` on the phone, where the app's folder is dm's own already. What a
+in EDM's home), which protects nothing the app's private folder does not; a default download
+folder of `<Downloads>/EDM` on the phone, where the app's folder is EDM's own already. What a
 phone cannot do from the engine (open a file, show its folder) is said in words
 (`shell/opener/android.rs`); the app does it through `Platform`. Everything else takes Linux's
 answer or the fallback's, unchanged on the desktop. CI checks the build for arm64-v8a and x86_64
@@ -8212,7 +8212,7 @@ Read from the source of `gpui-pre` 0.3.12 and its platform crates (not yet run o
 GPUI's core takes glyphs in visual order with byte indices that may run backwards
 (`line_layout.rs` wraps right-to-left runs and tests it, `line.rs` splits lines whose glyphs
 are out of byte order); it has `text_right()` and `flex_row_reverse()`, so a mirrored window is
-a matter of dm's layout code. Each platform's text system decides the rest:
+a matter of EDM's layout code. Each platform's text system decides the rest:
 
 * macOS (`gpui-pre-apple`, CoreText): `CTLine` shapes (Arabic joining, Hebrew), runs the
   bidirectional algorithm with the paragraph's direction from its first strong letter, and GPUI
@@ -8229,8 +8229,8 @@ a matter of dm's layout code. Each platform's text system decides the rest:
   other two take the first strong letter.
 
 So the Arabic and Hebrew catalogs and the mirrored window waited for it (coded since: the
-next entry): Windows is dm's first platform, and a window drawn backwards there is worse than
-none. The fix is a patch to dm's vendored copy
+next entry): Windows is EDM's first platform, and a window drawn backwards there is worse than
+none. The fix is a patch to EDM's vendored copy
 (`direct_write.rs`, about sixty lines, no new dependency): in `DrawGlyphRun`, place a run at
 `baselineOriginX` and, for an odd `bidiLevel`, from the right edge leftward, pushing its glyphs
 in visual order; give the tab glyphs the hit-tested x; after `Draw`, sort the runs by x and take
@@ -8256,9 +8256,9 @@ builds and tests); waiting for the maintainer's word on the contract row and pic
   with no right-to-left run is placed exactly as upstream placed it. Upstream's tab test held
   "אב" to left-to-right places; those three strings are left out of it. Android's window draws
   through gpui-pre-wgpu's cosmic-text, as Linux, so it reads right to left without the patch.
-* **The direction** is one question, `dm_desktop_base::i18n::direction()` (Arabic and Hebrew
+* **The direction** is one question, `edm_desktop_base::i18n::direction()` (Arabic and Hebrew
   right to left, every other language left to right), asked by the main window through
-  `dm-gpui` `window/mirror.rs`: `row()` reverses a flex row, `rtl()` picks a left edge for a
+  `edm-gpui` `window/mirror.rs`: `row()` reverses a flex row, `rtl()` picks a left edge for a
   right one. Every change is under it, so a left-to-right window builds the same elements with
   the same styles. Mirrored: the side panel (on the right, its border and dragged edge on its
   left), the toolbar, the table's headings and rows (Name the rightmost column, figures against
@@ -8275,12 +8275,12 @@ builds and tests); waiting for the maintainer's word on the contract row and pic
   Options › General in every language, part of the change waiting for the maintainer's word.
   The extension's `_locales` have no Arabic or Hebrew yet.
 
-## On Android dm's secrets are files sealed by a Keystore key, through JNI (2026-11-20, gaps row N11)
+## On Android EDM's secrets are files sealed by a Keystore key, through JNI (2026-11-20, gaps row N11)
 
 What `secretstore` keeps in a system store is a value of its choosing by name (on every system
 today the 32-byte key that seals `secrets.json`). The Android Keystore keeps keys, not values: a
 key made in it can be used but not read back, and there is no call to put arbitrary bytes in it.
-So `dm-android` makes one AES-256-GCM key in `AndroidKeyStore` under the alias `dm-secrets`
+So `edm-android` makes one AES-256-GCM key in `AndroidKeyStore` under the alias `edm-secrets`
 (`KeyGenerator` with a `KeyGenParameterSpec` for encrypting and decrypting, GCM, no padding),
 once, under a lock so two first secrets do not each make one, and keeps each value as a file of
 its own, `<home>/secrets/<name>.sealed` (0600, folder 0700, written beside and renamed over):
@@ -8290,7 +8290,7 @@ open. A name is turned into a file name byte by byte (letters, digits, `-`, `_`,
 are, every other byte `%XX`), so no two names share a file and none leaves the folder. `get`
 of a missing file is `None` without touching the Keystore; a file whose key is gone (data
 restored to another phone) is an error, which `secretstore` already answers. All of it is JNI
-from Rust (`android/keystore.rs`), no Java or Kotlin of dm's; the file format is plain code
+from Rust (`android/keystore.rs`), no Java or Kotlin of EDM's; the file format is plain code
 (`sealed.rs`) tested on the computer with a stand-in sealer. Handed in by `folders` in
 `android.rs` before the engine reads its settings. This replaces the "Kotlin over the Keystore"
 of the entry above. Dropped: the value itself as a Keystore entry (`SecretKeyEntry` imported from
@@ -8298,59 +8298,59 @@ the 32 bytes: an imported key is usable but its bytes are not given back, which 
 `EncryptedSharedPreferences` (a Jetpack library, Java, and deprecated); a key in clear beside the
 file (protects nothing the app's folder does not).
 
-## dm on Android in Rust alone: Slint screens over the shared code (2026-11-20, gaps row N1 again)
+## EDM on Android in Rust alone: Slint screens over the shared code (2026-11-20, gaps row N1 again)
 
 At the maintainer's word of 2026-11-20 ("use rust only and build android app. it should be same
 for all platform. the code should be shared"), asked which of two: "Share all but screens". This
 replaces the entry above of the same day (Compose and UniFFI), whose Kotlin app was removed
 unbuilt. The desktop keeps GPUI, unchanged; the phone's screens are Rust, drawn with Slint (it
 runs on Android through `android-activity` and on the desktop, so the phone's screens can be
-run and tested on a laptop as a window of a phone's size; GPL-3.0, as dm). Everything under the
-screens is one code for every system: the engine, the application's rules (`dm-shell`'s
+run and tested on a laptop as a window of a phone's size; GPL-3.0, as EDM). Everything under the
+screens is one code for every system: the engine, the application's rules (`edm-shell`'s
 `Backend`), and the toolkit-free view code that turns rows, sizes, speeds, dates and Options into
-words (`dm-desktop-base`'s `view`, moved into a crate of its own, `dm-view`, so the phone links it
+words (`edm-desktop-base`'s `view`, moved into a crate of its own, `edm-view`, so the phone links it
 without the desktop's system crates). What only the phone has (the link a share hands over,
 notifications, opening a file, the Keystore) is reached from Rust through JNI. Dropped: Kotlin
 and Compose (not Rust), UniFFI (nothing to bind when both sides are Rust), egui (left on the
 desktop on 2026-11-13), GPUI on Android (no backend), one UI for desktop and phone (it would
 rewrite the desktop's window against the behaviour contract).
 
-## dm on Android with GPUI: one window for every system (2026-11-20, gaps row N1, third time)
+## EDM on Android with GPUI: one window for every system (2026-11-20, gaps row N1, third time)
 
 At the maintainer's word of 2026-11-20, after the Slint plan above: "UI should be share. like we
 minimize the desktop it becomes mobile view. so that we do not need separate UI", then, asked
 whether to move the desktop to Slint: "I want to do in GPUI. use GPUI and build the andorid as
-well". So the phone runs dm-gpui itself: one window code, which lays itself out as the desktop
-does at a desktop's width and as a phone's screen when narrow. GPUI has no Android platform; dm
+well". So the phone runs edm-gpui itself: one window code, which lays itself out as the desktop
+does at a desktop's width and as a phone's screen when narrow. GPUI has no Android platform; EDM
 writes one (row N16), as it already carries its own Linux and Windows copies: GPUI draws through
 `gpui_wgpu` (wgpu speaks Vulkan and GLES on Android) and shapes text with cosmic-text (which
 reads `/system/fonts`), so the new part is the platform layer: the window from
 `android-activity`, touch as pointer events, the soft keyboard, density, and the surface lost
-and made again across pause and resume. Slint and the `dm-view` move (row N15) are dropped; the
+and made again across pause and resume. Slint and the `edm-view` move (row N15) are dropped; the
 JNI modules written for the Slint shell (the share's intent, notifications, opening a file, the
 wake lock) are kept for the phone's platform code. The risk, said to the maintainer: no GPUI
 program has shipped on Android; the platform layer is new ground. At the maintainer's word of 2026-11-20, "use gpui-mobile.", its Java and Gradle are taken as
 gpui-mobile has them (`GpuiInputActivity` for the soft keyboard, `GpuiPathPicker`, a cargo-ndk
 and Gradle build); no other Java (N6's service, `onNewIntent`, notification buttons) without a
 word of its own. gpui-android is a stand-in, at the maintainer's word of 2026-11-20 ("when offical come we will
-shift but for now use gpui-mobile"): when Zed ships an official GPUI Android platform, dm moves
+shift but for now use gpui-mobile"): when Zed ships an official GPUI Android platform, EDM moves
 to it and removes the copy (docs/gaps.md, Periodic).
 
 ## A torrent follows the computer's network; sharing waits out a hold (2026-11-20, gaps row N8)
 
 A phone moves between Wi-Fi and mobile data, and a laptop between networks, coming back with
-another address. dm-core already noticed one network only: the adapter downloads are held to
+another address. edm-core already noticed one network only: the adapter downloads are held to
 (`only_through::generation`, row W12), and torrents refuse to start while one is chosen. So
-dm-net's `only_through::moves` (dm-core's `network_moves`) now counts every change of the
+edm-net's `only_through::moves` (edm-core's `network_moves`) now counts every change of the
 computer's addresses, looked at at most every two seconds from the same adapter list, plus a
-change the system reports first (`dm_core::network_changed`, for the phone's connectivity
+change the system reports first (`edm_core::network_changed`, for the phone's connectivity
 callback) and W12's generation. A running torrent, downloading or kept shared, that sees it
-change announces itself again: dm-torrent's `Session::reannounce` pauses and resumes it through
+change announces itself again: edm-torrent's `Session::reannounce` pauses and resumes it through
 librqbit's public `Session::pause`/`unpause`, which drops the peers reached from the old address
 and asks the trackers, the DHT and local discovery again from the new one; pieces and files are
 kept, nothing checked again. No socket is bound again and librqbit is not patched: the listener
 and the DHT bind every address (`[::]:0`, `0.0.0.0`), so they take peers on the new one as they
-are. librqbit counts what it sent from each start, so dm-torrent carries the count across its
+are. librqbit counts what it sent from each start, so edm-torrent carries the count across its
 pauses (a share's ratio would start again). On the desktop this is a behaviour change: a laptop
 changing network gets its torrent's peers back without waiting for the tracker's interval.
 
@@ -8359,7 +8359,7 @@ finished torrent's sharing, which runs outside the rows, went on sending. Held w
 paused within a tick, its minutes not counted while held, announced afresh when the hold ends.
 Also a desktop change (B76's words name downloads only), flagged in row N8 for the maintainer.
 
-## A copy across drives stops on a Cancel; what dm read and did not write is counted (2026-11-20, gaps rows 185 and 186)
+## A copy across drives stops on a Cancel; what EDM read and did not write is counted (2026-11-20, gaps rows 185 and 186)
 
 Coded on the Windows laptop, not compiled (the Mac builds and tests).
 
@@ -8369,97 +8369,97 @@ one call. It now looks at the download's control between pieces, as the join of 
 does (`download/assemble/across.rs`). On Windows the copy is still `CopyFileEx`, the one row 166
 measured, called as `std::fs::copy` calls it but with a progress routine that cancels it on a
 Cancel (the system removes the file it had begun): the speed is the system's, and nothing of
-dm's own is put in its place unmeasured. Elsewhere it is the join's own loop, 32 MiB a piece
+EDM's own is put in its place unmeasured. Elsewhere it is the join's own loop, 32 MiB a piece
 (`copy_pieces`): on Linux each piece is the kernel's `copy_file_range`, which `std::fs::copy`
 used too; on macOS a clone cannot cross drives, so `fcopyfile` read and wrote through a buffer
 as the loop does (4 MiB). Not done: `fcopyfile` kept on macOS with its own progress callback,
 foreign-function code that could not even be type-checked on this laptop, for a copy that only
-happens when dm's home and the download folder are on two drives of a Mac. A pause still lets
+happens when EDM's home and the download folder are on two drives of a Mac. A pause still lets
 the copy finish, as it does the join and the digest.
 
 **Counted: what the ranges read and did not write** (row 186, `download/unwritten.rs`). Each
 attempt counts what it takes off its answer and, at its end, what of that it did not write, less
 what it reads on into the next range: the lead set aside for the seam's check, what came past a
 range's end, a chunk in hand at a stop. A resume's tail check counts the bytes that agreed. It
-is one count for the whole process (`dm_core::read_not_written`), not one per download: a field
+is one count for the whole process (`edm_core::read_not_written`), not one per download: a field
 on `Job` would have grown `fetch.rs`, already past the size gate's 800 lines, and the test that
 needs it (`tests/shutdown.rs`) is alone in its process. Per download, each attempt that counts
-any says so in the finish trace (`DM_FINISH_TRACE`), with its range. Not counted: the seams'
+any says so in the finish trace (`EDM_FINISH_TRACE`), with its range. Not counted: the seams'
 own checks, which are requests of their own and asked twice by design. The test prints the
 count beside its server's and holds it to nothing yet: whether the row's 16 KiB a connection is
-dm's to meet is decided from what it prints.
+EDM's to meet is decided from what it prints.
 
-## On Android 10 and up dm downloads into its own folder and publishes each finished file (2026-11-20, gaps row N9)
+## On Android 10 and up EDM downloads into its own folder and publishes each finished file (2026-11-20, gaps row N9)
 
-Android 10 (API 29) and up let no app write the shared Download folder by path. dm's engine
+Android 10 (API 29) and up let no app write the shared Download folder by path. EDM's engine
 writes by path everywhere (segments at offsets, resume from the parts it staged, renames, the
-file it hands back), so rather than teach it file descriptors, dm downloads on those phones into
-its own folder on the shared storage, `getExternalFilesDir(DIRECTORY_DOWNLOADS)/dm`, which it
-writes by path, and puts each finished file in `Download/dm` through `MediaStore.Downloads`:
-inserted with `RELATIVE_PATH` `Download/dm` (a category's sub-folder kept) and `IS_PENDING` 1,
-its bytes copied in chunks through the descriptor the store lends, `IS_PENDING` 0, then dm's copy
+file it hands back), so rather than teach it file descriptors, EDM downloads on those phones into
+its own folder on the shared storage, `getExternalFilesDir(DIRECTORY_DOWNLOADS)/EDM`, which it
+writes by path, and puts each finished file in `Download/EDM` through `MediaStore.Downloads`:
+inserted with `RELATIVE_PATH` `Download/EDM` (a category's sub-folder kept) and `IS_PENDING` 1,
+its bytes copied in chunks through the descriptor the store lends, `IS_PENDING` 0, then EDM's copy
 removed. On Android 8 and 9 the shared folder is written by path with the storage permission, as
-before, and a file finished in dm's own folder there (the permission not yet granted) is moved
-across by path. The seam is the phone's `PhoneServices::publish` (`dm_desktop_base::phone`, by
+before, and a file finished in EDM's own folder there (the permission not yet granted) is moved
+across by path. The seam is the phone's `PhoneServices::publish` (`edm_desktop_base::phone`, by
 default every file left where it is; the desktop never hands a phone in), which `set_phone`
-hands the engine on Android as `dm_core::folders::set_publisher`, a hook asked by the queue as a run finishes (`queue/runner/finish.rs`, on
+hands the engine on Android as `edm_core::folders::set_publisher`, a hook asked by the queue as a run finishes (`queue/runner/finish.rs`, on
 Android alone, on a blocking thread), before the row says Completed, so the row's `path`, its
 notification and an open-when-done all name the published file; that path is the store's
 `_data` (a real path, which `open.rs` turns into the file's `content://` address as before). A
-file that cannot be published (no room for the copy, the store refusing) stays whole in dm's
+file that cannot be published (no room for the copy, the store refusing) stays whole in EDM's
 folder, the row Completed there, and the person is told why. Torrents are not published: a
-torrent being seeded reads its files where librqbit has them, so they stay in dm's folder (said
+torrent being seeded reads its files where librqbit has them, so they stay in EDM's folder (said
 in row N9; publishing when seeding stops is owed). Dropped: publishing from the window's session
 (`Effect::Finished`, above the engine, where the row is already Completed with its old path and
 its notification already sent); handing the engine a descriptor for every write (N9's first plan,
 which touches every writer in the engine); `requestLegacyExternalStorage` (Android 10 alone, and
 ignored from 11). The storage picker (SAF) for a folder of the person's own is owed.
 
-## On Android the window's choosers are GPUI's file prompt and dm's own folders (2026-11-20, gaps row N9)
+## On Android the window's choosers are GPUI's file prompt and EDM's own folders (2026-11-20, gaps row N9)
 
-dm-gpui asks every file and folder through `platform::services::ask` (and `ask_then`,
+edm-gpui asks every file and folder through `platform::services::ask` (and `ask_then`,
 `ask_then_in`); on a computer that is the system's own panel, unchanged. On a phone those used
-to answer as if cancelled (`can_choose_folder` false), so Browse…, Import, Export, Back up dm,
+to answer as if cancelled (`can_choose_folder` false), so Browse…, Import, Export, Back up EDM,
 Restore and Options' Choose… fell back to typing a path, which a phone's scoped storage makes
 meaningless. Now `can_choose_folder` is true on Android and the Android arm
-(`dm-gpui/src/platform/phone.rs`, `ask`) answers each by what dm can do with the answer:
+(`edm-gpui/src/platform/phone.rs`, `ask`) answers each by what EDM can do with the answer:
 
 - **A file to read** (Import a list or a `.torrent`, Restore a backup, Load settings, a cookies
   file, a sound): GPUI's own `prompt_for_paths`. gpui-android answers it with gpui-mobile's
   `GpuiPathPicker` (ACTION_OPEN_DOCUMENT), which copies the document into the app's cache before
-  the URI's grant ends and hands back that copy's path, never a `content://` address; so dm
+  the URI's grant ends and hands back that copy's path, never a `content://` address; so EDM
   reads it as any file and needs no ContentResolver copy of its own. Left: a cookies file or a
   sound kept by path lives in the cache, which Android may clear.
-- **A file to write** (Export, Back up dm, Save settings to a file): gpui-android's
+- **A file to write** (Export, Back up EDM, Save settings to a file): gpui-android's
   `prompt_for_new_path` answers none (no ACTION_CREATE_DOCUMENT), so the file goes to the
-  phone's save folder, the shared `Download/dm` where dm may write there, else the app's own
+  phone's save folder, the shared `Download/EDM` where EDM may write there, else the app's own
   folder on the storage, under the name offered or the first `name (n)` free
-  (`dm_desktop_base::phone::save_place`); the window's existing message ("Exported to …",
+  (`edm_desktop_base::phone::save_place`); the window's existing message ("Exported to …",
   "Saved to …", the backup's) says where. A create-document picker needs Java of its own,
   which waits for the maintainer's word.
 - **A folder to download into** (Browse… for the download folder, a category's, the parts
-  folder, Move/Rename, Save to, Choose another folder…, Extract to): only folders dm can write
-  by path, so a segmented download resumes in them: the shared `Download/dm` and the app's own
-  folder (`PhoneServices::download_folders`, found once at start by `dm-android`'s
-  `android/storage.rs`), offered by name in GPUI's prompt, which says "On a phone dm downloads
+  folder, Move/Rename, Save to, Choose another folder…, Extract to): only folders EDM can write
+  by path, so a segmented download resumes in them: the shared `Download/EDM` and the app's own
+  folder (`PhoneServices::download_folders`, found once at start by `edm-android`'s
+  `android/storage.rs`), offered by name in GPUI's prompt, which says "On a phone EDM downloads
   only into these folders."; not the storage picker's trees, whose URIs are no paths (GPUI's
   picker refuses folders too). The fields stay editable, as on a computer.
 
 What only the phone knows comes through `PhoneServices`' new `download_folders` and
-`save_folder`, which refuse in words by default; dm-gpui calls no JNI. Dropped: writing through
+`save_folder`, which refuse in words by default; edm-gpui calls no JNI. Dropped: writing through
 a SAF URI's output stream (no create-document picker to get one), and a folder tree from SAF as
 a download folder (row N9's own design, on its branch).
 
 **Joined with publishing (2026-11-20, the two N9 branches merged).** One `Storage`
-(`dm-android/src/android/storage.rs`) looks the shared Download folder up once and works out
-`phone::Places` from it (`storage::places`, tested on the host): on Android 10 and up dm
-downloads into its own folder alone (`Android/data/com.dm.android/files/Download/dm`), so
+(`edm-android/src/android/storage.rs`) looks the shared Download folder up once and works out
+`phone::Places` from it (`storage::places`, tested on the host): on Android 10 and up EDM
+downloads into its own folder alone (`Android/data/com.edm.android/files/Download/EDM`), so
 Browse… offers that one, the first start downloads there and each finished file is published to
-`Download/dm` (above); the shared `Download/dm` is offered for downloads only on 8 and 9, where
-dm writes it by path once storage is allowed. A file dm writes for the person (Export, Back up
-dm) still goes to the shared `Download/dm` where the probe file could be written there (8 and 9
-with the permission, 11 and up, which let an app make its own files there by path), else to dm's
-own folder (`Places::save`); Android 10 alone keeps it in dm's own folder, not published.
+`Download/EDM` (above); the shared `Download/EDM` is offered for downloads only on 8 and 9, where
+EDM writes it by path once storage is allowed. A file EDM writes for the person (Export, Back up
+EDM) still goes to the shared `Download/EDM` where the probe file could be written there (8 and 9
+with the permission, 11 and up, which let an app make its own files there by path), else to EDM's
+own folder (`Places::save`); Android 10 alone keeps it in EDM's own folder, not published.
 
 ## A phone's rules are W11's holds (2026-11-20, gaps rows N10, N12)
 
@@ -8467,33 +8467,33 @@ The phone's connection and battery are the computer state W11 already reads: on 
 `metered::System` asks the app's `PhoneServices::network` (read through JNI from
 `ConnectivityManager` and the battery's sticky broadcast, no Java), so mobile data is W11's
 metered hold and a low battery W11's battery hold, under Options' existing lines. The phone's
-own lines (Wi-Fi only, not while roaming, Data Saver) are three more `dm_core::Hold`s on the
+own lines (Wi-Fi only, not while roaming, Data Saver) are three more `edm_core::Hold`s on the
 same path (the schedule's pause, put back by `may_run`), read at the same tick. Dropped: a
 `Platform` callback of the engine's own for these (a second mechanism beside W11's), and
 `AlarmManager` and `BOOT_COMPLETED` for the schedule (N12), which need a receiver class: Java,
 waiting for the maintainer's word with N6's service (since given: the alarm and the phone's
-start came with dm's own Java, below). The three Options lines are built for Android alone and
+start came with EDM's own Java, below). The three Options lines are built for Android alone and
 wait for the maintainer's word on their wording.
 
-## dm's own Java on Android: one small class per feature, each handing its call to Rust (2026-11-20, gaps rows N5, N6, N12)
+## EDM's own Java on Android: one small class per feature, each handing its call to Rust (2026-11-20, gaps rows N5, N6, N12)
 
 The maintainer was asked "Allow one small Java file per feature that just hands its call to
 Rust?" and answered "Yes, all four" (2026-11-20). So four classes join gpui-mobile's two, in
-`crates/dm-android/java/com/dm/android/`, package `com.dm.android`, with dm's licence
-header: `DmActivity` (gpui-mobile's activity with `onNewIntent`, N5), `DmService` (the dataSync
-foreground service, N6), `DmActionReceiver` (a notification's Retry, Stop All and Open, and the
-schedule's alarm; not exported, N6, N12) and `DmBootReceiver` (`BOOT_COMPLETED`, N12). Each does
+`crates/edm-android/java/com/EDM/android/`, package `com.edm.android`, with EDM's licence
+header: `EdmActivity` (gpui-mobile's activity with `onNewIntent`, N5), `EdmService` (the dataSync
+foreground service, N6), `EdmActionReceiver` (a notification's Retry, Stop All and Open, and the
+schedule's alarm; not exported, N6, N12) and `EdmBootReceiver` (`BOOT_COMPLETED`, N12). Each does
 nothing but call a `native` method; what happens is Rust's (`src/android/natives.rs`,
 `service.rs`, `receivers.rs`). The native methods are found by exported name
-(`Java_com_dm_android_<Class>_<method>`), as gpui-android's are, not registered from
+(`Java_com_edm_android_<Class>_<method>`), as gpui-android's are, not registered from
 `jvm::init`: the service and the receivers can run in a process Android started for them alone,
 where `android_main` never ran, so each class loads the library itself and each native method
-keeps the Java machine and a context first. A notification's button reaches dm through its
+keeps the Java machine and a context first. A notification's button reaches EDM through its
 inbox (the path a second launch and the desktop notification's Retry use; Stop All a new
 `stop-all` order that runs what `Command::StopAll` runs), which the engine watches whether or
 not the window is drawn; a channel polled by the window was dropped, since a window in the
-background may not tick. dm-gpui's start needs the activity's window, so neither the phone's
-start nor the schedule's alarm runs dm without it: the alarm holds a running dm up with the
+background may not tick. edm-gpui's start needs the activity's window, so neither the phone's
+start nor the schedule's alarm runs EDM without it: the alarm holds a running EDM up with the
 service, and otherwise, as at the phone's start, a notification asks for a tap.
 
 ## A read works out again only what follows from the rows that changed; the first frame names only what it shows; follows run in the shared tick (2026-11-20, gaps rows 181, S16, W10)
@@ -8523,35 +8523,35 @@ or does changes: the same names, places, counts and order, worked out from less.
   notified, so each needs a key of all it shows. Measure first what the unchanged parts cost.
 - **S16.** Before the first frame only the rows it can show (200, those chosen, those running)
   are named; the rest on the next frame (`on_next_frame`) or before the control port answers.
-  GPUI's application is made while dm boots on a thread of its own; the window is still made
+  GPUI's application is made while EDM boots on a thread of its own; the window is still made
   once the queue is read, as drawing an empty list first would be a change a person sees. The
-  Metal shaders' compilation at launch is a dm-gpui feature (`runtime-shaders`, on by default)
+  Metal shaders' compilation at launch is a edm-gpui feature (`runtime-shaders`, on by default)
   so a Mac with the Metal compiler can build with them compiled ahead.
 - **W10.** The follows' timing and readings moved from the window into the application's tick
-  (`dm_desktop_base::session`, `Effect::Followed`), so `--headless` follows too; each driver adds
+  (`edm_desktop_base::session`, `Effect::Followed`), so `--headless` follows too; each driver adds
   what a reading brought its own way, as the saved searches are.
 
 ## The main window's title says how the downloads go; scripts know it by its ending (2026-11-20, gaps rows U16, U23)
 
-The main window's title was always "dm", and that title was how the QA scripts found the main
-window among dm's: xdotool's `^dm$`, `xwininfo`'s `"dm":`, `human-qa.py`'s `win32_windows(pid)["dm"]`,
+The main window's title was always "EDM", and that title was how the QA scripts found the main
+window among EDM's: xdotool's `^EDM$`, `xwininfo`'s `"EDM":`, `human-qa.py`'s `win32_windows(pid)["EDM"]`,
 KWin's and sway's caption, AT-SPI's frame. So the scripts were taught first: the main window is
-the one titled "dm" or ending " — dm" (`dm_desktop_base::taskbar::is_main_title`), which no
-dialog's title does ("About dm" has no dash; a progress window's ends with its file's name). The
-control port never found it by its title (it holds the window's handle, and names it "dm" as it
+the one titled "EDM" or ending " — EDM" (`edm_desktop_base::taskbar::is_main_title`), which no
+dialog's title does ("About EDM" has no dash; a progress window's ends with its file's name). The
+control port never found it by its title (it holds the window's handle, and names it "EDM" as it
 opens, `screen::open`), and its `ui.windows` now says `main_title` as it stands, so a script can
 check the title itself. Then the title: `taskbar::window_title` from the rows the taskbar's button
-is fed from, "37% · 4.1 MB/s — dm" while downloads run (the whole percentage of the sized ones
+is fed from, "37% · 4.1 MB/s — EDM" while downloads run (the whole percentage of the sized ones
 together, as the Dock's bar; the speeds of all that run, in `format::rate`'s words), a speed alone
-while a size is unknown (as a progress window's title has no percentage then, B46), "dm" while
+while a size is unknown (as a progress window's title has no percentage then, B46), "EDM" while
 nothing runs, paused or failed included. Set only when it changes (`screen::set_title`), which at
 a quarter-second tick is a few times a second while the speed moves. Not behind a switch: no
 contract row names the main window's title, B25's pictures are of a window with nothing running,
 and the row is in step 5, "Features with nothing to ask". Dropped: a title of its own words in the
-catalogs ("{} — dm"); the numbers and the name read the same in every language dm has.
+catalogs ("{} — EDM"); the numbers and the name read the same in every language EDM has.
 
 The screen-reader checks (U23) were extended while the adapters were read: what each system's
-reader can be asked depends on AccessKit's adapter GPUI links, not on dm. Windows' (0.34) gives a
+reader can be asked depends on AccessKit's adapter GPUI links, not on EDM. Windows' (0.34) gives a
 table, data items for rows and cells, a disabled button, a bar's range value, an open or shut
 state and a live region's politeness; a heading's sort only in ARIA's properties, which .NET's UI
 Automation client may not read (the check then says so, not checked). macOS's (0.26) gives no open
@@ -8575,21 +8575,21 @@ to be fetched again. Dropped: fetching DASH's pieces into no track at all and jo
 (a reader over every piece file, freed as read): it saved the gather too, but not for YouTube's
 parts, which arrive whole, and it changed how every DASH piece is kept across a stop.
 
-## DASH takes a picture and sound dm can join (2026-11-20, gaps row Y20)
+## DASH takes a picture and sound EDM can join (2026-11-20, gaps row Y20)
 
 `dash::choose` read heights, bandwidths and languages but not codecs, so MKV asked of a Dolby
 Vision picture or an AC-4 sound, or a VP8 picture beside an AC-4 sound, was fetched whole and
-then failed at the join. Each representation's `codecs` is now read for the files dm writes
+then failed at the join. Each representation's `codecs` is now read for the files EDM writes
 that hold it, and a picture is taken only where a listed sound joins with it into what will be
 made; where nothing listed fits, the best is taken as before and the join says why. A quality
 is passed over for a lower one only where the higher could not have been saved at all.
 
-## Opus decoded by dm's own decoder where the system has none (2026-11-20, gaps row Y25)
+## Opus decoded by EDM's own decoder where the system has none (2026-11-20, gaps row Y25)
 
-macOS's AudioToolbox reads no WebM and Linux has no Opus decoder dm calls, so a video's Opus
-sound could not be made into an MP3 there. Row Y25 offered a decoder of dm's own (RFC 6716) or a
+macOS's AudioToolbox reads no WebM and Linux has no Opus decoder EDM calls, so a video's Opus
+sound could not be made into an MP3 there. Row Y25 offered a decoder of EDM's own (RFC 6716) or a
 crate at the maintainer's word; goal 3 (no third-party feature code) and P4's list of crates to
-replace point to dm's own, so it is dm's own: `dm_media::opus`, written from the RFC's text and
+replace point to EDM's own, so it is EDM's own: `edm_media::opus`, written from the RFC's text and
 tables (RFC 8251's corrections taken: the hybrid folding copy, the energy cap). Every symbol is
 read with the standard's exact integer arithmetic (the allocation, the codebook cost table worked
 out once from the PVQ codebooks' sizes, the split angles), so a frame is read as it was written;
@@ -8602,27 +8602,27 @@ licence comes with them); an ignored test reads them from the folder `OPUS_VECTO
 It is used only where the system has no Opus decoder: Windows keeps Media Foundation's (the
 decision of 2026-11-18), and uses this one where that is missing. CELT is the coder YouTube's
 music is in; SILK and hybrid (speech) are not written yet, and a track that uses them is refused
-in words, "this Opus track uses SILK, which dm cannot decode yet"; a finished download of such
+in words, "this Opus track uses SILK, which EDM cannot decode yet"; a finished download of such
 a WebM is not taken for an MP3 (`mp3::takes`) and is kept as it came, as it was on macOS and
 Linux before, so no download that succeeded before now fails. A lost or empty packet is
 decoded as CELT's silence frame, which fades the last frame out.
 
-## On a phone the clipboard is watched only while dm is in front (2026-11-20, gaps row N5)
+## On a phone the clipboard is watched only while EDM is in front (2026-11-20, gaps row N5)
 
 N5's "clipboard offer" is the desktop's own clipboard watch, unchanged: Options › General,
 "Offer to download links I copy" (off by default) and "Take a copied link at once", the bar
-"Link on your clipboard:" with Download and Dismiss, `dm_shell::app::links::Clipboard` deciding
+"Link on your clipboard:" with Download and Dismiss, `edm_shell::app::links::Clipboard` deciding
 what is offered. No new words, Options or dialogs, so nothing in `docs/behaviour-contract.md`
 moves. Add URL's link from the clipboard and Tasks › Add links from clipboard already read it on
-the phone, through `PhoneServices::clipboard`, while dm is in front. Android 10 and up let only
+the phone, through `PhoneServices::clipboard`, while EDM is in front. Android 10 and up let only
 the app in front (with the focus) read the clipboard and answer the others as if it held
 nothing, so a watch read in the background would withdraw an offer and make it again on coming
-back. The watch is therefore looked at only while gpui-android says dm's window is active
-(`PhoneServices::clipboard_readable`, `Java::in_front`), a read that ends with dm behind is no
+back. The watch is therefore looked at only while gpui-android says EDM's window is active
+(`PhoneServices::clipboard_readable`, `Java::in_front`), a read that ends with EDM behind is no
 look, and on the phone the watch is seeded by its first look in front rather than as the window
 opens (`Clipboard::turn_unread`), since the window may open before Android gives it the focus;
-a link copied before dm started is still not offered, as on a desktop. A link copied in another
-app is offered within a second of dm coming to the front. Dropped: watching in the background
+a link copied before EDM started is still not offered, as on a desktop. A link copied in another
+app is offered within a second of EDM coming to the front. Dropped: watching in the background
 (Android refuses it), a foreground read on every resume of its own (the one-second look already
 runs while the watch is on), and treating every empty read as refused (a cleared clipboard is
 also empty, and the seed would then swallow the first link copied).
@@ -8635,11 +8635,11 @@ the Cargo workspace at the repository's root (`Cargo.toml`, `Cargo.lock`, `.carg
 folder in `crates/` (`members = ["crates/*", "tooling/xtask"]`), the project's own tooling in
 `tooling/xtask`, and what is not code beside them at the root (`assets/`, `vendor/`,
 `packaging/`). `desktop/` is gone; the extension's crate moved from `browser/` to
-`crates/dm-catcher`, the folder named after its package as every other crate's is. This
+`crates/edm-catcher`, the folder named after its package as every other crate's is. This
 replaces 2026-11-17's "rooted in desktop/": that kept the move small, and this makes the one
 workspace the repository's. No behaviour, window, wording or package name changed; the only
 paths that moved are the folders above, so a crate's `../../assets` and its neighbours' paths
-are as they were. Kept as they are: the crates' `dm-` names (Rust's own `core`, and GPUI's
+are as they were. Kept as they are: the crates' `edm-` names (Rust's own `core`, and GPUI's
 `gpui`, would clash with names without it) and their `src/lib.rs` (a rename to `src/<crate>.rs`
 changes no structure and every doc that names a `lib.rs`); `packaging/PKGBUILD`'s `_srcdir`,
 which names the released `desktop-v` tag's archive and moves with the next release; and the
@@ -8653,7 +8653,7 @@ to mobile. it should be ready." The Android rows come before every other row, in
 gaps.md's "Mobile first": what breaks or blocks a release, then what must be seen working on a
 phone, then the maintainer's word, then the release. Desktop signing is not a release blocker
 and is not asked about again: R1 (code signing) stays set aside, and F6's update key is not
-made. A desktop release therefore goes out with an unsigned `latest.json`, which dm's own
+made. A desktop release therefore goes out with an unsigned `latest.json`, which EDM's own
 update check refuses by design (F6), so a person updates by downloading the new version; the
 release job is to draft without the key rather than fail.
 
@@ -8686,23 +8686,23 @@ other feature the desktop already has. No feature of the phone's own across devi
   part of a video as a GIF (rare on a phone, and Android's own decoder over JNI is real work),
   the system's proxy (rare on a phone, and a VPN app covers the whole system; a proxy typed in
   still works), the Trash (Delete with its confirmation, saying the file goes for good), Sounds (the notification's own sound), and following the system's accent colour (looks alone;
-  dm's own colours stay). Each is hidden on the phone (gaps row N24); none is to
+  EDM's own colours stay). Each is hidden on the phone (gaps row N24); none is to
   be listed again without the maintainer's word.
 
 ## 2026-11-23: The README's benchmark table names the programs it compares (the maintainer's choice)
 
-The maintainer wants the README to show dm measured ahead of the other download managers, "so
+The maintainer wants the README to show EDM measured ahead of the other download managers, "so
 that it looks better for end users and analysis that our applicaiton is best in market". Asked
 how the comparison names them, the maintainer chose to name them in README.md's benchmark table
 alone, with each one's version, the machine and the date of the measurement. Everywhere else
 (code, comments, other docs) they stay "reference A", "reference B" and "reference C".
-Dropped: an unnamed comparison ("another download manager"), which readers cannot check, and dm's
+Dropped: an unnamed comparison ("another download manager"), which readers cannot check, and EDM's
 own numbers alone, which show nothing against the market. Only measured results go in the table,
 each with how to run it again (`bench/`, gaps rows C0 and C17).
 
 ## 2026-11-23: Switches, not check boxes, for on/off settings (the maintainer's choice)
 
-Asked whether check boxes or switches suit dm on the phone and the desktop, the maintainer chose
+Asked whether check boxes or switches suit EDM on the phone and the desktop, the maintainer chose
 switches for both: "toggle button is better than checkbox and better to layout on phones and
 desktop as well". Each on/off setting becomes a switch drawn in each system's own look (gaps row
 C20). Kept as check boxes: ticking items in a list (links, a torrent's files, a playlist's
@@ -8737,12 +8737,12 @@ user experience without looking like it. Gaps rows E. Chosen: rank what each win
 filled button, a state as a mark and a word, a figure line over a whole-file bar, forms as a
 grid) and build each in rows V's adaptive parts, so the phone and the desktop are one drawing.
 Weighed and set aside: reference C's look, its tabbed Options and tabbed progress window, and a
-choice of many themes (dm already takes each system's own look). Nothing is coded by this entry;
+choice of many themes (EDM already takes each system's own look). Nothing is coded by this entry;
 a row that changes a contract row still waits for the maintainer's word on it.
 
 ## 2026-11-23: One list of actions, its phone column checked by a test (gaps row N20)
 
-`crates/dm-gpui/src/window/reach.rs` holds the list. Each surface's commands are declared there
+`crates/edm-gpui/src/window/reach.rs` holds the list. Each surface's commands are declared there
 once, in order (Tasks, File, Downloads, its queues and When done, View's switches and Sort by,
 the row menu, the Dock menu); the toolbar keeps `commands::TOOLBAR` and a place's menu keeps
 `places::place_menu`, each a list already. The menu bar, the window's menus, the row menu and a
@@ -8790,40 +8790,40 @@ not actions and stay with N24 and N31. Nothing was added to the phone: the audit
 
 ## 2026-11-24: Security's first day: overflow checks kept, bounded bodies, the phone's door (gaps rows H12, H14, H16, H17, H21, H22)
 
-- **Overflow checks in the release** for dm-core, dm-net, dm-media, dm-torrent, dm-js,
-  dm-protocol, dm-catcher and librqbit (H12): an overflowing length now stops a download with an
+- **Overflow checks in the release** for edm-core, edm-net, edm-media, edm-torrent, edm-js,
+  edm-protocol, edm-catcher and librqbit (H12): an overflowing length now stops a download with an
   error instead of wrapping. Measured on the M1 with `bench/` (ceiling, fast, big40, per_conn,
   flaky), the same commit built both ways: no change beyond run-to-run noise (CPU −8.6% on fast,
   +7.2% on big40, the steady scenarios' times unchanged), so every crate that reads outside input
-  keeps them, not only the parsers. The window and dm-shell, which read dm's own state, do not.
-- **A body is read to a limit** (`dm_net::body::at_most`, H14): a stated length over the limit is
+  keeps them, not only the parsers. The window and edm-shell, which read EDM's own state, do not.
+- **A body is read to a limit** (`edm_net::body::at_most`, H14): a stated length over the limit is
   refused unread, an unstated one cut as it passes. The ZIP listing's and the seam check's ranges
   are held to the bytes asked for, an MMS description and a proxy script to 4 MiB. A timer alone
   had let a fast server fill memory before it ran out.
 - **A path judged under a folder** strips the folder and accepts only plain names after it (the
   video page's staging check): `Path::starts_with` compares parts, so `staging/../x` passed.
 - **The phone's door** (H16): `file://` is no longer taken (Android 7 and up hand none between
-  apps; only an app pointing dm at its own files would send one), nor a `content://` address of
-  dm's own package. A burst of shares was already one add: the window takes all that arrived
+  apps; only an app pointing EDM at its own files would send one), nor a `content://` address of
+  EDM's own package. A burst of shares was already one add: the window takes all that arrived
   since its last frame together. The `.torrent` read stays capped at 32 MiB.
 - **The manifest held by a check** (H17): `cargo xtask android-manifest` compares the
   permissions, the components other apps may reach (an intent filter without `exported` counts
-  as reachable), `allowBackup` and `debuggable` with `crates/dm-android/android/manifest-kept.txt`;
-  the release job runs it on the merged release manifest. An xtask, not a dm-android test, so the
+  as reachable), `allowBackup` and `debuggable` with `crates/edm-android/android/manifest-kept.txt`;
+  the release job runs it on the merged release manifest. An xtask, not a edm-android test, so the
   release job needs no Linux window libraries to run it.
 - **The lock screen** (H21): Android's own way, a public version and private visibility, so the
   person's "hide sensitive content" is followed. Overriding a person who chose to see everything
   is left for the maintainer's word.
 - **The APK's key** (H22): its certificate's SHA-256 in the README; the release job compares each
   signed APK's with it and fails on a different key, so a key change cannot ship unnoticed.
-- **A program in disguise** (H2): `dm_core::disguise` reads a finished file's first 64 bytes,
+- **A program in disguise** (H2): `edm_core::disguise` reads a finished file's first 64 bytes,
   on the thread that marks it as from the internet, and a file whose name ends as a picture,
   sound, film, document or archive but begins as a Windows, Linux or macOS program, an Android
   app's code or a script is kept on its row (`Entry::disguised`) and said in its status
   ("Complete · not what its name says: a Windows program"). A name that claims nothing (no
   ending, `.exe`, `.sh`) is left alone: it says what it is. Open's question waits for H1's word.
 - **The release's protections checked from its headers** (H13): `cargo xtask hardening-check`,
-  dm's own readers of a few ELF, PE and Mach-O fields (no third-party crate). macOS's hardened
+  EDM's own readers of a few ELF, PE and Mach-O fields (no third-party crate). macOS's hardened
   runtime is asked only of a binary signed by an identity: Rust's linker signs every build ad
   hoc, and desktop signing is set aside (the maintainer, 2026-11-21). Windows builds now carry
   Control Flow Guard (`-C control-flow-guard`).
@@ -8831,20 +8831,20 @@ not actions and stay with N24 and N31. Nothing was added to the phone: the audit
   release jobs; checked with `gh attestation verify`. `crates.txt` stays the list of what a
   build is made from.
 - **The security page** (H30): `docs/guide/security.md`, every guard beside the test that
-  holds it, and what dm does not guard against.
+  holds it, and what EDM does not guard against.
 - **Coverage-guided fuzzing with libFuzzer** (H11): `fuzz/`, outside the workspace and never
   shipped, built with `cargo-fuzz` on nightly in CI alone; libfuzzer-sys is a test's tool as
-  cargo-audit and cargo-deny are, not a feature crate (the clean-room rule is about what dm
+  cargo-audit and cargo-deny are, not a feature crate (the clean-room rule is about what EDM
   ships). Linking libFuzzer is a default feature so the targets are checked without a C++
   compiler (`--no-default-features`).
-- **Leak tests** (H15, H24): planted secrets searched for in every file dm wrote (only
+- **Leak tests** (H15, H24): planted secrets searched for in every file EDM wrote (only
   `secrets.json` may hold them, sealed where the system has a store); a counting site behind a
   proxy that answers everything sees no connection. Wiping secrets from memory is left until
   each secret has one owner: the engine clones them into every request.
 
 ## 2026-11-24: A wall-clock test limit allows for the machine's load (gaps rows N33, 221)
 
-`dm_test_support::load::load_factor` measures the load as `bench/` measures a runner, by doing
+`edm_test_support::load::load_factor` measures the load as `bench/` measures a runner, by doing
 work: a busy loop's wall time over the processor time the thread was given (from the thread's
 own clock on macOS and Linux), and how late a 2 ms sleep is woken; at least 1, at most 8. A
 test's limit is multiplied by it, the worse of the load as the timed work began and at the
@@ -8865,7 +8865,7 @@ on during sleep, the notice may be owed; seen on the Windows laptop.
 ## The speed figure is not animated (gaps row K7), 2026-11-24
 
 K7 asked for "the speed eased". The figure is already smoothed where it is counted
-(`dm_core::progress::Meter`, 0.3 of each sample carried in), so it moves in small steps once a
+(`edm_core::progress::Meter`, 0.3 of each sample carried in), so it moves in small steps once a
 second. Rolling its digits between those steps as well was dropped: a number whose digits change
 many times a second is harder to read than one that changes once, and it would draw frames for
 every running row. The bar's glide carries the sense of motion instead.
@@ -8937,7 +8937,7 @@ the maintainer could not complete), GitHub Models (8k tokens of input, too few f
 agent), and a router stacking free providers behind one address (it installs from a
 repository's moving branch, and adds nothing without more keys).
 
-## The bots keep dm unattended, inside guardrails they cannot edit, 2026-11-24
+## The bots keep EDM unattended, inside guardrails they cannot edit, 2026-11-24
 
 The maintainer: everything automatic, working even if no one looks at the project again,
 run by free models and GitHub Actions, improving on users' and the maintainer's feedback.
@@ -8985,7 +8985,7 @@ ui-ux-pro-max (MIT) only three text files are taken, verbatim and pinned by SHA-
 rebelytics' one-skill-to-rule-them-all (CC BY 4.0) only the idea, credited: a run's
 evidence becomes a lesson under the page it concerns; its scripts and its
 person-approves-each-change flow are not used, the guardrails taking that person's place.
-dm's own pages (`docs/ai-skills/`: desktop, android, engine, ui-ux, testing, learning) say
+EDM's own pages (`docs/ai-skills/`: desktop, android, engine, ui-ux, testing, learning) say
 where to look and which rule wins, and send window work to the design skills already in
 `.claude/skills/`. A free model does not find these alone, so `scripts/ai-context.py`
 hands each task the pages for its part, the files that mention its words, their recent
@@ -9002,7 +9002,7 @@ were already in `.claude/skills/` from the same commit (672ae44a), and were foun
 byte-identical to it. Of the other seven, all read and clean (no hidden characters, no line
 addressed to a model, no script in the repository): `break`, `afk` and `upskill` are taken,
 unchanged but for their `agents/` files. `break`'s scenarios become the worst cases a
-window test covers (dm's harness is `window_tests/` and the layout sweep, not a web page);
+window test covers (EDM's harness is `window_tests/` and the layout sweep, not a web page);
 `afk`'s method (better for someone, match the repository, the smallest complete step, try
 to reject it) becomes `docs/ai-skills/improving.md` for the bots' `improve` task; `upskill`
 stays a session's tool, as what it would build is the bots' guardrails. Not taken:
@@ -9055,7 +9055,7 @@ skill from outside still comes in only as a pinned copy (`.claude/skills/UPSTREA
 `scripts/ai-selftest.sh` plants a remote server and an `npx` one and expects both refused.
 
 
-## librqbit-bencode vendored for checked numbers; dm-js frees its objects, 2026-11-25
+## librqbit-bencode vendored for checked numbers; edm-js frees its objects, 2026-11-25
 
 The nightly fuzz run of 2026-11-25 stopped on two findings. `torrent_metainfo`: the bencode
 reader (librqbit-bencode 9.1.0) reads numbers with atoi's unchecked readers, which multiply
@@ -9064,7 +9064,7 @@ past the type's end: a panic where overflow is checked (the fuzz build, on
 length written as 2^32 + 16384 read as 16384 where another client reads it as written. A
 check before the library reads a file cannot know each field's type, so the crate is now a
 seventh patched copy (`vendor/librqbit-bencode`, change `numbers`: atoi's checked readers),
-made by `cargo xtask vendor` like the others. `javascript`: every object dm-js made was left
+made by `cargo xtask vendor` like the others. `javascript`: every object edm-js made was left
 behind after a run (1.5 MB for an empty program), as `Rc` frees no cycle and the built-ins
 are all cycles; its comment said the interpreter's drop freed them, and nothing did. Each
 object is now listed weakly as it is made, and the last interpreter on a thread empties every
@@ -9072,20 +9072,20 @@ one still alive as it is dropped, which breaks the cycles. Tried and dropped: a 
 collector (much more code for programs that run once); emptying from the global object
 outward (misses objects only a closure's scope holds).
 
-## dm starts again when Android remakes its window; Options' page list close-set, 2026-11-26
+## EDM starts again when Android remakes its window; Options' page list close-set, 2026-11-26
 
-Main's Android run on API 35 failed with dm gone two seconds after it started. The emulator
+Main's Android run on API 35 failed with EDM gone two seconds after it started. The emulator
 was still applying its first-boot overlays, and `ActivityThread.handleApplicationInfoChanged`
 remakes every activity of an app whose overlays change (a new navigation mode, a new
 wallpaper's colours on Android 12 and later) whatever the manifest's `configChanges` says.
 Only Android 16's `assetsPaths` flag opts out, and aapt2 under compileSdk 35 refuses it (by name
-and as a number). dm's window cannot be made twice in one process (gpui-android's platform is
-made once), so `android_main` used to end the process and the person saw dm close. Now, where
-the activity `isChangingConfigurations()` as it ends, dm starts itself again in a fresh process
-(`engine::relaunch`, the path a window opened over the windowless dm takes): on the `dmci`
-emulator, three-button navigation turned on brought dm back in half a second, and a task
-removed from the recent apps still ends dm. Left for when compileSdk reaches 36: declare
-`assetsPaths` too, so Android 16 keeps the window and dm does not restart at all.
+and as a number). EDM's window cannot be made twice in one process (gpui-android's platform is
+made once), so `android_main` used to end the process and the person saw EDM close. Now, where
+the activity `isChangingConfigurations()` as it ends, EDM starts itself again in a fresh process
+(`engine::relaunch`, the path a window opened over the windowless EDM takes): on the `dmci`
+emulator, three-button navigation turned on brought EDM back in half a second, and a task
+removed from the recent apps still ends EDM. Left for when compileSdk reaches 36: declare
+`assetsPaths` too, so Android 16 keeps the window and EDM does not restart at all.
 
 Main's Windows Desktop run was red from `28568498`: Options' page summaries took two lines
 (gaps row E35), and at Windows' 520 points the six pages no longer fit beside a page, so
@@ -9141,7 +9141,7 @@ read, and the keyless quota is about 100 calls a run.
 The maintainer asked that what the free models merge always leave the app better, never worse,
 and that it be QA-tested as a person would. A bot's pull request already had to pass CI, Desktop
 and Android on three systems and one model's review. Now, too: the behaviour contract's rows in
-dm's real window on Linux (`contract-linux.yml`, until now only reported) on its commit, held to
+EDM's real window on Linux (`contract-linux.yml`, until now only reported) on its commit, held to
 main's last run row by row (`scripts/ai-contract-gate.py`): every row main holds must hold, and
 every row the change adds. Not the whole contract: rows that need a live site or a browser panel
 fail on CI's runner every time (the same 8 of 77 in each of three runs on main), and holding a
@@ -9182,14 +9182,14 @@ What was done for each, and what was found:
   alert main does not have. And a third review, by a third model, about security alone.
 - *Windows and macOS.* contract-desktop.yml runs the contract on GitHub's runners, reported,
   not gating: whether a runner can give human-qa.py the Accessibility and Screen Recording
-  permissions macOS asks a person for, and draw dm's window on Windows, is not known until it
+  permissions macOS asks a person for, and draw EDM's window on Windows, is not known until it
   has run. It gates once its runs on main show the rows it holds.
 
 What no machine judges: whether a person finds the change better. The gates hold the app to
 never worse, by every measure here, and a bot's task to its own measure (a test that failed
 now passes; coverage up; a new contract row that holds).
 
-## Right-to-left words that wrap: dm breaks the lines, not GPUI, 2026-11-27 (gaps row E52)
+## Right-to-left words that wrap: EDM breaks the lines, not GPUI, 2026-11-27 (gaps row E52)
 
 GPUI breaks a wrapped line by walking its shaped glyphs in the order they stand on screen
 (`LineLayout::compute_wrap_boundaries`), from the left; for Arabic or Hebrew that is the
@@ -9199,14 +9199,14 @@ element `Screen::label` uses only where the language reads right to left and the
 right-to-left letter. It breaks the words at their spaces in reading order, measuring each line
 by shaping it, and draws each line on its own, aligned as the window's text is. Words that are
 cut or kept on one line are GPUI's own element. Dropped: a patched copy of `gpui-pre` (the
-core crate, the largest dm would carry) for one loop's order; worth offering upstream instead.
+core crate, the largest EDM would carry) for one loop's order; worth offering upstream instead.
 A line that fits measures as GPUI's (widths rounded up to whole points), so the window's
 goldens did not move.
 
-## The largest dictionary dm unpacks with: 1.5 GiB, 2026-11-27 (gaps rows H35c to H35e)
+## The largest dictionary EDM unpacks with: 1.5 GiB, 2026-11-27 (gaps rows H35c to H35e)
 
 LZMA, LZMA2 and RAR 5 let an archive ask for a 4 GiB window, and the reference tools unpack
-that much. dm's windows grow only as bytes are unpacked, so a small archive costs little; but a
+that much. EDM's windows grow only as bytes are unpacked, so a small archive costs little; but a
 crafted one that unpacks gigabytes of zeros with a 4 GiB dictionary held 4 GiB of memory, on a
 phone as on a computer. Chosen at the maintainer's standing word (take the recommended
 option): 1.5 GiB (`extract::MOST_DICTIONARY`), refused with that reason before any window is
@@ -9229,10 +9229,10 @@ pile onto the start a player is reading. Nothing changes for a download nobody p
 for every media file from its first byte, which costs requests on every video and needs
 `bench` to show it is no slower; left in the row, if wanted.
 
-## Secrets wiped by dm's own code, not a crate, 2026-11-27 (gaps row H15b)
+## Secrets wiped by EDM's own code, not a crate, 2026-11-27 (gaps row H15b)
 
-H15b asked for the `zeroize` crate or dm's own wipe. Chosen at the maintainer's standing word
-(the recommended option): dm's own (`dm_net::wipe`), as the clean-room rule asks for no new
+H15b asked for the `zeroize` crate or EDM's own wipe. Chosen at the maintainer's standing word
+(the recommended option): EDM's own (`edm_net::wipe`), as the clean-room rule asks for no new
 third-party package. It is a volatile write of zero to each byte, which the compiler may not
 drop as a dead store, then a compiler fence; a `String` is wiped over its whole capacity, as a
 value shortened in place leaves its old tail there. Three `unsafe` blocks, each with its SAFETY
@@ -9240,12 +9240,12 @@ note. Used by `SignIn`'s `Drop` (the last of its clones, which share one buffer 
 `Entry::forget_sign_in`. What a library copies on its way (reqwest's `HeaderValue`s, the
 kernel's buffers) is beyond it.
 
-## Names looked up over the held network by dm's own client, 2026-11-27 (gaps row H23d)
+## Names looked up over the held network by EDM's own client, 2026-11-27 (gaps row H23d)
 
 Under "Only through" every connection was bound to the held network, but names went to the
 system's resolver, which no program can bind, so the sites a person fetched from were asked of
 the network they meant to avoid. Chosen at the maintainer's standing word (the recommended
-option, the one that closes the leak): dm's DNS client (`dns/ask.rs`, already the benchmark's)
+option, the one that closes the leak): EDM's DNS client (`dns/ask.rs`, already the benchmark's)
 asks the computer's IPv4 name servers from the held network's address (`dns/held.rs`), on macOS
 and Linux, where `/etc/resolv.conf` lists them (systemd-resolved's upstream file where the stub
 is listed). No server known fails the lookup with why, never a quiet fall-back. Windows (no such
@@ -9255,7 +9255,7 @@ said in the guide. Dropped: accepting the system's route everywhere and only say
 ## The unslop review's passes (the maintainer, 2026-11-27)
 
 The window was read against heydamir/unslop's list of signs (`.claude/skills/unslop/`), through
-`dm-design`. What it changed, each at the maintainer's word ("do 1-3", "do all three, stop the
+`edm-design`. What it changed, each at the maintainer's word ("do 1-3", "do all three, stop the
 failure popup at launch", "yes, do the remaining passes"):
 
 - A 404 asks nothing (B41): the row says "This link no longer works", the bar above the list
@@ -9277,7 +9277,7 @@ Not changed: the side panel's and the list's pictures in the accent's text shade
 buttons stay `native::button`, the one way a button is drawn.
 
 
-## A finger's press drawn by dm, not by `.active()`, 2026-11-27 (gaps row V25)
+## A finger's press drawn by EDM, not by `.active()`, 2026-11-27 (gaps row V25)
 
 - GPUI's gesture recogniser makes a tap a mouse press and its release together, at the lift, so
   an element's `.active()` style is never drawn under a finger: on the phone nothing showed a tap.
@@ -9288,10 +9288,10 @@ buttons stay `native::button`, the one way a button is drawn.
   text's colour at `PRESSED` over the face (what `Theme::answering` makes of any face) until the
   tap's release, a scroll or a long press, 1.5 s at most. Being first, it comes before anything
   pressable inside it, which claims the press first in GPUI's bubbling order.
-- Tried in thought and dropped: sending a mouse move as a finger lands from dm's copy of the
+- Tried in thought and dropped: sending a mouse move as a finger lands from EDM's copy of the
   Android platform (it would start the tooltips' timers under a held finger, and hover is off for
   touch anyway); and patching `.active()` in GPUI itself, which is crates.io's gpui-pre, not a
-  copy dm keeps.
+  copy EDM keeps.
 - Only where `platform::ON_A_PHONE` (and in the tests): a computer's mouse presses before it
   releases, and `.active()` shows it there.
 - A bottom tab is pressed anywhere in its quarter of the bar but shows it on its pill alone
@@ -9311,7 +9311,7 @@ buttons stay `native::button`, the one way a button is drawn.
   window: a raise read for the first added connection, then two more. The test server's shared
   rate lost whatever moment the runner did not run it, so a stall lowered the rate measured
   before the connection was added, and the window after read as a raise.
-- The server now makes up to 250 ms of a stall after it, as a real rate's bucket does. dm's
+- The server now makes up to 250 ms of a stall after it, as a real rate's bucket does. EDM's
   rule (`ranged::grow`) is unchanged: a second "before" window for every judgement was weighed
   and dropped, as it delays growth by a second where each connection is held down (`bench`
   `per_conn`). With fourteen busy processes beside it the test held 9 in four runs of four.
@@ -9330,3 +9330,29 @@ buttons stay `native::button`, the one way a button is drawn.
   1,060 after, 790 with no window; `ui-bench.py --only busy` 21.3 % to 18.7 %.
 - Weighed and dropped: no glide at all (the bar jumped four times a second, which K7 fixed);
   glide only for steps of several points (the track's width is not known where the bar is made).
+
+## dm is renamed EDM, everything, 2026-11-28
+
+At the maintainer's word ("instead of dm can we use EDM?", then "Everything" of the choices
+offered): the name a person sees (the window, every language, the extension, the Android app,
+the installers: `EDM.app`, `edm_<version>_…`), the crates (`crates/edm-*`, `edm_core`…), the
+variables (`EDM_HOME`…), the native host (`com.edm.engine`), the Android package
+(`com.edm.android`) and the macOS bundle (`com.edm.desktop`). The behaviour contract's rows and
+the window's goldens changed with it, at that approval. What is kept, and why:
+
+- An app from before keeps what it had: `edm_core::paths::adopt_old_home` moves `dm-engine`
+  (and a portable copy's `dm-data`) into the new home's place at the first start.
+- The extension asks for `com.edm.engine` and, where the browser knows none, for
+  `com.dm.engine` (`LEGACY_NATIVE_HOST`), so an extension updated before the app still
+  reaches it. Release the extension first, then the app.
+- Android sees `com.edm.android` as another app: it does not update over `com.dm.android`, whose
+  list stays with it; macOS keeps `dm.app` beside `EDM.app` until the person removes it.
+- Names others hold stay until changed there: the Firefox Add-ons page's address
+  (`dm-download-manager`), the AUR package (`dm-appimage`), released files' names (0.10.3's
+  package-manager manifests, the CachyOS reproduction's AppImage), and the gecko id (never had
+  dm in it). Inside: the vendored crates' `dm(<tag>):` marks, test archives sealed with
+  "dm secret", the frozen reference-A benchmark, CHANGELOG's released entries and
+  `docs/history/`, and settings keys such as `identify_as_dm` (a person's saved settings use them).
+- Done by a script (word-bounded: `dm-`/`dm_` to `edm-`/`edm_`, `DM_` to `EDM_`, `com.dm.` to
+  `com.edm.`, `Dm…` types to `Edm…`, the word to EDM in text and `edm` in code), then
+  the compiler and the tests for what it missed (`libdm_android`, `\ndm-…` in strings).

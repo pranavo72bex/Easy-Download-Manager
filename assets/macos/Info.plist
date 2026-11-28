@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Merged by cargo-packager into dm.app's own Info.plist (macos.infoPlistPath).
-     dm opens magnet: links and .torrent files (src/opened.rs). A person's own
+<!-- Merged by cargo-packager into EDM.app's own Info.plist (macos.infoPlistPath).
+     EDM opens magnet: links and .torrent files (src/opened.rs). A person's own
      choice of program for either is kept: macOS does not move it to an app
      installed later, and the .torrent rank is Default, not Owner. -->
 <plist version="1.0">

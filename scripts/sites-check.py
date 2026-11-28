@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The "Download video" panel on real video sites other than YouTube, by hand and in the daily site watch.
 
 Like youtube-check.py this goes to the real sites, so it is in no CI run a change starts,
 only in the daily site watch (`--public`, below). It
-reuses chrome-check.py's setup (a visible browser with dm's extension and the
+reuses chrome-check.py's setup (a visible browser with EDM's extension and the
 app behind it) and, for each site, opens a public page that plays without a
 sign-in, plays the video, hovers it, reads the panel and its list, clicks the
-first line and waits for the file to land in dm's folder, then reads the
+first line and waits for the file to land in EDM's folder, then reads the
 file's own structure: is there a picture, is there a sound, how long is it. A
-file without a sound passes on its picture alone when the stream dm was given
+file without a sound passes on its picture alone when the stream EDM was given
 (an HLS master or a DASH manifest, read again here) lists no sound, as a
 silent Reddit post's does; the result says "picture only expected".
 
@@ -24,7 +24,7 @@ silent Reddit post's does; the result says "picture only expected".
     python3 scripts/sites-check.py --file-hosts      # dropbox google-drive mediafire (below)
 
 The file-storage services (gaps row W7) are checked without a browser: each one's public share
-address is given to dm as Add URL gives it (the control protocol's `downloads.add`, dm started
+address is given to EDM as Add URL gives it (the control protocol's `downloads.add`, EDM started
 headless on a throwaway home), and the file itself must land under the service's own name, not
 the share page's HTML. A large file is not fetched whole: it passes once its row has the
 service's name and size and bytes are arriving, and is then cancelled.
@@ -135,7 +135,7 @@ SITES = {
     # Reddit's r/videos, whose posts more often have a sound than r/oddlysatisfying's do.
     "reddit-videos": {"listing": "https://www.reddit.com/r/nextfuckinglevel/top/?t=week", "discover": REDDIT_JS,
                       "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
-    # Its posts often have no sound: a file without one passes when the stream dm was given lists
+    # Its posts often have no sound: a file without one passes when the stream EDM was given lists
     # none (`stream_sound`, gaps row 205), and fails when it lists one.
     "reddit": {"listing": "https://www.reddit.com/r/oddlysatisfying/top/?t=week", "discover": REDDIT_JS,
                "signin_url": "https://www.reddit.com/login/", "signed_in": REDDIT_SIGNED_IN},
@@ -230,7 +230,7 @@ COVER = """(() => { const allVideos = () => { const out = []; const promoted = v
 PLAY = """(() => { const allVideos = () => { const out = []; const promoted = v => { for (let e = v; e; e = (e.parentElement || (e.getRootNode && e.getRootNode().host) || null)) { if (/promoted|-ad$/i.test(((e.className || '') + '').split(' ').join(' ') + ' ' + (e.localName || ''))) return true; } return false; }; const walk = r => { r.querySelectorAll('video').forEach(v => { if (!promoted(v)) out.push(v); }); r.querySelectorAll('*').forEach(e => { if (e.shadowRoot) walk(e.shadowRoot); }); }; walk(document); return out; }; const v = allVideos()[0]; if (!v) return 'none'; v.muted = true;
   const p = v.play(); return p && p.then ? 'asked' : 'played'; })()"""
 # A sign-in dialog the site laid over the page (TikTok's "Log in to TikTok", which retitles the
-# page "Log in | TikTok", issue #45): dm's panel rightly stays off a player a dialog covers.
+# page "Log in | TikTok", issue #45): EDM's panel rightly stays off a player a dialog covers.
 # With __CLICK__ true its close button is pressed, as a person would; what was found is said,
 # or null where there is none.
 WALL = """(() => { const click = __CLICK__; const words = /log ?in|sign ?in|sign up|continue with/i;
@@ -271,7 +271,7 @@ class FrameView:
         if not frame_id:
             raise LookupError(want)
         self.tab = tab
-        self.context = tab.call("Page.createIsolatedWorld", frameId=frame_id, worldName="dm-sites")["executionContextId"]
+        self.context = tab.call("Page.createIsolatedWorld", frameId=frame_id, worldName="edm-sites")["executionContextId"]
 
     def evaluate(self, expression, gesture=False):
         result = self.tab.call("Runtime.evaluate", expression=expression, awaitPromise=True, returnByValue=True,
@@ -281,11 +281,11 @@ class FrameView:
         return result["result"].get("value")
 
 
-LITE_STATE = """(() => { const h = document.querySelector('dm-panel-lite'); if (!h || h.style.display === 'none') return null;
+LITE_STATE = """(() => { const h = document.querySelector('edm-panel-lite'); if (!h || h.style.display === 'none') return null;
   const r = h.shadowRoot; const go = r.querySelector('.bar button'); const b = go.getBoundingClientRect();
   const items = [...r.querySelectorAll('.list button')]; const say = r.querySelector('.say');
-  const sent = !say.hidden && /^sent to dm/i.test(say.textContent);
-  return { shown: true, title: sent ? 'Sent to dm' : go.textContent, sub: say.hidden ? '' : say.textContent,
+  const sent = !say.hidden && /^sent to EDM/i.test(say.textContent);
+  return { shown: true, title: sent ? 'Sent to EDM' : go.textContent, sub: say.hidden ? '' : say.textContent,
     lines: items.map(i => i.textContent), at: items.map(i => { const q = i.getBoundingClientRect(); return [q.left + q.width / 2, q.top + q.height / 2]; }),
     x: b.left - 60 + 60, y: b.top, w: 240, h: b.height }; })()"""
 
@@ -456,7 +456,7 @@ def one(base, name, site, engine_dl, worker=None):
         page = tab.evaluate("location.href")
         out["formats"] = worker.evaluate(
             "chrome.tabs.query({}).then(ts => { const t = ts.find(t => t.url === %s);"
-            " return t ? dmReady.then(m => m.on_page_message({type: 'dm.formats', src: '', frame: %s},"
+            " return t ? dmReady.then(m => m.on_page_message({type: 'EDM.formats', src: '', frame: %s},"
             " {id: chrome.runtime.id, tab: {id: t.id}, url: %s})) : 'no tab'; })" % (json.dumps(page), json.dumps(page), json.dumps(page)))
     cc.hover(tab, page_rect(rect))
     # SITES_HOLD=<seconds>: the video left playing under the pointer for that long, for a
@@ -480,20 +480,20 @@ def one(base, name, site, engine_dl, worker=None):
             " ".join(str(arg.get("value", arg.get("description", ""))) for arg in event["params"].get("args", []))[:240]
             for event in tab.events
             if event.get("method") == "Runtime.consoleAPICalled"
-            and "dm" in " ".join(str(arg.get("value", "")) for arg in event["params"].get("args", []))[:20]
+            and "EDM" in " ".join(str(arg.get("value", "")) for arg in event["params"].get("args", []))[:20]
         ][-8:]
-        out["dm_panel"] = tab.evaluate("""(() => { const p = document.querySelector('dm-panel'); if (!p) return 'absent';
+        out["edm_panel"] = tab.evaluate("""(() => { const p = document.querySelector('edm-panel'); if (!p) return 'absent';
           const r = p.getBoundingClientRect(); return { display: getComputedStyle(p).display, rect: [r.left, r.top, r.width, r.height],
             hidden: p.hasAttribute('hidden'), attrs: p.getAttributeNames().join(',') }; })()""")
         probe = os.environ.get("SITES_EVAL")
         if PROBE and probe:
             out["eval"] = tab.evaluate(pathlib.Path(probe).read_text(encoding="utf-8"))
-        # Covered by a sign-in dialog that would not close: the site's wall, not dm's fault.
+        # Covered by a sign-in dialog that would not close: the site's wall, not EDM's fault.
         wall = tab.evaluate(WALL.replace("__CLICK__", "false"))
         covered = isinstance(out["cover"], dict) and out["cover"].get("inVideo") is False
         if covered and (wall or LOGIN_TITLE.search(out.get("title") or "")):
             out["result"] = (f"a login wall covers the player ({wall or out['title']}), "
-                             "so dm's panel stays off it")
+                             "so EDM's panel stays off it")
             return out
         out["result"] = "the panel did not appear"
         return out
@@ -526,7 +526,7 @@ def one(base, name, site, engine_dl, worker=None):
         cx, cy = state["x"] + across + ox, state["y"] + state["h"] / 2 + oy
         out["at_click"] = tab.evaluate("[...document.elementsFromPoint(%s, %s)].slice(0, 4).map(e => e.localName + (e.shadowRoot ? '#shadow' : ''))" % (cx, cy))
         out["click_point"] = [cx, cy]
-        out["lite_dbg"] = tab.evaluate("""(() => { const h = document.querySelector('dm-panel-lite'); if (!h) return 'absent';
+        out["lite_dbg"] = tab.evaluate("""(() => { const h = document.querySelector('edm-panel-lite'); if (!h) return 'absent';
           const r = h.getBoundingClientRect(); const c = getComputedStyle(h); const bar = h.shadowRoot.querySelector('.bar');
           const br = bar.getBoundingClientRect(); const bc = getComputedStyle(bar);
           return { rect: [r.left, r.top, r.width, r.height], display: c.display, position: c.position, visibility: c.visibility,
@@ -552,7 +552,7 @@ def one(base, name, site, engine_dl, worker=None):
     def landed():
         return [p for p in engine_dl.rglob("*") if p.is_file() and p not in before and p.suffix in MEDIA]
 
-    after = cc.wait_for(lambda: (((panel_of(view) or {}).get("lines") or (panel_of(view) or {}).get("title") == "Sent to dm")
+    after = cc.wait_for(lambda: (((panel_of(view) or {}).get("lines") or (panel_of(view) or {}).get("title") == "Sent to EDM")
                                  and panel_of(view)) or (landed() and {"landed": True}), 60) or {}
     out["lines"] = after.get("lines")
     if os.environ.get("SITES_EVAL_AFTER"):
@@ -561,33 +561,33 @@ def one(base, name, site, engine_dl, worker=None):
         shot("3-list")
         x, y = after["at"][0]
         cc.click_at(tab, x + ox, y + oy)
-    elif after.get("title") != "Sent to dm" and not after.get("landed"):
+    elif after.get("title") != "Sent to EDM" and not after.get("landed"):
         out["panel_after"] = panel_of(view)
         if os.environ.get("SITES_EVAL_AFTER"):
             out["eval_after"] = tab.evaluate(pathlib.Path(os.environ["SITES_EVAL_AFTER"]).read_text(encoding="utf-8"))
         # A sign-in or sign-up box that would not close sits over the page, so the panel's
-        # click reached the box, not dm (Dailymotion's "Join Dailymotion", gaps row 170).
+        # click reached the box, not EDM (Dailymotion's "Join Dailymotion", gaps row 170).
         if (out.get("wall") or "").startswith("login wall"):
             out["result"] = (f"a login wall covers the player ({out['wall']}), "
-                             "so dm's panel cannot be used under it")
+                             "so EDM's panel cannot be used under it")
             return out
         out["result"] = "the panel listed no qualities"
         return out
-    said = cc.wait_for(lambda: (panel_of(view) or {}).get("title") == "Sent to dm" and panel_of(view), 20)
+    said = cc.wait_for(lambda: (panel_of(view) or {}).get("title") == "Sent to EDM" and panel_of(view), 20)
     out["sent"] = bool(said)
     # SITES_FINISH_WAIT=<seconds>: how long the file has to land (a long stream takes longer).
     got = cc.wait_for(landed, int(os.environ.get("SITES_FINISH_WAIT", "240")))
     if not got:
-        # What dm's row said by then, so a slow download is told from a failed one.
-        out["dm_rows"] = [{"state": r.get("state"), "progress": r.get("progress"), "stalled": r.get("stalled"),
+        # What EDM's row said by then, so a slow download is told from a failed one.
+        out["edm_rows"] = [{"state": r.get("state"), "progress": r.get("progress"), "stalled": r.get("stalled"),
                            "url": (r.get("url") or "")[:120]}
-                          for r in cc.queue_rows(engine_dl.parent / "dm-home")[-2:]]
-        out["result"] = "the download did not finish into dm's folder"
+                          for r in cc.queue_rows(engine_dl.parent / "edm-home")[-2:]]
+        out["result"] = "the download did not finish into EDM's folder"
         return out
     out["file"] = got[0].name
     out["size"] = got[0].stat().st_size
     # What the page's title gave the name (gaps row 75): the row's hint beside the name it got.
-    row = next((r for r in cc.queue_rows(engine_dl.parent / "dm-home") if r.get("path") == str(got[0])), {})
+    row = next((r for r in cc.queue_rows(engine_dl.parent / "edm-home") if r.get("path") == str(got[0])), {})
     out["title_hint"] = row.get("title_hint")
     out["media"] = inspect(got[0])
     m = out["media"]
@@ -595,7 +595,7 @@ def one(base, name, site, engine_dl, worker=None):
     whole_picture = not m["problems"] and m["seconds"] and "video" in m["kinds"]
     if whole_picture and not sound:
         # Many posts have no sound at all (a silent Reddit post's master lists no audio
-        # rendition): the stream dm was given is read, as the page reads it, before the file is
+        # rendition): the stream EDM was given is read, as the page reads it, before the file is
         # called short of one (gaps row 205).
         out["sound_listed"], out["stream_read"] = stream_sound(tab, row.get("url") or "", url)
         # Or the player said so itself: Instagram's sound button reads "Video has no audio".
@@ -604,7 +604,7 @@ def one(base, name, site, engine_dl, worker=None):
         if out["sound_listed"] is False:
             facts = [f"{m['height']} tall" if m.get("height") else "", f"{m['seconds']:.0f} s"]
             out["result"] = "OK"
-            out["detail"] = (f"picture only expected: the stream dm was given lists no sound "
+            out["detail"] = (f"picture only expected: the stream EDM was given lists no sound "
                              f"({out['stream_read']}); a whole video landed, picture alone "
                              f"({', '.join(f for f in facts if f)})")
             return out
@@ -647,11 +647,11 @@ def listed_sound(text):
 
 
 def stream_sound(tab, address, page):
-    """Whether the stream dm was handed (its row's address) lists a sound, read in the page as
+    """Whether the stream EDM was handed (its row's address) lists a sound, read in the page as
     its own player reads it, else asked for plainly with the page as the referrer: (True, False
     or None, how it was read). None when the address is no playlist or could not be read."""
     if not urllib.parse.urlsplit(address).path.lower().endswith((".m3u8", ".mpd")):
-        return None, f"dm's row names no playlist: {address[:120] or 'no row'}"
+        return None, f"EDM's row names no playlist: {address[:120] or 'no row'}"
     shown = address.split("?")[0]
     text, how = None, ""
     try:
@@ -676,7 +676,7 @@ def stream_sound(tab, address, page):
 def sites(base, origin, engine_dl, engine_home, worker):
     results = []
     # The real sites are read with the rules the app ships (Vimeo's player config, Facebook's
-    # finders ...), not the test page's that chrome-check's own checks put in dm's home
+    # finders ...), not the test page's that chrome-check's own checks put in EDM's home
     # (revision 999, for 127.0.0.1 alone): written over them under a higher revision, and the
     # extension made to ask the app again, which serves them in its hello (gaps row 204).
     # The test page's rules go back afterwards, higher again: chrome-check's own checks that
@@ -687,7 +687,7 @@ def sites(base, origin, engine_dl, engine_home, worker):
     shipped["revision"] = 1000
     rules.write_text(json.dumps(shipped), encoding="utf-8")
     ask_again = ("dmReady.then(m => { m.forget_app();"
-                 " return m.on_page_message({type: 'dm.status'}, {id: chrome.runtime.id}); })")
+                 " return m.on_page_message({type: 'EDM.status'}, {id: chrome.runtime.id}); })")
     worker.evaluate(ask_again)
     try:
         each_site(base, engine_dl, worker, results)
@@ -703,7 +703,7 @@ def sites(base, origin, engine_dl, engine_home, worker):
 
 
 def each_site(base, engine_dl, worker, results):
-    """Each wanted site checked in turn, with the shipped rules in dm's home."""
+    """Each wanted site checked in turn, with the shipped rules in EDM's home."""
     if PROBE:
         # What the extension's own worker is told, tab or no tab.
         worker.evaluate("""(() => { globalThis.__dmseen = []; chrome.webRequest.onResponseStarted.addListener(d => {
@@ -723,7 +723,7 @@ def each_site(base, engine_dl, worker, results):
         DONE.append(r)
         print("SITE", json.dumps(r, default=str), flush=True)
         # A post whose stream lists no sound passes on its picture alone, and its detail says so.
-        cc.check(f"{name}: a whole video with sound lands in dm's folder", r.get("result") == "OK",
+        cc.check(f"{name}: a whole video with sound lands in EDM's folder", r.get("result") == "OK",
                  r.get("detail") or r.get("result", ""))
 
 
@@ -748,9 +748,9 @@ def write_json():
 
 
 def file_host_rows(names):
-    """Each file host's share address given to dm as Add URL gives it, dm headless on a throwaway
+    """Each file host's share address given to EDM as Add URL gives it, EDM headless on a throwaway
     home: the file must land (or, for a large one, arrive) under the service's own name."""
-    root = pathlib.Path(tempfile.mkdtemp(prefix="dm-file-hosts-"))
+    root = pathlib.Path(tempfile.mkdtemp(prefix="edm-file-hosts-"))
     home, downloads = root / "home", root / "downloads"
     for d in (home, downloads):
         d.mkdir()
@@ -758,13 +758,13 @@ def file_host_rows(names):
         "download_dir": str(downloads), "categorize": False,
         "show_progress": False, "show_complete": False,
     }), encoding="utf-8")
-    app = subprocess.Popen([str(cc.BINARY), "--headless", "--control", "0"], env=dict(os.environ, DM_HOME=str(home)),
+    app = subprocess.Popen([str(cc.BINARY), "--headless", "--control", "0"], env=dict(os.environ, EDM_HOME=str(home)),
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         port = cc.wait_for(lambda: (home / "control.port").exists()
                            and (home / "control.port").read_text(encoding="utf-8").strip(), 20)
         if not port:
-            raise RuntimeError("dm did not open its control port")
+            raise RuntimeError("EDM did not open its control port")
         conn = socket.create_connection(("127.0.0.1", int(port)), timeout=60)
         replies = conn.makefile("r", encoding="utf-8")
 
@@ -814,11 +814,11 @@ def one_file_host(call, home, url, site):
                                               f"cancelled after {progress['downloaded']} bytes"}
         time.sleep(1)
     if not row:
-        return {"result": "dm made no row for the address"}
+        return {"result": "EDM made no row for the address"}
     state = row.get("state") or {}
     if state.get("kind") != "completed":
         why = next((str(v) for k, v in state.items() if k != "kind"), "")
-        return {"result": f"the file did not land ({state.get('kind')}): {why[:200]}", "dm_rows": [row]}
+        return {"result": f"the file did not land ({state.get('kind')}): {why[:200]}", "edm_rows": [row]}
     path = pathlib.Path(row.get("path") or "")
     if path.name != site["name"]:
         return {"result": f"landed as {path.name}, not {site['name']}"}

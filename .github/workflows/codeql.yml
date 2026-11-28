@@ -1,6 +1,6 @@
 name: CodeQL
 
-# GitHub's code scanning over dm's Rust, its Python scripts and these workflows: what a
+# GitHub's code scanning over EDM's Rust, its Python scripts and these workflows: what a
 # reviewer's eye misses (a path from a web page to a file write, a string run as a command, a
 # workflow that hands a token to code it checked out). Free for a public repository.
 #

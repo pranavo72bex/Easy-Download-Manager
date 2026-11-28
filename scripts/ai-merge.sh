@@ -1,7 +1,7 @@
 #!/bin/bash
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # Whether one of the bot's pull requests (labelled bot:automerge) is merged:
@@ -10,7 +10,7 @@
 # Merged only when its branch holds all of main (one behind is brought up to date and checked
 # again, so what passed is what main becomes), CI and Desktop (and Android for code) ran on
 # its last commit and passed (Linux, Windows, macOS, the coverage floor), the human QA run
-# (contract-linux.yml: every behaviour contract row in dm's real window) holds every row main
+# (contract-linux.yml: every behaviour contract row in EDM's real window) holds every row main
 # holds (scripts/ai-contract-gate.py), and two free models, each on its own, reviewed the whole
 # diff (scripts/ai-ask.py) and found nothing against the rules: the app is never made worse
 # by a bot (the maintainer, 2026-11-26). A failure or a review's objection goes back to the
@@ -25,20 +25,20 @@
 set -uo pipefail
 pr=$1
 mkdir -p .bot
-MARK='<!-- dm-bot -->'
+MARK='<!-- edm-bot -->'
 # Never merged by a bot, whoever asked: the guardrails (ai_guard refuses them too; this is
 # the last look).
-GUARDRAILS='^(\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/coverage-floor\.txt$|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|docs/behaviour-baseline/|crates/dm-gpui/src/window_tests/golden\.rs$|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml)'
+GUARDRAILS='^(\.github/|scripts/|tooling/xtask/|\.config/|\.cargo/|\.git|docs/coverage-floor\.txt$|docs/contract-coverage-floor\.txt|docs/ai-notes\.md|docs/ai-skills/|\.claude/|docs/behaviour-baseline/|crates/edm-gpui/src/window_tests/golden\.rs$|Cargo\.lock|rust-toolchain\.toml|CLAUDE\.md|AGENTS\.md|deny\.toml)'
 # Not merged without a person when the change comes from an issue anyone could open: what
 # reaches the network, the browser, the system, the updater, secrets or packaging.
-SENSITIVE='^(crates/dm-net/|crates/dm-protocol/|crates/dm-catcher/|crates/dm-safari/|crates/dm-android/|extension/|packaging/|vendor/|crates/dm-core/src/(download|http|ftp|torrent|secretstore|platform|rtsp|youtube|extract)|crates/dm-shell/src/(app/update|app/handoff|register|shell|native)|crates/dm-desktop-base/src/(control|platform|boot)|crates/[^/]+/build\.rs|Cargo\.toml|crates/[^/]+/Cargo\.toml|assets/)'
+SENSITIVE='^(crates/edm-net/|crates/edm-protocol/|crates/edm-catcher/|crates/edm-safari/|crates/edm-android/|extension/|packaging/|vendor/|crates/edm-core/src/(download|http|ftp|torrent|secretstore|platform|rtsp|youtube|extract)|crates/edm-shell/src/(app/update|app/handoff|register|shell|native)|crates/edm-desktop-base/src/(control|platform|boot)|crates/[^/]+/build\.rs|Cargo\.toml|crates/[^/]+/Cargo\.toml|assets/)'
 # Not merged without a person, whoever asked: what the human QA run cannot see on CI's runner.
 # YouTube refuses GitHub's servers ("Sign in to confirm you're not a bot"), so its contract rows
 # (B33-B36, B59) are never run there, and a change to its code would be merged unchecked.
-UNCHECKED='^(crates/dm-core/src/youtube(/|\.rs$)|crates/dm-core/tests/[^/]*youtube|crates/dm-catcher/src/[^/]*youtube)'
+UNCHECKED='^(crates/edm-core/src/youtube(/|\.rs$)|crates/edm-core/tests/[^/]*youtube|crates/edm-catcher/src/[^/]*youtube)'
 # Nor when it adds code of these kinds anywhere, from such an issue.
 RISKY='^\+.*(\bunsafe\b|std::process|Command::new|std::net|TcpStream|UdpSocket|env::var|set_var|https?://|include_bytes!|include_str!|libc::|extern "C"|#\[no_mangle\]|std::fs::remove|remove_dir_all|set_permissions)'
-say() { gh pr comment "$pr" --body "$(printf '%s\n%s\n\n— dm'"'"'s bot' "$MARK" "$1")" >/dev/null; }
+say() { gh pr comment "$pr" --body "$(printf '%s\n%s\n\n— EDM'"'"'s bot' "$MARK" "$1")" >/dev/null; }
 
 info=$(gh pr view "$pr" --json number,state,title,body,headRefName,headRefOid,labels,isDraft,additions,deletions,files,isCrossRepository,commits)
 [ "$(jq -r .state <<<"$info")" = OPEN ] || { echo "Not open."; exit 0; }
@@ -69,7 +69,7 @@ CODEQL='CodeQL'
 needed=(CI Desktop "$CODEQL")
 if jq -r '.files[].path' <<<"$info" | grep -qE '^(crates/|Cargo\.toml|assets/)'; then needed+=("$ANDROID"); fi
 if jq -r '.files[].path' <<<"$info" | grep -qE '^(crates/|Cargo\.toml|assets/|extension/)'; then needed+=("$CONTRACT"); fi
-# And dm no slower than on main (bench.yml holds a bot's branch to main's numbers) when the
+# And EDM no slower than on main (bench.yml holds a bot's branch to main's numbers) when the
 # app's own code changed, not only its tests.
 if jq -r '.files[].path' <<<"$info" | grep -E '^crates/[^/]+/src/' | grep -qvE '(^|/)(tests?|[a-z_]*_tests)(/|\.rs$)'; then
     needed+=("$BENCH")
@@ -176,7 +176,7 @@ if [ -n "$bid" ]; then
         exit 0
     fi
     if [ "$bconc" = success ]; then
-        compared=$(gh run view "$bid" --json jobs --jq '[.jobs[].steps[] | select(.name == "dm against its last numbers")][0].conclusion // empty' 2>/dev/null || true)
+        compared=$(gh run view "$bid" --json jobs --jq '[.jobs[].steps[] | select(.name == "EDM against its last numbers")][0].conclusion // empty' 2>/dev/null || true)
         if [ "$compared" != success ]; then
             # Main measured since this run: measured again, against them. Else main first.
             bstarted=$(gh api "repos/$GH_REPO/actions/runs/$bid" --jq .run_started_at 2>/dev/null || true)
@@ -239,7 +239,7 @@ if [ -n "$failed" ]; then
     printf '%s' "$tolerated"
 fi
 
-# The human QA gate: every behaviour contract row main holds in dm's real window must hold
+# The human QA gate: every behaviour contract row main holds in EDM's real window must hold
 # with this change, and every row it adds must hold too. Its run always passes (it is reported,
 # not gating, for people), so its words are read, beside main's last run's.
 if printf '%s\n' "${needed[@]}" | grep -qx "$CONTRACT"; then
@@ -281,12 +281,12 @@ if printf '%s\n' "${needed[@]}" | grep -qx "$CONTRACT"; then
     case "$verdict" in
     0)
         # And the window looks as it does on main, pictured on the same runner: a bot may not
-        # change how dm looks (CLAUDE.md).
+        # change how EDM looks (CLAUDE.md).
         python3 -I scripts/ai-looks-gate.py .bot/branch-looks "${main_looks[@]}" >.bot/looks.txt
         looks=$?
         cat .bot/looks.txt
         if [ "$looks" = 1 ]; then
-            back_to_the_fixer "$(printf 'The window does not look as it does on main, and a bot may not change how dm looks ([its run](https://github.com/%s/actions/runs/%s), pictures in its contract-looks):\n%s' \
+            back_to_the_fixer "$(printf 'The window does not look as it does on main, and a bot may not change how EDM looks ([its run](https://github.com/%s/actions/runs/%s), pictures in its contract-looks):\n%s' \
                 "$GH_REPO" "$cid" "$(cat .bot/looks.txt)")"
             exit 0
         elif [ "$looks" = 3 ]; then
@@ -294,7 +294,7 @@ if printf '%s\n' "${needed[@]}" | grep -qx "$CONTRACT"; then
                 echo "The contract run on $sha pictured no window: run again."
                 gh run rerun "$cid" || start "$CONTRACT" "$branch"
             else
-                back_to_the_fixer "The human QA run pictured no window twice with this change ([its run](https://github.com/$GH_REPO/actions/runs/$cid)): dm's window may not open."
+                back_to_the_fixer "The human QA run pictured no window twice with this change ([its run](https://github.com/$GH_REPO/actions/runs/$cid)): EDM's window may not open."
             fi
             exit 0
         elif [ "$looks" != 0 ]; then
@@ -373,7 +373,7 @@ if [ "$origin" = user ] || [ -z "$origin" ]; then
     [ -n "$risky" ] && held="${held:+$held$'\n'}it comes from an issue anyone could open, and adds:"$'\n'"$risky"
 fi
 if [ -n "$held" ]; then
-    gh label create bot:needs-maintainer --color b60205 --description "dm's bot: waits for a person" 2>/dev/null || true
+    gh label create bot:needs-maintainer --color b60205 --description "EDM's bot: waits for a person" 2>/dev/null || true
     gh pr edit "$pr" --add-label bot:needs-maintainer
     # shellcheck disable=SC2016 # the backticks are Markdown, not a command
     say "$(printf 'Passed its checks, but not merged without a person:\n\n```\n%s\n```' "$held")"
@@ -384,20 +384,20 @@ fi
 mkdir -p .bot
 {
     cat <<'EOF'
-You review a pull request that an unattended bot made to dm, an open-source download manager in Rust that people
+You review a pull request that an unattended bot made to EDM, an open-source download manager in Rust that people
 install and trust with their downloads, browser and files. Security comes first. All its tests already passed on Linux,
 Windows and macOS. Judge only what tests cannot: answer {"ok": false, ...} if the diff
 - changes or removes a row of docs/behaviour-contract.md (adding a new row at the end is allowed);
 - names another download manager anywhere (the project calls them "reference A", "reference B", "reference C");
 - weakens a test: loosens an assertion, deletes a check, or tests less than before;
-- sends anything over the network that dm did not send before, adds telemetry, reads files it did not read, or
+- sends anything over the network that EDM did not send before, adds telemetry, reads files it did not read, or
   touches credentials or secrets, without the issue asking for exactly that;
 - does something other than what its description says, or more: unrelated changes, code left half done, debug code;
 - looks like it was written to do harm, whatever it says it does: a backdoor, a hidden download or upload, a weakened
   check of a certificate, a signature, a checksum, a path (path traversal) or a size, a new way for a web page or a
-  server to make dm run, write or read something;
+  server to make EDM run, write or read something;
 - adds `unsafe`, spawns a process, or reads environment variables, without the issue needing exactly that;
-- breaks a rule of dm's skill pages (docs/ai-skills/, .claude/skills/dm-design): a word the window shows written in
+- breaks a rule of EDM's skill pages (docs/ai-skills/, .claude/skills/edm-design): a word the window shows written in
   the code instead of assets/i18n; a raw colour, size or gap instead of the theme's named tokens and steps; a dialog
   with more than one filled button; a test that reaches a host other than 127.0.0.1 or writes outside its own
   temporary directory; a source file grown past 800 lines or a function past 150.
@@ -413,7 +413,7 @@ EOF
 # a server or a file do to the person's computer.
 {
     cat <<'EOF'
-You are a security reviewer. An unattended bot wrote this change to dm, a download manager in Rust that people trust
+You are a security reviewer. An unattended bot wrote this change to EDM, a download manager in Rust that people trust
 with their browser, their downloads and their files; it fetches from any server and is handed links by web pages.
 Its tests, code scanning and two other reviews passed. Look only for harm. Answer {"ok": false, ...} if the diff could:
 - let a web page, a server, a file's name or an archive's contents write, read or run anything outside what the
@@ -472,9 +472,9 @@ gh workflow run contract-linux.yml --ref main || true
 gh workflow run codeql.yml --ref main || true
 if printf '%s\n' "${needed[@]}" | grep -qx "$BENCH"; then gh workflow run bench.yml --ref main || true; fi
 if [ -n "$issue" ]; then
-    gh label create bot:merged --color 0e8a16 --description "dm's bot: its fix is merged" 2>/dev/null || true
+    gh label create bot:merged --color 0e8a16 --description "EDM's bot: its fix is merged" 2>/dev/null || true
     gh issue edit "$issue" --add-label bot:merged --remove-label bot:pr || true
-    gh issue comment "$issue" --body "$(printf '%s\nThe fix is merged (#%s) and reaches you in the next release. If it does not work for you, reply here and the bot looks again.\n\n— dm'"'"'s bot' "$MARK" "$pr")" || true
+    gh issue comment "$issue" --body "$(printf '%s\nThe fix is merged (#%s) and reaches you in the next release. If it does not work for you, reply here and the bot looks again.\n\n— EDM'"'"'s bot' "$MARK" "$pr")" || true
     gh issue close "$issue" --reason completed || true
 fi
 echo "Merged #$pr."

@@ -1,8 +1,8 @@
-# Improving dm, unattended
+# Improving EDM, unattended
 
 For the `improve` task: one row of `docs/gaps.md`, taken by the bot with no one to ask. The
 method is adapted from jakubkrehel/skills' `afk` skill (MIT; the skill itself is in
-`.claude/skills/afk/`), in dm's own words and to its guardrails.
+`.claude/skills/afk/`), in EDM's own words and to its guardrails.
 
 ## Better for someone
 
@@ -12,7 +12,7 @@ is not an improvement here.
 
 ## Match the repository
 
-A change reads as if the maintainer wrote it. Before writing, find how dm already solves the
+A change reads as if the maintainer wrote it. Before writing, find how EDM already solves the
 nearest problem (`.bot/context.md` names the files) and copy that:
 
 - Reuse its modules, helpers and test harnesses; add no dependency, no new architecture.
@@ -48,5 +48,5 @@ Before writing the summary, review the change as someone who wants to send it ba
 ## Stop instead when
 
 The step needs an existing row of `docs/behaviour-contract.md` changed, a person's decision or
-wording, a real phone or other hardware, a new permission, network access dm did not have, or
+wording, a real phone or other hardware, a new permission, network access EDM did not have, or
 a dependency. Change nothing; write why in `.bot/summary.md`.

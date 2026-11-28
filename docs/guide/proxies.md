@@ -37,14 +37,14 @@ network can give you its address. The settings are in **Options › Advanced
 ## What goes through it
 
 - Web downloads (HTTP and HTTPS), video pages and their streams.
-- FTP, through a SOCKS or an HTTP proxy. dm cannot send FTP through an HTTPS
+- FTP, through a SOCKS or an HTTP proxy. EDM cannot send FTP through an HTTPS
   proxy and does not go around it: use an HTTP or SOCKS proxy, or put the
   site on the bypass list.
 - Torrents only through a SOCKS5 proxy. With a proxy on, a torrent finds
   peers only through its `http` and `https` trackers. A peer blocklist on
   the web is fetched through the proxy too.
 - Live streams (`rtmp://`, `rtsp://`, `mms://`) cannot go through a proxy,
-  and dm does not send them around it: turn the proxy off for that site
+  and EDM does not send them around it: turn the proxy off for that site
   (put it on the bypass list) to record one.
 - **Second network** (Options › Advanced › Network) is not used while a
   proxy is on: the proxy is the way out.
@@ -60,4 +60,4 @@ opens Advanced at its proxy section to say why:
 - "A proxy needs a port from 1 to 65535."
 
 A download that fails at the proxy says so: see the proxy section of
-[What dm's messages mean](failures.md).
+[What EDM's messages mean](failures.md).

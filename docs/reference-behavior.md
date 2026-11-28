@@ -1,13 +1,13 @@
 # Reference behaviour: two other download managers
 
-dm's engine is compared with two other download managers: Reference A, a
+EDM's engine is compared with two other download managers: Reference A, a
 commercial one for Windows, and reference B, a free one for Windows, macOS
 and Linux. What they do is taken from their public pages and, since
 2026-10-31, from reference A run normally on a Windows test machine against
 a local test server (its section below); each claim says where it comes
 from. No binary of either program is opened, disassembled or decompiled:
-reference A's licence forbids it, and dm is written clean-room. Nothing of
-either program's code is used; dm's behaviour is written and tested
+reference A's licence forbids it, and EDM is written clean-room. Nothing of
+either program's code is used; EDM's behaviour is written and tested
 independently.
 
 Labels: **Verified** (the reference's own page states it), **Reported**
@@ -92,9 +92,9 @@ disassembled.
 - "Sign in to confirm you're not a bot" and the age check are reported as
   needing cookies; "Unsupported URL" as unsupported; anything else as a parse error.
 
-Compared with dm today: the same split for YouTube (a reader of the page, then the
-download manager fetches), with dm's own reader (`youtube.rs`) in place of a helper
-program, and the player's requests the extension catches for every other site. dm
+Compared with EDM today: the same split for YouTube (a reader of the page, then the
+download manager fetches), with EDM's own reader (`youtube.rs`) in place of a helper
+program, and the player's requests the extension catches for every other site. EDM
 joins picture and sound itself and needs no ffmpeg; the only site script it runs
 is the part of YouTube's player that answers its checks, in the computer's own
 JavaScript engine with nothing of the computer in reach (`javascript.rs`). It
@@ -106,7 +106,7 @@ reading a page's video list).
 Reference A is described (a write-up handed to this project on 2026-10-29)
 as reading the player's own requests in the browser, taking the picture's
 and the sound's addresses, fetching each in up to 32 pieces at once and
-joining the two itself. dm does each of those steps (`crates/dm-catcher/src/decide/
+joining the two itself. EDM does each of those steps (`crates/edm-catcher/src/decide/
 streams.rs` `track_of`, `download/dash.rs` `download_media_pair`, its own
 muxer), and needs no helper for them: `tests/caught_pair.rs` fetches and
 joins a pair with no helper program on the computer at all.
@@ -121,29 +121,29 @@ range fetch could read. The same is reported across the field: the video tool
 lists YouTube's web client as SABR-only and routes around it with other
 clients and proof-of-origin tokens; reference B hands YouTube to an external video tool
 add-on; reference A ships a new build whenever YouTube changes. Nothing
-reads YouTube without someone keeping up with it. Since 2026-10-30 dm reads
+reads YouTube without someone keeping up with it. Since 2026-10-30 EDM reads
 it itself, through the TV client that still answers with plain addresses
 (`youtube.rs`; `decisions.md`, "How YouTube is got today"): the client's name
-and version are dm's to keep current.
+and version are EDM's to keep current.
 
 ## Reference B's download engine, measured (2026-10-29)
 
-Reference B 6.35.2 (emulated x86-64) and dm (native) downloaded the same
+Reference B 6.35.2 (emulated x86-64) and EDM (native) downloaded the same
 32 MiB files from a server of this project's that logs every connection and
 request, in Docker; the lab is kept outside the repository.
 
 - **First request**: a plain `GET` with no `Range`, left streaming as the
-  first piece while its New download dialog waits. dm sends `bytes=0-` and
+  first piece while its New download dialog waits. EDM sends `bytes=0-` and
   keeps that response streaming as the first piece.
 - **Ranges**: open-ended (`bytes=N-`); it closes a connection itself when it
-  reaches the next piece. dm asks closed ranges (`bytes=a-b`).
+  reaches the next piece. EDM asks closed ranges (`bytes=a-b`).
 - **Splitting**: halves of what is left (offsets near 1/2, 1/4, 3/4, 1/8 ...).
 - **Connections grow with slowness**: from a server holding each connection
   to 2 MiB/s it opened 15 at once and 14 more a second later, 29 in all, 24
-  at the same time, and finished in 1.2 s. dm kept to its 8 and took 2.0 s
+  at the same time, and finished in 1.2 s. EDM kept to its 8 and took 2.0 s
   (32 MiB / 8 / 2 MiB/s). From a fast server it used 6.
 - **A 503 on a second connection**: it added no more connections and finished
-  on the first; dm moved the refused ranges to its other connections.
+  on the first; EDM moved the refused ranges to its other connections.
 - **A page's only video**: it proposes "Lab clip (1).mp4", its add-on's numbering.
 - **Sandbox**: in Docker, where `bwrap` cannot make namespaces, it ran the
   add-on's video tool outside one, without a word.
@@ -154,14 +154,14 @@ Reference A 6.43 build 16, run normally on Windows 11 and started from its
 documented command line (`/d URL /p folder /f name /n`), against a local
 HTTP server on 127.0.0.1 that logs every connection, request and byte sent.
 The file's content is a known pattern, so every saved file was checked byte
-by byte. dm 0.8.3 was run the same way (a portable copy, `--headless`, its own
-data folder) for the dm column. Only the server's side was watched: no
+by byte. EDM 0.8.3 was run the same way (a portable copy, `--headless`, its own
+data folder) for the EDM column. Only the server's side was watched: no
 packet capture, no look inside either program. Not covered: pause and resume
 from the window, the browser, video sites, and a server that honours
-`If-Range` (the test server ignores it, so dm's own `If-Range` check is not
+`If-Range` (the test server ignores it, so EDM's own `If-Range` check is not
 measured here).
 
-| What happened | Reference A | dm 0.8.3 |
+| What happened | Reference A | EDM 0.8.3 |
 |---|---|---|
 | First request | A plain `GET` with no `Range`, kept as the first piece | `bytes=0-`, kept streaming as the first piece; closed ranges for the rest |
 | Pieces | Halves of what is left, from the start: the second connection takes `N-` (N = what the first had), then halves of the largest piece; 8 connections within 1.3 s | 8 equal pieces at once; halves of the largest when a connection frees |
@@ -178,11 +178,11 @@ measured here).
 | 302 redirect | Every piece asked of the final address | Not run |
 | 503 for 12 s, then 200 | 2 attempts 6 ms apart, then stopped; nothing after the server recovered | Attempts 1, 2, 4 and 8 s apart, then the download, on 8 connections; file correct |
 | 404 | 2 attempts, then stopped | 1 attempt, then stopped |
-| Headers | An old browser's User-Agent (Trident 7.0), `Accept-Encoding: identity`, `Accept-Language`, `Accept-Charset`, and a `Referer` of the address's own folder when none was given | dm's own User-Agent, `Accept-Encoding: identity` |
+| Headers | An old browser's User-Agent (Trident 7.0), `Accept-Encoding: identity`, `Accept-Language`, `Accept-Charset`, and a `Referer` of the address's own folder when none was given | EDM's own User-Agent, `Accept-Encoding: identity` |
 
 Where reference A is ahead: smaller
 pieces (small files go faster), a wider seam check, and almost no time lost
-after a dropped connection or an outage. Where dm is ahead: a changed file
+after a dropped connection or an outage. Where EDM is ahead: a changed file
 is fetched again at once on all connections, a server without ranges
 recovers from a cut, and a 503 is waited out rather than ending the
 download. Reference A's 205 attempts a second against a failing server is
@@ -191,10 +191,10 @@ short, bounded wait.
 
 ## Reference A's FTP engine, measured (Observed, 2026-11-02)
 
-Reference A 6.43 and dm 0.8.6, same method as above, against a minimal FTP
+Reference A 6.43 and EDM 0.8.6, same method as above, against a minimal FTP
 server on 127.0.0.1 (8 MiB file). FTP commands logged per control session.
 
-| What happened | Reference A | dm |
+| What happened | Reference A | EDM |
 |---|---|---|
 | Connections | 6 FTP control sessions for an 8 MiB file | 9 FTP control sessions |
 | Probe | First session: `USER PASS TYPE PASV RETR QUIT` — receives file start; second session: `USER PASS TYPE SIZE PASV TYPE LIST QUIT` — reads directory listing | First session: `USER PASS TYPE SIZE MDTM REST QUIT` — probes with SIZE, MDTM, and REST 0 to check resumability; no LIST |
@@ -205,7 +205,7 @@ server on 127.0.0.1 (8 MiB file). FTP commands logged per control session.
 
 ## Segmentation of a 64 MiB file (Observed, 2026-11-02)
 
-| What | Reference A | dm |
+| What | Reference A | EDM |
 |---|---|---|
 | Connections | 20 | 13 (+ spot-check requests) |
 | Total requests | 20 | 25 |
@@ -219,11 +219,11 @@ Reference A's time disadvantage on loopback is because it opens connections one 
 
 Server cuts TCP connection after sending 512 KB of each range's first attempt; retries go through cleanly. A 16 MiB file.
 
-| What | Reference A | dm |
+| What | Reference A | EDM |
 |---|---|---|
 | Result | Failed (1 request, did not retry) | Completed |
 | Requests | 1 | 34 |
-| Note | Reference A's first request (no Range) was answered with a 200 and cut after 512 KB of 16 MiB. In two runs it made no second request within 90 s and left no file in the folder. dm retried each cut range and completed the file. |
+| Note | Reference A's first request (no Range) was answered with a 200 and cut after 512 KB of 16 MiB. In two runs it made no second request within 90 s and left no file in the folder. EDM retried each cut range and completed the file. |
 
 Seen twice, not explained: the harness closes reference A's dialogs
 automatically, so a prompt offering a retry may have been closed unread. Do
@@ -233,24 +233,24 @@ its dialogs left open, at the human QA.
 ## Outage re-measured (Observed, 2026-11-02)
 
 A 16 MiB file; the server accepts and drops every connection for 20 s from
-the first request, then serves normally. dm 0.8.6: 25 attempts, 13 of them
+the first request, then serves normally. EDM 0.8.6: 25 attempts, 13 of them
 dropped, the first request after the server returned came 1.2 s later, the
-file was whole (total 22 s). The 22 s recovery in the table above was dm
+file was whole (total 22 s). The 22 s recovery in the table above was EDM
 0.8.3 and no longer holds: a dropped connection is now asked again at once,
 then within 2 s. Reference A made one request and stopped in this run, which
 disagrees with the 2026-10-31 measurement (205 attempts a second); the
 harness closes its dialogs unread, so its result here is not used.
 
-Re-run 2026-11-03 (`compare2.mjs cut_mid hang_body retry_503 outage big`, dm 0.8.6
-built that day): the same picture. Cut after 512 KB: dm whole in 2.6 s (31
-requests), reference A one request and no file. Outage: dm back 1.2 s after
+Re-run 2026-11-03 (`compare2.mjs cut_mid hang_body retry_503 outage big`, EDM 0.8.6
+built that day): the same picture. Cut after 512 KB: EDM whole in 2.6 s (31
+requests), reference A one request and no file. Outage: EDM back 1.2 s after
 the server returned, whole in 22 s; reference A no file. Every range answered
-503: both whole, reference A in 4.7 s after 8 refusals, dm in 0.4 s after 1. A
+503: both whole, reference A in 4.7 s after 8 refusals, EDM in 0.4 s after 1. A
 64 MiB file: both whole, reference A in 27.6 s on 18 connections (halves of the
-largest piece), dm in 2.7 s on 11 (8 MiB pieces, each range starting 64 bytes
-back). A header then a body that never comes: neither has a file; dm gave up
-after 120 s. dm's piece plan is not changed to reference A's halving: dm is
-the faster here, and row 65's rule is to change dm only where it is not
+largest piece), EDM in 2.7 s on 11 (8 MiB pieces, each range starting 64 bytes
+back). A header then a body that never comes: neither has a file; EDM gave up
+after 120 s. EDM's piece plan is not changed to reference A's halving: EDM is
+the faster here, and row 65's rule is to change EDM only where it is not
 already better.
 
 ## The video test plan's cases, side by side (Observed, 2026-11-07, Windows)
@@ -258,17 +258,17 @@ already better.
 Both apps on one Windows 11 computer, one after the other, against the same server
 (`scripts/video-sites-check.py`'s, on 127.0.0.1) and the same public files: reference A
 6.43 by its command line (`/d`, `/p`, `/n`), its windows read before they were closed;
-dm 0.8.7 (debug build, with the 429 fix of BUGLOG BUG-010) by its control port,
+EDM 0.8.7 (debug build, with the 429 fix of BUGLOG BUG-010) by its control port,
 headless. Each case's requests were logged apart for each app. "Requests / ranges / at
 most at once" are the server's count.
 
-| Case | Reference A | dm |
+| Case | Reference A | EDM |
 |---|---|---|
 | 48 MB, ranges, 4 MB/s a connection | whole; 13 / 12 / 8 | whole; 40 / 40 / 8 |
 | 24 MB, no ranges | whole; 3 / 2 / 3 (asked twice with a range first) | whole; 1 / 1 / 1 |
 | Three 302s to the file | whole, the file's own name; 8 / 7 / 2 | whole, the same name; 20 / 20 / 5 |
 | The first three connections cut at 1 MB | whole; 7 / 6 / 4 | whole; 37 / 37 / 5 |
-| 429, 429, 503 with `Retry-After: 2` | no file: a window "Cannot download this file. … HTTP/1.1 429 Too Many Requests", no second try | whole after the waits; then asked by dm's own name |
+| 429, 429, 503 with `Retry-After: 2` | no file: a window "Cannot download this file. … HTTP/1.1 429 Too Many Requests", no second try | whole after the waits; then asked by EDM's own name |
 | The server gone for 10 s at a quarter | whole | whole |
 | 404 | "The requested file doesn't exist. … HTTP/1.1 404 Not Found" | failed at once: "this link no longer works" (row: "the server answered 404 Not Found for …") |
 | 410 | "Cannot download this file. … HTTP/1.1 410 Gone" | failed at once with the 410 |
@@ -281,14 +281,14 @@ most at once" are the server's count.
 
 What this changes in the record above: reference A **does** retry a cut connection and
 comes back after an outage; the 2026-11-02 runs that showed it stopping closed its
-windows unread. The differences that stand: dm asks for many more, smaller pieces (each
+windows unread. The differences that stand: EDM asks for many more, smaller pieces (each
 seam checked again), which is the request rate Wikimedia's limiter answered with 429
-(BUG-010); reference A gives up on a 429 and on a host it cannot find where dm waits and
-tries again; reference A asks for a login on a 401 where dm says where to put one. On
-speed, the 4.5 GiB file timed again with dm's release build: dm 194 s (55 requests, 8 at once),
+(BUG-010); reference A gives up on a 429 and on a host it cannot find where EDM waits and
+tries again; reference A asks for a login on a 401 where EDM says where to put one. On
+speed, the 4.5 GiB file timed again with EDM's release build: EDM 194 s (55 requests, 8 at once),
 reference A 101 s (9 requests, 8 at once), its time including the move out of its temporary folder on C:.
-The cause was dm's staged file, which Windows zero-filled ahead of each far write (BUGLOG BUG-011); with the
-file sparse, dm 73 s and reference A 96 s. Results:
+The cause was EDM's staged file, which Windows zero-filled ahead of each far write (BUGLOG BUG-011); with the
+file sparse, EDM 73 s and reference A 96 s. Results:
 `D:\compare\plan-side-full.json` and `plan-side\report.json` (the error cases again with
 each window read and closed).
 
@@ -299,14 +299,14 @@ harness misreading reference A. Run again one after the other against one server
 (`D:\compare\dialogs.mjs`): reference A 6.43 by its command line without its silent switch,
 every window it opened read and recorded with its words, and answered as a person answers it
 (File Info: Start Download; "the server sent the following name": Yes; Download complete:
-Close; its reminder to register: No); its progress window left alone. dm (debug build) by its
+Close; its reminder to register: No); its progress window left alone. EDM (debug build) by its
 control port. Each file was given a name reference A's own list had not seen: it asks first
 about a name it already holds ("Duplicate download link: This file already exists in your
 download list").
 
-| Scenario | Reference A | dm |
+| Scenario | Reference A | EDM |
 |---|---|---|
-| A name the server gives (`Content-Disposition`, "Report 2026 ….pdf") | File Info, then "The name to save the file was "dl", but the server sent the following name "Report 2026 ….pdf". Would you like to save the file with the file name that was received from the server?"; with Yes, the file under the server's name, sorted into its Documents folder (outside the folder it was given) | the server's name, sorted into its Documents folder; the same bytes (SHA-256 equal). dm asks the same question in its window (contract row B39); added here by its control port, it does not ask |
+| A name the server gives (`Content-Disposition`, "Report 2026 ….pdf") | File Info, then "The name to save the file was "dl", but the server sent the following name "Report 2026 ….pdf". Would you like to save the file with the file name that was received from the server?"; with Yes, the file under the server's name, sorted into its Documents folder (outside the folder it was given) | the server's name, sorted into its Documents folder; the same bytes (SHA-256 equal). EDM asks the same question in its window (contract row B39); added here by its control port, it does not ask |
 | The same in UTF-8 (`filename*=UTF-8''résumé € ….txt`) | the same question; with Yes, "résumé € ….txt", exact | "résumé € ….txt", exact |
 | A length it lies about (1 MiB more than it sends) | split into eight connections for the claimed 5 MB; the three past the real 4 MB get nothing (its log: `downloaded=0`); stays at 80% "Receiving data..." for the three minutes watched | whole and exact (4 MiB) |
 | A web page where a file was asked for (`page.zip` answering an HTML sign-in page) | saves it, renamed `page-….htm` (35 bytes), and says Download complete | refuses it: "that link answered with a web page rather than the file — it may have expired, or need a sign-in" |
@@ -314,10 +314,10 @@ download list").
 What it changes: the two named downloads come out the same in both; the earlier difference was
 the harness, which closed reference A's progress window, which cancels its download ("Cancel
 by user" in its own log), and looked only in the folder it gave (reference A sorted the PDF into
-its Documents folder). The two that stand are where dm does better: it finishes a file whose
+its Documents folder). The two that stand are where EDM does better: it finishes a file whose
 length is overstated, and says why it refuses a page served in a file's place, where reference
-A saves the page. Nothing in dm is changed for them (row 65's rule: only where dm is not already
-better). The duplicate question is reference A's, about its own list; dm's is contract rows B17
+A saves the page. Nothing in EDM is changed for them (row 65's rule: only where EDM is not already
+better). The duplicate question is reference A's, about its own list; EDM's is contract rows B17
 and B50. Results:
 `D:\compare\dialogs-report.json`.
 
@@ -350,7 +350,7 @@ run but string and export listings.
   other JavaScript there is for proxy scripts (a JScript proxy library of its own, and a polyfill
   of `Array.prototype.indexOf` in the main program's proxy code).
 
-dm does the same in substance since 2026-11-08 (`docs/decisions.md`, "YouTube's checks are answered
+EDM does the same in substance since 2026-11-08 (`docs/decisions.md`, "YouTube's checks are answered
 as reference A answers them"): the player cut by its shape (`youtube/player.rs`), run in Windows'
 own engine (`javascript.rs`). It cuts in the app rather than the extension, from the player it
 fetches itself, so a link added without the browser is read the same way; and it runs Chakra, not
@@ -364,9 +364,9 @@ app's process ended outright (`taskkill /F`) at about 40%, started again three s
 its download resumed as a person resumes it: reference A by asking for the same address again
 (its windows on starting answered as a person answers them: the tip of the day closed, its
 trial's reminder put off) and choosing in its "Duplicate download link" window "If existing file
-is complete, show download complete dialog; otherwise resume it."; dm by starting it again.
+is complete, show download complete dialog; otherwise resume it."; EDM by starting it again.
 
-| | Reference A | dm before | dm now |
+| | Reference A | EDM before | EDM now |
 |---|---|---|---|
 | How it goes on | the address asked again, and its duplicate window's resume | by itself when started | by itself when started |
 | Bytes coming again after the restart | 14 s, most of it its windows and the harness | 134 ms | 151 and 160 ms |
@@ -375,7 +375,7 @@ is complete, show download complete dialog; otherwise resume it."; dm by startin
 
 What it changed: each range's ledger (what it has on disk) was written every 4 MiB or every second,
 so a crash lost up to a second of every range; it is now written every 512 KiB or every quarter
-second (`download/ranged/staged.rs` `LEDGER_EVERY`, `LEDGER_EVERY_TIME`). What dm still fetches
+second (`download/ranged/staged.rs` `LEDGER_EVERY`, `LEDGER_EVERY_TIME`). What EDM still fetches
 again beyond reference A is the bytes on their way at the moment of the kill and the 64 KiB at each
 part's end it compares with the server on a resume, against a power cut's zeros, which reference A
 does not check.
@@ -385,28 +385,28 @@ does not check.
 One 48 MiB file from a server on 127.0.0.1 whose rate for all connections together steps between
 3 MB/s and 1 MB/s every 10 seconds (`D:\compare\smoothing.mjs`): reference A 6.43 by its command
 line, its windows answered as a person answers them and its progress window read twice a second;
-dm (debug build) by its control port, its row read twice a second. Each reading set beside the
+EDM (debug build) by its control port, its row read twice a second. Each reading set beside the
 rate the server really sent in the second before it.
 
-| | Reference A | dm |
+| | Reference A | EDM |
 |---|---|---|
 | The whole file | 84.7 s: its connections took about a third of what the server offered | 23.5 s, the server's whole rate |
 | After a step in the real rate, its shown rate within a quarter of the new one | after 12.4 s, 0.1 s, 13.5 s and 1.3 s; four of eight steps never | after 1.7 s and 1.4 s, both steps |
 | How much the shown rate moves between readings while the real one is steady | median 15%, at worst 64% | median 0.9% |
 | How far its time left is from the time that was left | median 6.9 s, at worst 71 s | median 5.4 s, at worst 12 s |
 
-What it changes: nothing in dm, which follows a change sooner, holds steadier while nothing changes
+What it changes: nothing in EDM, which follows a change sooner, holds steadier while nothing changes
 and says the time left more nearly (row 65's rule). That reference A fetched the file at a third of
-the offered rate is its own: it set no speed limit, and dm took the whole rate from the same server.
+the offered rate is its own: it set no speed limit, and EDM took the whole rate from the same server.
 
 ## Dial-up / VPN redial, side by side (Observed, 2026-11-08, Windows)
 
-Reference A 6.43 and dm 0.8.7 (debug build) on one Windows 11 computer, one after the
+Reference A 6.43 and EDM 0.8.7 (debug build) on one Windows 11 computer, one after the
 other, with the same connection: a VPN entry made for the test (`Add-VpnConnection`, SSTP
 to 127.0.0.1, which refuses), the same file from a local server, two tries five seconds
 apart. Reference A was set through its own Options (read and set with Windows messages,
 put back afterwards) and started by its command line; its windows were read as they
-showed. dm was driven by its control port, headless and then with its window.
+showed. EDM was driven by its control port, headless and then with its window.
 
 Reference A's last Options tab, Dial Up / VPN: "Use Windows Dial Up / VPN Networking"
 (off), then "Connection options" (Connection, a list of the connections Windows knows; User
@@ -414,15 +414,15 @@ name; Password; Save password, off; Apply) and "Redial options" ("Redial attempt
 endlessly)", 0; "Time between redial attempts", 30 seconds). Everything under the switch is
 greyed out until it is on, and the sign-in and redials until a connection is chosen.
 
-| | Reference A | dm |
+| | Reference A | EDM |
 |---|---|---|
 | No user name or password in Options | a box named after the connection asks for them (User name, Password, Save password, Dial, Cancel); the download waits at "Connecting..."; Cancel stops it ("Download has been cancelled by user") | dials with the ones Windows keeps for the connection, asking nothing |
 | Each try | its box: "Connecting Device", then "Undefined RAS Dial Error." and "Redial 5", counting down | the row: "Starting…", then "Redialling (retry 2 of 2)" |
 | Every try failed | stopped about 10 s in: "Cannot connect to the Internet." on the download, and once a box "Error connecting to VPN" ("change VPN connection that is set in … options, or turn off "Use Windows Dial Up / VPN Networking" checkbox") | failed at 9.9 s: "Error: cannot connect to the Internet. The dial-up or VPN connection did not come up", Windows' reason on hover ("No connection could be made because the target machine actively refused it"), and what to do next |
 | Requests to the server meanwhile | none | none |
 
-What dm leaves out, and why: the box that asks for a sign-in (dm takes what Windows keeps),
-and the Apply button, which hands the sign-in to Windows (dm keeps its own, in the system's
+What EDM leaves out, and why: the box that asks for a sign-in (EDM takes what Windows keeps),
+and the Apply button, which hands the sign-in to Windows (EDM keeps its own, in the system's
 store when Save password is on). `docs/decisions.md`, 2026-11-08.
 
 Reference A's Scheduler, read the same day (Downloads › Scheduler, its controls listed with
@@ -433,13 +433,13 @@ downloading failed :" (10, greyed until ticked); then, each a tick of its own an
 "Open the following file when done:", "Hang up modem when done", "Exit … when done", "Turn
 off computer when done" (with Shut down, and "Force processes to terminate"), and "Start
 download on … startup" (… being its own name). "Hang up modem when done" is on offer
-whether or not Options sets a connection. dm has it below its program to run when the
+whether or not Options sets a connection. EDM has it below its program to run when the
 scheduled downloads are done, on Windows (contract row B49, 2026-11-08); what it hangs up is
 the connection Options › Advanced › Dial Up / VPN sets.
 
-## HTTP proxy test (dm only, 2026-11-02)
+## HTTP proxy test (EDM only, 2026-11-02)
 
-FTP and proxy tests via the harness (`D:\compare\compare2.mjs`). SOCKS5 proxy test for dm pending (proxy settings not loading from DM_HOME/settings.json in the harness; to be verified in the human QA). HTTP CONNECT proxy: dm issues `CONNECT host:port HTTP/1.1` to the proxy and downloads over the tunnel — verified working.
+FTP and proxy tests via the harness (`D:\compare\compare2.mjs`). SOCKS5 proxy test for EDM pending (proxy settings not loading from EDM_HOME/settings.json in the harness; to be verified in the human QA). HTTP CONNECT proxy: EDM issues `CONNECT host:port HTTP/1.1` to the proxy and downloads over the tunnel — verified working.
 
 ## The floating button's list of qualities, watched side by side (2026-11-02)
 
@@ -448,25 +448,25 @@ same page, the pointer over the same playing video; reference A's button and lis
 screen (its button is a window of its own over the browser, not part of the page), and nothing was
 downloaded. Observed behaviour only: no file of reference A was opened, and no binary was read.
 
-| | Reference A | dm (before this entry) |
+| | Reference A | EDM (before this entry) |
 |---|---|---|
-| Where the button sits | At the top right of the video, above dm's; on a narrow video (a reel) it shrinks to a small play mark and a close mark | At the top right of the video, a bar with a drag grip, a mark, "Download video", a help mark and a hide mark |
-| First line of its list | "Download all" | A "Part" line, then dm's own best-quality line |
+| Where the button sits | At the top right of the video, above EDM's; on a narrow video (a reel) it shrinks to a small play mark and a close mark | At the top right of the video, a bar with a drag grip, a mark, "Download video", a help mark and a hide mark |
+| First line of its list | "Download all" | A "Part" line, then EDM's own best-quality line |
 | YouTube, one 15-minute video | TTML subtitles line; then "MP4 file, quality 1080p HD 60 fps", "720p HD", "720p HD 60 fps", "480p", "360p", "240p", "144p"; each line starts with the video's title; no sizes in the list (sizes are in its "Download all" dialog) | "1080p MP4 — 252 MB", "720p MP4 — 137 MB", "480p", "360p", "240p", "144p", then audio-only lines; sizes shown; the 60 fps variants are not listed apart |
-| Facebook, one reel | Best first: "MP4 file, 13 sec, quality 1280p HD, 4590 kbps", "MP4 file, 13 sec, quality 640p, 707 kbps", then "MP4 file, quality SD", "MP4 file, quality HD", then an SRT file; each starts with the video's title | The same lines, the two renditions smallest first (changed below), no title, no caption file, with dm's "video + sound" line first |
-| Wording | "MP4 file, <seconds> sec, quality <height>p[ HD][ 60 fps][, <n> kbps]" | The same words for a page's own renditions; YouTube lines are dm's own ("1080p MP4 — 252 MB") |
+| Facebook, one reel | Best first: "MP4 file, 13 sec, quality 1280p HD, 4590 kbps", "MP4 file, 13 sec, quality 640p, 707 kbps", then "MP4 file, quality SD", "MP4 file, quality HD", then an SRT file; each starts with the video's title | The same lines, the two renditions smallest first (changed below), no title, no caption file, with EDM's "video + sound" line first |
+| Wording | "MP4 file, <seconds> sec, quality <height>p[ HD][ 60 fps][, <n> kbps]" | The same words for a page's own renditions; YouTube lines are EDM's own ("1080p MP4 — 252 MB") |
 
 Decided: renditions from a page's own data are listed best first, as reference A does (the maintainer asked
 that both be the same; no contract row fixes the order). Not yet done, each a visible wording or layout
 change that needs the maintainer's word (gaps row 72): the video's title at the start of each line, a
 "Download all" line, caption files as lines, the 60 fps variants and "HD" in YouTube's lines, and leaving
-sizes out (dm's sizes were asked for and are kept).
+sizes out (EDM's sizes were asked for and are kept).
 
 ### More pages, same two extensions (2026-11-02)
 
-- **Vimeo (public video).** Reference A: a bar above the video's top right and a second bar at the page's bottom left; its list is eight lines, a TS file and an MP4 file for each of 270p, 360p, 540p and 720p HD, with kbps. dm: "Protected video" and a refusal (the player has an encryption key object).
-- **X (one MP4 tweet).** Reference A: a click opens its "Download File Info" window (URL, Category, Save As from the page's title, Remember this path, Description, Download Later / Start Download / Cancel). dm: the click sent the file at once, and the app came forward with it complete; named by the file's own name.
-- **TikTok and Instagram (logged out).** dm showed its bar; reference A showed none. On Instagram dm's bar sat on the site's header, since the video's top lies under it.
+- **Vimeo (public video).** Reference A: a bar above the video's top right and a second bar at the page's bottom left; its list is eight lines, a TS file and an MP4 file for each of 270p, 360p, 540p and 720p HD, with kbps. EDM: "Protected video" and a refusal (the player has an encryption key object).
+- **X (one MP4 tweet).** Reference A: a click opens its "Download File Info" window (URL, Category, Save As from the page's title, Remember this path, Description, Download Later / Start Download / Cancel). EDM: the click sent the file at once, and the app came forward with it complete; named by the file's own name.
+- **TikTok and Instagram (logged out).** EDM showed its bar; reference A showed none. On Instagram EDM's bar sat on the site's header, since the video's top lies under it.
 - Reference A's bar sits on the video's top edge, right-aligned, and is a plain play mark and close mark on a narrow video.
 
 ### The desktop apps, side by side (2026-11-02)
@@ -474,18 +474,18 @@ sizes out (dm's sizes were asked for and are kept).
 Reference A's main window (menus Tasks, File, Downloads, View, Help, Registration; toolbar Add URL, Resume,
 Stop, Stop All, Delete, Delete Completed, Options, Scheduler, Start Queue, Stop Queue, Tell a Friend; a category
 tree of All Downloads (Compressed, Documents, Music, Programs, Video), Unfinished, Finished, Grabber projects and
-Queues; list columns File Name, Q, Size, Status, Time left, Transfer rate, Last Try Date, Description) and dm's
+Queues; list columns File Name, Q, Size, Status, Time left, Transfer rate, Last Try Date, Description) and EDM's
 (menus Program, File, Downloads, View, Help; toolbar Add URL, Resume, Stop, Stop all, Remove, Clear finished,
 Options, Scheduler, Start queue, Stop queue, Site files; Everything with Videos, Audio, Documents, Apps, Archives,
 Pictures, Other, In progress, Done, Queues) were opened in visible windows and every menu, the Options dialog's
 tabs, the Scheduler, Add URL and the site grabber were read from the screen. Nothing was downloaded or changed.
-dm was a build of this branch on its own data folder; the person's installed dm was not touched. The differences are
+EDM was a build of this branch on its own data folder; the person's installed EDM was not touched. The differences are
 gaps rows 79 to 92.
 
 - Reference A's Tasks menu: Add new download, Add batch download, Add batch download from clipboard, Run site
   grabber, Show drop target, Export, Import, Exit. Its Downloads menu: Pause All, Stop All, Delete All Completed,
   Find (Ctrl-F), Find Next (F3), Scheduler, Start queue, Stop queue, Speed Limiter, Options.
-- dm's Program menu has the same things (Add numbered series for batch, Add links from clipboard, Site files);
+- EDM's Program menu has the same things (Add numbered series for batch, Add links from clipboard, Site files);
   its File menu is larger (Show progress, Update download link, Copy details, Move/Rename, Open with, Preview,
   Extract here or to, Move to queue, Take out of queue, Move up and down), and its Downloads menu adds Find previous
   and When done.
@@ -495,11 +495,11 @@ gaps rows 79 to 92.
 These were notes in `docs/gaps.md`, not work; kept here as written there.
 
 - **Row 77.** Pages where only one manager showed a bar (logged out). Not a defect; recorded so a later run is not misread.
-- **Row 78.** Desktop apps compared side by side 2026-11-02 (`docs/reference-behavior.md`). Checked in dm's code and found already done, so not gaps: a connection limit per server (`Options::host_limits`, Options > Advanced), a command run after each download (a virus checker or a script), the last folder per category (`last_folders`), the file's date from the server (`set_modified`), the list columns Last try and Description (and Referrer and Folder besides).
-- **Row 99.** Extension, watched 2026-11-02 with both on one page: the right-click items match in kind (a page: dm "Download all links with dm", reference A "Download with" its own name; a link: "Download link with dm" and the same; a selection: "Download selected links with dm" and the same). Differences are rows 74, 76, 86 and 94.
-- **Row 102.** Torrent: what was tested 2026-11-02, and what is left (reported: a magnet button on a torrent site does not open dm). Tested and working: the engine (a public test torrent, Sintel, 129,241,752 bytes in about a minute from the real swarm); a magnet link opened through a Windows protocol handler starts in dm (a handler registered by hand for the test, then removed); seven ways a page opens a magnet (plain link, link with a script handler, button that sets `location`, new-tab link, icon inside a link, `window.open`, a link a script makes and clicks) all reach dm through the extension. Not tested: the real 1337x site (behind a Cloudflare check an automated browser does not pass), a build from this branch installed on the person's computer. Specs T1 to T8.
-- **Row 109.** T7: a magnet opened in a browser's Reading view (`read://`), a PDF viewer, or another program reaches dm only through the system handler (extensions do not run there). Spec T7 is a check list for a person on the real site.
-- **Row 131.** Read in reference A's extension and not to build (2026-11-03). Commercial DRM (Widevine, PlayReady, FairPlay): reference A does not decrypt it either; dm already says so (`crates/dm-catcher/src/decide/protection.rs`, G73). AES-128 HLS is already in dm (`download/hls.rs`); SAMPLE-AES is treated as DRM, as reference A does. A kernel network driver: its write-up says it tunes TCP windows; nothing in the extension shows that, and it needs a signed driver. A named pipe in place of native messaging: dm's native messaging is already direct. Following the browser's proxy (`proxy.settings`, PAC data, `Proxy-Authorization`) is row 80's "browser fallback".
-- **Row 132.** Real-site side-by-side, 2026-11-04 (`D:\compare\sites.mjs`: reference A by its command line, dm by its control port, one after the other, same machine). Same bytes and same name on 9 sites: proof.ovh.net 10 MB (10.8 s / 10.7 s), Hetzner 100 MB (78-127 s / 88-90 s), a GitHub release (5.9 / 4.4 s), GitHub codeload with no length (9.3 / 7.0 s), Mozilla's redirect to a 59 MB installer with a name from the redirect (21.2 / 20.8 s), python.org 28 MB (10.4 / 12.8 s), W3Schools mp4 (5.8 / 4.6 s), GNU FTP (8.2 / 11.7 s). What differed is in rows 135 to 139; rows 133 (a server that refuses dm's made-up `Referer`), 134 (a limiter answering 429 each second) and 140 (empty store zips on Windows) are closed (`CHANGELOG.md`). Pause then resume, and a hard kill at 30 MB then a restart, both finish a 100 MB file byte-identical to reference A's
+- **Row 78.** Desktop apps compared side by side 2026-11-02 (`docs/reference-behavior.md`). Checked in EDM's code and found already done, so not gaps: a connection limit per server (`Options::host_limits`, Options > Advanced), a command run after each download (a virus checker or a script), the last folder per category (`last_folders`), the file's date from the server (`set_modified`), the list columns Last try and Description (and Referrer and Folder besides).
+- **Row 99.** Extension, watched 2026-11-02 with both on one page: the right-click items match in kind (a page: EDM "Download all links with EDM", reference A "Download with" its own name; a link: "Download link with EDM" and the same; a selection: "Download selected links with EDM" and the same). Differences are rows 74, 76, 86 and 94.
+- **Row 102.** Torrent: what was tested 2026-11-02, and what is left (reported: a magnet button on a torrent site does not open EDM). Tested and working: the engine (a public test torrent, Sintel, 129,241,752 bytes in about a minute from the real swarm); a magnet link opened through a Windows protocol handler starts in EDM (a handler registered by hand for the test, then removed); seven ways a page opens a magnet (plain link, link with a script handler, button that sets `location`, new-tab link, icon inside a link, `window.open`, a link a script makes and clicks) all reach EDM through the extension. Not tested: the real 1337x site (behind a Cloudflare check an automated browser does not pass), a build from this branch installed on the person's computer. Specs T1 to T8.
+- **Row 109.** T7: a magnet opened in a browser's Reading view (`read://`), a PDF viewer, or another program reaches EDM only through the system handler (extensions do not run there). Spec T7 is a check list for a person on the real site.
+- **Row 131.** Read in reference A's extension and not to build (2026-11-03). Commercial DRM (Widevine, PlayReady, FairPlay): reference A does not decrypt it either; EDM already says so (`crates/edm-catcher/src/decide/protection.rs`, G73). AES-128 HLS is already in EDM (`download/hls.rs`); SAMPLE-AES is treated as DRM, as reference A does. A kernel network driver: its write-up says it tunes TCP windows; nothing in the extension shows that, and it needs a signed driver. A named pipe in place of native messaging: EDM's native messaging is already direct. Following the browser's proxy (`proxy.settings`, PAC data, `Proxy-Authorization`) is row 80's "browser fallback".
+- **Row 132.** Real-site side-by-side, 2026-11-04 (`D:\compare\sites.mjs`: reference A by its command line, EDM by its control port, one after the other, same machine). Same bytes and same name on 9 sites: proof.ovh.net 10 MB (10.8 s / 10.7 s), Hetzner 100 MB (78-127 s / 88-90 s), a GitHub release (5.9 / 4.4 s), GitHub codeload with no length (9.3 / 7.0 s), Mozilla's redirect to a 59 MB installer with a name from the redirect (21.2 / 20.8 s), python.org 28 MB (10.4 / 12.8 s), W3Schools mp4 (5.8 / 4.6 s), GNU FTP (8.2 / 11.7 s). What differed is in rows 135 to 139; rows 133 (a server that refuses EDM's made-up `Referer`), 134 (a limiter answering 429 each second) and 140 (empty store zips on Windows) are closed (`CHANGELOG.md`). Pause then resume, and a hard kill at 30 MB then a restart, both finish a 100 MB file byte-identical to reference A's
 - **Row 143.** Torrents against a BitTorrent client, 2026-11-04 (`D:\compare\torrent_check.mjs`, Sintel, 11 files, 123 MB). Works: a magnet (first bytes in 5 s, paused at 54.8 MB and held there, resumed, done in 34 s) and a `.torrent` file from the web (done in 28 s); every file byte-identical to the web seed's copy. Missing beside a BitTorrent client: (a) no seeding once finished: `torrent.rs` deletes the torrent from its session and moves the files (no upload limit or share ratio either); (b) no peers, seeds or upload speed on the row or in its details; (c) no choosing which files of a torrent to fetch. Reference A has no BitTorrent at all, so these are the maintainer's "like a BitTorrent application" ((b) and (c) are done (`CHANGELOG.md`); (a) is row 147)
-- **Row 135.** Download all links, measured on live pages: on 7-zip.org/download.html dm queued 85 entries at once (52 are files, the rest are site pages such as `faq.html` and other-language home pages); on python.org's 3.13.0 release page 148 entries for 11 files. Reference A (select the page, right-click, "Download with" its name) shows a window with every link unchecked, its file name, type, size, source, the folder each goes to and the link text, with Check all, Uncheck all, Edit, "Hide HTML files", "Hide images located on this web page", "Hide repeated files" and a Save-to choice (by category, one category, one folder); screenshot `D:\compare\ref-a-links-0.png`. Data for row 94 (Built from it 2026-11-05: row 94, closed)
+- **Row 135.** Download all links, measured on live pages: on 7-zip.org/download.html EDM queued 85 entries at once (52 are files, the rest are site pages such as `faq.html` and other-language home pages); on python.org's 3.13.0 release page 148 entries for 11 files. Reference A (select the page, right-click, "Download with" its name) shows a window with every link unchecked, its file name, type, size, source, the folder each goes to and the link text, with Check all, Uncheck all, Edit, "Hide HTML files", "Hide images located on this web page", "Hide repeated files" and a Save-to choice (by category, one category, one folder); screenshot `D:\compare\ref-a-links-0.png`. Data for row 94 (Built from it 2026-11-05: row 94, closed)

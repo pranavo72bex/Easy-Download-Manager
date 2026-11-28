@@ -1,44 +1,44 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""A person's session with Chromium and dm, with a real pointer and real keys.
+"""A person's session with Chromium and EDM, with a real pointer and real keys.
 
     sh scripts/linux-chromium-human.sh           # runs this in a Linux container
 
 Runs under X11 with a window manager, xdotool and the accessibility bus.
-dm is opened as a person opens it, with its window (not --headless), and
-registered with `dm-desktop --register`; Chromium is started with dist/chrome
+EDM is opened as a person opens it, with its window (not --headless), and
+registered with `edm-desktop --register`; Chromium is started with dist/chrome
 loaded unpacked into a profile of its own. Then, each an X11 event:
 
-  1. a link to a .zip is clicked: dm fetches it byte-exact, the browser's
-     list stays empty, and dm's window shows the row Complete; then a PDF
+  1. a link to a .zip is clicked: EDM fetches it byte-exact, the browser's
+     list stays empty, and EDM's window shows the row Complete; then a PDF
      served at full speed, which Chromium finishes before it can be held
-  2. another link is right-clicked and "Download link with dm" picked from
+  2. another link is right-clicked and "Download link with EDM" picked from
      the browser's own context menu: the same
   3. the pointer rests on a playing video until "Download video" shows over
-     it, and that is clicked: the video lands in dm's folder
+     it, and that is clicked: the video lands in EDM's folder
   4. a link Alt-clicked stays with the browser
-  5. dm's window: a slow download's row clicked, Stop, Resume; then the
+  5. EDM's window: a slow download's row clicked, Stop, Resume; then the
      finished row from step 1 selected and Delete clicked
   6. the toolbar popup opened from the Extensions button and "Catch
      downloads" switched off: a link clicked afterwards stays in the browser
 
-Nothing here acts through DevTools or dm's control protocol. They are read:
+Nothing here acts through DevTools or EDM's control protocol. They are read:
 where a link is on the page, what the browser's download list holds, which
-rows dm shows and where, and screenshots. Controls the page does not own —
-the context menu, the toolbar, dm's buttons — are found over AT-SPI, where a
-screen reader finds them. Screenshots of the screen, the page and dm's
-window go into DM_SHOTS at every step.
+rows EDM shows and where, and screenshots. Controls the page does not own —
+the context menu, the toolbar, EDM's buttons — are found over AT-SPI, where a
+screen reader finds them. Screenshots of the screen, the page and EDM's
+window go into EDM_SHOTS at every step.
 
 The server, the CDP client and the file bodies are chrome-check's.
 """
 import base64, http.server, importlib.util, json, os, pathlib, shutil, socket, socketserver
 import subprocess, sys, tempfile, threading, time, urllib.parse
 
-import drawn  # scripts/drawn.py: where dm says it drew words
+import drawn  # scripts/drawn.py: where EDM says it drew words
 
 # UTF-8 for this script's own output, whatever the console's code page (gaps row X4).
 for _stream in (sys.stdout, sys.stderr):
@@ -49,25 +49,25 @@ for _stream in (sys.stdout, sys.stderr):
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "chrome"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-gpui"))
-# The name dm's window gives itself on the accessibility bus: its binary's
-# (dm-gpui), or as DM_ATSPI_APP says.
-DM_APP = os.environ.get("DM_ATSPI_APP") or BINARY.name
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY", "/target/debug/edm-gpui"))
+# The name EDM's window gives itself on the accessibility bus: its binary's
+# (edm-gpui), or as EDM_ATSPI_APP says.
+EDM_APP = os.environ.get("EDM_ATSPI_APP") or BINARY.name
 CHROMIUM = os.environ.get("CHROMIUM", "/usr/bin/chromium")
-SHOTS = pathlib.Path(os.environ.get("DM_SHOTS") or tempfile.mkdtemp(prefix="dm-human-shots-"))
-# Microsoft Edge (DM_DISTRO=edge) is Chromium under another name: its
-# profile is ~/.config/microsoft-edge (where `dm-desktop --register` puts
+SHOTS = pathlib.Path(os.environ.get("EDM_SHOTS") or tempfile.mkdtemp(prefix="edm-human-shots-"))
+# Microsoft Edge (EDM_DISTRO=edge) is Chromium under another name: its
+# profile is ~/.config/microsoft-edge (where `edm-desktop --register` puts
 # Edge's host manifest), its windows' class is microsoft-edge, and it is
 # "Microsoft Edge" on the accessibility bus.
 EDGE = "microsoft-edge" in CHROMIUM
 NAME = "Edge" if EDGE else "Chromium"
 PROFILE_DIR = "microsoft-edge" if EDGE else "chromium"
 APP = "edge" if EDGE else "chromium"
-# DM_STORE=1: the extension as its store publishes it, not dist/chrome.
+# EDM_STORE=1: the extension as its store publishes it, not dist/chrome.
 # The browser is given none on the command line: a managed policy, written
 # before this runs, has it install the listing's build from the store
 # (ExtensionInstallForcelist), which keeps the store's own id.
-STORE = os.environ.get("DM_STORE") == "1"
+STORE = os.environ.get("EDM_STORE") == "1"
 
 spec = importlib.util.spec_from_file_location("chrome_check", ROOT / "scripts" / "chrome-check.py")
 common = importlib.util.module_from_spec(spec)
@@ -106,7 +106,7 @@ def content(name):
 
 
 LINKS = ("grab.zip", "report.pdf", "menu.zip", "alt.zip", "slow.zip", "off.zip")
-PAGE = ("<!doctype html><title>dm, by hand</title>"
+PAGE = ("<!doctype html><title>EDM, by hand</title>"
         "<body style='font: 22px sans-serif; margin: 40px'><h1>Files</h1>"
         + "".join(f'<p><a id="{n}" href="/files/{n}">{n}</a></p>' for n in LINKS) + "</body>")
 PLAYER = ("<!doctype html><title>a video</title><body style='margin: 40px'><h1>A video</h1>"
@@ -158,11 +158,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         if head:
             return
-        # slow.zip arrives slowly for everyone, dm too, so it is still
+        # slow.zip arrives slowly for everyone, EDM too, so it is still
         # running when Stop is reached for; the rest only for the browser,
         # as chrome-check serves them. report.pdf arrives at full speed, which
         # Chromium finishes before the extension can hold it.
-        slow = name == "slow.zip" or not (self.headers.get("User-Agent", "").startswith("dm/")
+        slow = name == "slow.zip" or not (self.headers.get("User-Agent", "").startswith("EDM/")
                                           or name == "report.pdf")
         pause = 0.25 if name == "slow.zip" else 0.05
         try:
@@ -187,7 +187,7 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 def screen_reader_on():
     """Says on the accessibility bus that a screen reader is running, as Orca
-    does: dm's window and Chromium's own controls are published over AT-SPI
+    does: EDM's window and Chromium's own controls are published over AT-SPI
     only then."""
     for prop in ("IsEnabled", "ScreenReaderEnabled"):
         x("gdbus", "call", "--session", "--dest", "org.a11y.Bus", "--object-path", "/org/a11y/bus",
@@ -298,9 +298,9 @@ def geometry(window):
     return g
 
 
-def dm_window():
-    # Titled "dm", or while downloads run how far and how fast before " — dm" (gaps row U16).
-    found = windows("--name", "^(dm|.* — dm)$")
+def edm_window():
+    # Titled "EDM", or while downloads run how far and how fast before " — EDM" (gaps row U16).
+    found = windows("--name", "^(EDM|.* — EDM)$")
     return found[0] if found else None
 
 
@@ -319,7 +319,7 @@ def front(window):
 
 
 def oracle(home):
-    """dm's control protocol, for reading what its window shows."""
+    """EDM's control protocol, for reading what its window shows."""
     port_file = home / "control.port"
     if not wait_for(lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip(), 30):
         return None
@@ -335,7 +335,7 @@ def oracle(home):
         link["sock"].sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
         line = link["lines"].readline()
         if not line:
-            raise BrokenPipeError("dm closed the connection")
+            raise BrokenPipeError("EDM closed the connection")
         return json.loads(line)
 
     def call(method, **params):
@@ -343,7 +343,7 @@ def oracle(home):
             try:
                 answer = ask(method, **params)
             except OSError:
-                # dm ends a connection left idle five minutes, which a
+                # EDM ends a connection left idle five minutes, which a
                 # store install's first start can take: connected afresh.
                 connect()
                 answer = ask(method, **params)
@@ -356,23 +356,23 @@ def oracle(home):
     return call
 
 
-def dm_rows():
+def edm_rows():
     try:
         return (ORACLE("ui.inspect") or {}).get("rows") or []
     except (OSError, RuntimeError, ValueError) as e:
-        print(f"        (dm did not answer: {e})")
+        print(f"        (EDM did not answer: {e})")
         return []
 
 
-def dm_row(name):
-    return next((r for r in dm_rows() if r.get("name") == name), None)
+def edm_row(name):
+    return next((r for r in edm_rows() if r.get("name") == name), None)
 
 
 def row_point(name):
-    """A row's centre on screen: dm's own rectangle for it plus the window's
+    """A row's centre on screen: EDM's own rectangle for it plus the window's
     origin, as gui.py finds rows (egui reports table cells to AT-SPI at the
     wrong place)."""
-    row, window = dm_row(name), dm_window()
+    row, window = edm_row(name), edm_window()
     if not row or not row.get("rect") or not window:
         return None
     g, r = geometry(window), row["rect"]
@@ -440,8 +440,8 @@ SHOT_N = [0]
 
 
 def shoot(label, tab=None):
-    """The whole screen, the page (DevTools) and dm's window (its control
-    protocol), each into DM_SHOTS."""
+    """The whole screen, the page (DevTools) and EDM's window (its control
+    protocol), each into EDM_SHOTS."""
     SHOT_N[0] += 1
     stem = f"{SHOT_N[0]:02d}-{label}"
     # ImageMagick's import, of the X server's root window (DISPLAY).
@@ -454,10 +454,10 @@ def shoot(label, tab=None):
             pass
     if ORACLE:
         try:
-            made = pathlib.Path(DM_HOME) / "screenshots" / f"{stem}.png"
+            made = pathlib.Path(EDM_HOME) / "screenshots" / f"{stem}.png"
             ORACLE("ui.screenshot", name=stem)
             if wait_for(lambda: made.exists(), 5):
-                shutil.copy(made, SHOTS / f"{stem}-dm.png")
+                shutil.copy(made, SHOTS / f"{stem}-EDM.png")
         except (OSError, RuntimeError, ValueError):
             pass
 
@@ -465,7 +465,7 @@ def shoot(label, tab=None):
 # ------------------------------------------------------------- the check
 
 
-DM_HOME = ""
+EDM_HOME = ""
 
 
 def whole(folder, name):
@@ -482,65 +482,65 @@ def make_video(work):
 
 
 def main():
-    global ORACLE, DM_HOME
-    if not STORE and not (EXT / "pkg" / "dm_catcher_bg.wasm").exists():
+    global ORACLE, EDM_HOME
+    if not STORE and not (EXT / "pkg" / "edm_catcher_bg.wasm").exists():
         sys.exit("no built extension at dist/chrome — run: sh scripts/package.sh")
     SHOTS.mkdir(parents=True, exist_ok=True)
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-human-"))
-    home, dm_home = work / "home", work / "dm-home"
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-human-"))
+    home, edm_home = work / "home", work / "edm-home"
     # Where the browser looks for host manifests (its default folder for this
     # HOME); the profile itself is another folder, as Chromium 136 and Edge
     # 156 refuse remote debugging on the default one ("DevTools remote
     # debugging requires a non-default data directory").
     default = home / ".config" / PROFILE_DIR
     profile = work / "profile"
-    dm_dl, browser_dl = work / "dm-downloads", work / "browser-downloads"
-    for d in (default, profile / "Default", dm_home, dm_dl, browser_dl):
+    edm_dl, browser_dl = work / "edm-downloads", work / "browser-downloads"
+    for d in (default, profile / "Default", edm_home, edm_dl, browser_dl):
         d.mkdir(parents=True)
-    DM_HOME = str(dm_home)
+    EDM_HOME = str(edm_home)
     make_video(work)
     (profile / "Default" / "Preferences").write_text(json.dumps({
         "download": {"default_directory": str(browser_dl), "prompt_for_download": False,
                      "directory_upgrade": True},
         "savefile": {"default_directory": str(browser_dl)},
     }), encoding="utf-8")
-    (dm_home / "settings.json").write_text(json.dumps({
-        "download_dir": str(dm_dl), "categorize": False, "watch_clipboard": False,
+    (edm_home / "settings.json").write_text(json.dumps({
+        "download_dir": str(edm_dl), "categorize": False, "watch_clipboard": False,
         # The progress and completion windows would stand over the window
         # being checked; gui.py drives them.
         "show_progress": False, "show_complete": False,
         # A browser download goes straight to the folder (step 1); a panel
         # video asks where it goes, which step 3 answers. Written with this
-        # edition's mark, or dm takes the file for an older edition's and
+        # edition's mark, or EDM takes the file for an older edition's and
         # turns every pop-up on (the progress windows, and an ask for each
         # download that nothing here answered).
         "ask_caught_downloads": False, "ask_panel_downloads": True, "popups_version": 2,
     }), encoding="utf-8")
-    env = dict(os.environ, HOME=str(home), DM_HOME=str(dm_home), ACCESSIBILITY_ENABLED="1")
+    env = dict(os.environ, HOME=str(home), EDM_HOME=str(edm_home), ACCESSIBILITY_ENABLED="1")
 
     server = Server(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     origin = f"http://127.0.0.1:{server.server_address[1]}"
     screen_reader_on()
 
-    print("dm, opened with its window, and registered with the browser")
+    print("EDM, opened with its window, and registered with the browser")
     registered = subprocess.run([str(BINARY), "--register"], env=env, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace")
-    manifest = default / "NativeMessagingHosts" / "com.dm.engine.json"
-    check(f"`dm-desktop --register` writes {NAME}'s host manifest", manifest.exists(),
+    manifest = default / "NativeMessagingHosts" / "com.edm.engine.json"
+    check(f"`edm-desktop --register` writes {NAME}'s host manifest", manifest.exists(),
           (registered.stdout + registered.stderr).strip()[:300])
     # The browser reads host manifests from the profile it runs on as well:
-    # dm's, as `--register` wrote it, there too.
+    # EDM's, as `--register` wrote it, there too.
     if manifest.exists():
         (profile / "NativeMessagingHosts").mkdir(exist_ok=True)
         shutil.copy(manifest, profile / "NativeMessagingHosts" / manifest.name)
     app = subprocess.Popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL,
-                           stderr=open(work / "dm-stderr.txt", "wb"))
+                           stderr=open(work / "edm-stderr.txt", "wb"))
     browser = None
     try:
-        check("dm opens its window", wait_for(dm_window, 30))
-        ORACLE = oracle(dm_home)
-        x("xdotool", "windowmove", dm_window(), 1230, 40)
-        x("xdotool", "windowsize", dm_window(), 1150, 760)
+        check("EDM opens its window", wait_for(edm_window, 30))
+        ORACLE = oracle(edm_home)
+        x("xdotool", "windowmove", edm_window(), 1230, 40)
+        x("xdotool", "windowsize", edm_window(), 1150, 760)
 
         loaded = [] if STORE else [f"--load-extension={EXT}", f"--disable-extensions-except={EXT}"]
         args = [CHROMIUM, f"--user-data-dir={profile}", *loaded, "--remote-debugging-port=0",
@@ -631,15 +631,15 @@ def main():
         at = pointer_to(tab, rect_of("[id='grab.zip']"))
         if at:
             x("xdotool", "click", "1")
-        landed = wait_for(lambda: whole(dm_dl, "grab.zip"), 60)
-        check("1. the clicked .zip lands byte-exact in dm's folder", landed, str(sorted(p.name for p in dm_dl.iterdir())))
+        landed = wait_for(lambda: whole(edm_dl, "grab.zip"), 60)
+        check("1. the clicked .zip lands byte-exact in EDM's folder", landed, str(sorted(p.name for p in edm_dl.iterdir())))
         time.sleep(2)
         left = browser_list("grab.zip")
         check("1. the browser's own downloads list is empty of it, and its folder too",
               left == [] and not (browser_dl / "grab.zip").exists(),
               f"list {left}, folder {sorted(p.name for p in browser_dl.iterdir())}")
-        row = wait_for(lambda: (dm_row("grab.zip") or {}).get("status") == "Complete" and dm_row("grab.zip"), 15)
-        check("1. dm's window shows the row Complete", row, str(dm_row("grab.zip")))
+        row = wait_for(lambda: (edm_row("grab.zip") or {}).get("status") == "Complete" and edm_row("grab.zip"), 15)
+        check("1. EDM's window shows the row Complete", row, str(edm_row("grab.zip")))
         shoot("1-clicked-link", tab)
 
         # 1b. A PDF served fast: Chromium has it whole before it can be held.
@@ -648,8 +648,8 @@ def main():
         at = pointer_to(tab, rect_of("[id='report.pdf']"))
         if at:
             x("xdotool", "click", "1")
-        landed = wait_for(lambda: whole(dm_dl, "report.pdf"), 60)
-        check("1b. the clicked PDF lands byte-exact in dm's folder", landed, str(sorted(p.name for p in dm_dl.iterdir())))
+        landed = wait_for(lambda: whole(edm_dl, "report.pdf"), 60)
+        check("1b. the clicked PDF lands byte-exact in EDM's folder", landed, str(sorted(p.name for p in edm_dl.iterdir())))
         time.sleep(2)
         left = browser_list("report.pdf")
         check("1b. and the browser's copy, finished before it could be held, is removed",
@@ -658,35 +658,35 @@ def main():
         shoot("1b-clicked-pdf", tab)
 
         # 2. The context menu.
-        print("\n2. a link right-clicked, 'Download link with dm' picked")
+        print("\n2. a link right-clicked, 'Download link with EDM' picked")
         front(chromium_window())
         at = pointer_to(tab, rect_of("[id='menu.zip']"))
         if at:
             x("xdotool", "click", "3")
-        item = wait_for(lambda: where(APP, "menu item", "Download link with dm"), 10)
+        item = wait_for(lambda: where(APP, "menu item", "Download link with EDM"), 10)
         shoot("2-context-menu", tab)
         if not item:
             seen = accessible(APP, "menu item", "-", dump=True)
             print(f"        AT-SPI apps {seen.get('apps')}; menu items seen: "
                   f"{[s for s in seen.get('seen', []) if s.startswith('menu')][:30]}")
-        check("2. the browser's context menu offers 'Download link with dm'", item)
+        check("2. the browser's context menu offers 'Download link with EDM'", item)
         if item:
             press(item)
         else:
             x("xdotool", "key", "Escape")
-        landed = wait_for(lambda: whole(dm_dl, "menu.zip"), 60)
-        check("2. picked, the link lands byte-exact in dm's folder", landed)
+        landed = wait_for(lambda: whole(edm_dl, "menu.zip"), 60)
+        check("2. picked, the link lands byte-exact in EDM's folder", landed)
         time.sleep(1)
         check("2. and nothing of it is in the browser's list or folder",
               browser_list("menu.zip") == [] and not (browser_dl / "menu.zip").exists(), str(browser_list("menu.zip")))
-        row = wait_for(lambda: (dm_row("menu.zip") or {}).get("status") == "Complete" and dm_row("menu.zip"), 15)
-        check("2. dm's window shows its row Complete", row, str(dm_row("menu.zip")))
+        row = wait_for(lambda: (edm_row("menu.zip") or {}).get("status") == "Complete" and edm_row("menu.zip"), 15)
+        check("2. EDM's window shows its row Complete", row, str(edm_row("menu.zip")))
         shoot("2-menu-done", tab)
 
         # 3. The video's panel.
         print("\n3. the pointer on a playing video, 'Download video' clicked")
         open_page("/video.html", "#v")
-        wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 15)
+        wait_for(lambda: tab.evaluate("!!document.querySelector('edm-panel')"), 15)
         playing = wait_for(lambda: tab.evaluate("(() => { const v = document.getElementById('v');"
                                                 " return !v.paused && v.currentTime > 0.3; })()"), 10)
         check("3. the video is playing", playing, tab.evaluate("document.getElementById('v').error && "
@@ -703,19 +703,19 @@ def main():
         check("3. resting on it raises 'Download video'", shown and shown.get("title") == "Download video",
               str(common.panel(tab)))
         if shown:
-            pointer_to(tab, rect_of("dm-panel", ".go"))
+            pointer_to(tab, rect_of("edm-panel", ".go"))
             time.sleep(0.3)
             x("xdotool", "click", "1")
-        # dm asks where a panel video goes (Download details) unless told not
+        # EDM asks where a panel video goes (Download details) unless told not
         # to; a person answers Start now.
-        # Aimed at where dm drew it: the dialog is a window of its own (B42).
+        # Aimed at where EDM drew it: the dialog is a window of its own (B42).
         start = wait_for(lambda: drawn.dialog_point(ORACLE, "Start now"), 15)
         if start:
             shoot("3-download-details")
             press(start)
-        check("3. dm asks, and its Start now is clicked", start)
-        landed = wait_for(lambda: whole(dm_dl, "clip.webm"), 60)
-        check("3. the video lands byte-exact in dm's folder", landed, str(sorted(p.name for p in dm_dl.iterdir())))
+        check("3. EDM asks, and its Start now is clicked", start)
+        landed = wait_for(lambda: whole(edm_dl, "clip.webm"), 60)
+        check("3. the video lands byte-exact in EDM's folder", landed, str(sorted(p.name for p in edm_dl.iterdir())))
         shoot("3-video-done", tab)
 
         # 4. Alt-click.
@@ -729,45 +729,45 @@ def main():
             time.sleep(0.2)
             x("xdotool", "keyup", "alt")
         kept = wait_for(lambda: whole(browser_dl, "alt.zip"), 60)
-        check("4. an Alt-clicked .zip finishes in the browser, not dm",
-              kept and not (dm_dl / "alt.zip").exists() and not dm_row("alt.zip"),
-              f"browser folder {sorted(p.name for p in browser_dl.iterdir())}; dm row {dm_row('alt.zip')}")
+        check("4. an Alt-clicked .zip finishes in the browser, not EDM",
+              kept and not (edm_dl / "alt.zip").exists() and not edm_row("alt.zip"),
+              f"browser folder {sorted(p.name for p in browser_dl.iterdir())}; EDM row {edm_row('alt.zip')}")
         shoot("4-alt-click", tab)
         x("xdotool", "key", "Escape")
 
-        # 5. dm's own buttons.
-        print("\n5. dm's window: Stop, Resume and Delete clicked")
+        # 5. EDM's own buttons.
+        print("\n5. EDM's window: Stop, Resume and Delete clicked")
         front(chromium_window())
         at = pointer_to(tab, rect_of("[id='slow.zip']"))
         if at:
             x("xdotool", "click", "1")
-        running = wait_for(lambda: (dm_row("slow.zip") or {}).get("status", "").endswith("%") and dm_row("slow.zip"), 30)
-        check("5. a slow .zip clicked in the browser is running in dm", running, str(dm_row("slow.zip")))
-        front(dm_window())
+        running = wait_for(lambda: (edm_row("slow.zip") or {}).get("status", "").endswith("%") and edm_row("slow.zip"), 30)
+        check("5. a slow .zip clicked in the browser is running in EDM", running, str(edm_row("slow.zip")))
+        front(edm_window())
         at = wait_for(lambda: row_point("slow.zip"), 10)
         if at:
             press(at)
         selected = wait_for(lambda: (ORACLE("ui.inspect") or {}).get("selected"), 5)
-        check("5. its row, clicked, is selected", selected and (dm_row("slow.zip") or {}).get("id") in selected,
+        check("5. its row, clicked, is selected", selected and (edm_row("slow.zip") or {}).get("id") in selected,
               str(selected))
-        stopped = click_control(DM_APP, "push button", "Stop") and \
-            wait_for(lambda: (dm_row("slow.zip") or {}).get("status", "").startswith("Stopped"), 15)
+        stopped = click_control(EDM_APP, "push button", "Stop") and \
+            wait_for(lambda: (edm_row("slow.zip") or {}).get("status", "").startswith("Stopped"), 15)
         shoot("5-stopped")
-        check("5. Stop, clicked, stops it", stopped, str(dm_row("slow.zip")))
-        held = (dm_row("slow.zip") or {}).get("status") or ""
+        check("5. Stop, clicked, stops it", stopped, str(edm_row("slow.zip")))
+        held = (edm_row("slow.zip") or {}).get("status") or ""
         time.sleep(2)
-        check("5. and it stays stopped", held.startswith("Stopped") and (dm_row("slow.zip") or {}).get("status", "").startswith("Stopped"))
-        resumed = click_control(DM_APP, "push button", "Resume") and \
-            wait_for(lambda: (dm_row("slow.zip") or {}).get("status", "") != "" and not (dm_row("slow.zip") or {}).get("status", "").startswith("Stopped"), 15)
-        check("5. Resume, clicked, carries on", resumed, str(dm_row("slow.zip")))
+        check("5. and it stays stopped", held.startswith("Stopped") and (edm_row("slow.zip") or {}).get("status", "").startswith("Stopped"))
+        resumed = click_control(EDM_APP, "push button", "Resume") and \
+            wait_for(lambda: (edm_row("slow.zip") or {}).get("status", "") != "" and not (edm_row("slow.zip") or {}).get("status", "").startswith("Stopped"), 15)
+        check("5. Resume, clicked, carries on", resumed, str(edm_row("slow.zip")))
         shoot("5-resumed")
-        done = wait_for(lambda: whole(dm_dl, "slow.zip"), 120)
+        done = wait_for(lambda: whole(edm_dl, "slow.zip"), 120)
         check("5. and the slow .zip lands whole and byte-exact", done,
-              f"{dm_row('slow.zip')}; on disk {(dm_dl / 'slow.zip').stat().st_size if (dm_dl / 'slow.zip').exists() else 0}")
+              f"{edm_row('slow.zip')}; on disk {(edm_dl / 'slow.zip').stat().st_size if (edm_dl / 'slow.zip').exists() else 0}")
         # Settled first: a row still finishing moves the list under the click.
-        wait_for(lambda: (dm_row("slow.zip") or {}).get("status") == "Complete", 15)
+        wait_for(lambda: (edm_row("slow.zip") or {}).get("status") == "Complete", 15)
         time.sleep(1)
-        wanted = (dm_row("grab.zip") or {}).get("id")
+        wanted = (edm_row("grab.zip") or {}).get("id")
         picked = []
         for _ in range(2):
             at = wait_for(lambda: row_point("grab.zip"), 10)
@@ -778,19 +778,19 @@ def main():
             if wanted is None or picked == [wanted]:
                 break
         check("5. the finished row from step 1, clicked, is selected",
-              (dm_row("grab.zip") or {}).get("id") in picked, str(picked))
-        click_control(DM_APP, "push button", "Delete")
+              (edm_row("grab.zip") or {}).get("id") in picked, str(picked))
+        click_control(EDM_APP, "push button", "Delete")
         # A finished row is taken off the list ("Remove download"); one still to
         # finish has its parts deleted too ("Remove download"). Either asks.
-        confirm = wait_for(lambda: where(DM_APP, "push button", "Remove download")
-                           or where(DM_APP, "push button", "Remove download"), 5)
+        confirm = wait_for(lambda: where(EDM_APP, "push button", "Remove download")
+                           or where(EDM_APP, "push button", "Remove download"), 5)
         if confirm:
             press(confirm)
-        gone = wait_for(lambda: dm_row("grab.zip") is None, 10)
+        gone = wait_for(lambda: edm_row("grab.zip") is None, 10)
         shoot("5-deleted")
         check("5. Delete, clicked, removes that row and only that one",
-              gone and dm_row("menu.zip") and dm_row("slow.zip"), str([r.get("name") for r in dm_rows()]))
-        print(f"        the finished file after Delete: {'kept' if (dm_dl / 'grab.zip').exists() else 'removed'}")
+              gone and edm_row("menu.zip") and edm_row("slow.zip"), str([r.get("name") for r in edm_rows()]))
+        print(f"        the finished file after Delete: {'kept' if (edm_dl / 'grab.zip').exists() else 'removed'}")
 
         # 6. The toolbar popup.
         print("\n6. the toolbar popup: 'Catch downloads' switched off")
@@ -803,15 +803,15 @@ def main():
                   f"{[s for s in seen.get('seen', []) if 'button' in s][:40]}")
         # By the start of its name: a store's copy, managed by policy, is
         # listed with more after it.
-        entry = button and wait_for(lambda: where(APP, "*", "dm — Download Manager")
-                                    or where(APP, "*", "dm —", prefix=True), 10)
+        entry = button and wait_for(lambda: where(APP, "*", "EDM — Download Manager")
+                                    or where(APP, "*", "EDM —", prefix=True), 10)
         shoot("6-extensions-menu", tab)
         if entry:
             press(entry)
         popup_t = entry and wait_for(lambda: next((t for t in common.targets(base)
                                                   if t["url"].endswith("/popup.html")), None), 10)
-        check("6. the Extensions button, then dm, opens the popup", popup_t,
-              "no Extensions button found" if not button else "no dm entry" if not entry else "no popup")
+        check("6. the Extensions button, then EDM, opens the popup", popup_t,
+              "no Extensions button found" if not button else "no EDM entry" if not entry else "no popup")
         if popup_t and STORE:
             # A store copy's popup does not answer the debugger: its switch is
             # found where a screen reader finds it, and judged by what follows.
@@ -833,7 +833,7 @@ def main():
             if at:
                 x("xdotool", "click", "1")
             off = wait_for(lambda: ask_worker(
-                "chrome.storage.local.get('dm.catching').then(r => r['dm.catching'] === false)"), 5)
+                "chrome.storage.local.get('EDM.catching').then(r => r['EDM.catching'] === false)"), 5)
             check("6. its 'Catch downloads', clicked, is switched off", off,
                   str(popup.evaluate("document.getElementById('catching').checked")))
             shoot("6-catching-off", tab)
@@ -846,8 +846,8 @@ def main():
                 x("xdotool", "click", "1")
             kept = wait_for(lambda: whole(browser_dl, "off.zip"), 60)
             check("6. then a clicked .zip stays with the browser",
-                  kept and not dm_row("off.zip") and not (dm_dl / "off.zip").exists(),
-                  f"browser folder {sorted(p.name for p in browser_dl.iterdir())}; dm row {dm_row('off.zip')}")
+                  kept and not edm_row("off.zip") and not (edm_dl / "off.zip").exists(),
+                  f"browser folder {sorted(p.name for p in browser_dl.iterdir())}; EDM row {edm_row('off.zip')}")
             shoot("6-off-click", tab)
     finally:
         if browser:
@@ -863,7 +863,7 @@ def main():
             except subprocess.TimeoutExpired:
                 app.kill()
         server.shutdown()
-        for log in ("dm-stderr.txt", "chromium-stderr.txt"):
+        for log in ("edm-stderr.txt", "chromium-stderr.txt"):
             if (work / log).exists():
                 shutil.copy(work / log, SHOTS / log)
 

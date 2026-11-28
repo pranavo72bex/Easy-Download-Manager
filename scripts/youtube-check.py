@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The "Download video" panel on a real YouTube page, by hand and in the daily site watch.
 
 Every other check runs against servers on loopback; this one goes to
 youtube.com, so it is in no CI run a change starts: it runs when someone asks it to, and
-each day in the site watch (.github/workflows/sites.yml, gaps row W6, with DM_SKIP_LOCAL=1
+each day in the site watch (.github/workflows/sites.yml, gaps row W6, with EDM_SKIP_LOCAL=1
 for the YouTube page alone and `--json` for scripts/site-table.py). In a window rather than with
-DM_CHROME_HEADLESS=1, a pointer resting over the browser can fail its
+EDM_CHROME_HEADLESS=1, a pointer resting over the browser can fail its
 pointer checks (the panel hid, or a drag ended at the pointer): the browser
 likely sends a mouse move at the real pointer after the page changes. It
 runs chrome-check.py's setup and its local checks, but replaces the panel
@@ -22,7 +22,7 @@ It hovers the playing player, checks the panel is there and in its corner,
 rests the pointer for five seconds (YouTube restarts playback and fades its
 controls beneath it, which once hid the panel), clicks it, checks the list
 of qualities the app found, picks the first, and waits for the
-video to land in dm's folder.
+video to land in EDM's folder.
 """
 import base64
 import importlib.util
@@ -75,7 +75,7 @@ PLAY_AT = """(() => { const b = document.querySelector('.ytp-play-button');
 # What YouTube's own player says of the video: its answer's playability (`OK`, or
 # `LOGIN_REQUIRED` with "Sign in to confirm you're not a bot", which a CI machine's address
 # meets, issue #45) and the error it shows over the picture, if any. A player that will not
-# play is a wall, not dm's fault: the panel stays off a player covered by its error.
+# play is a wall, not EDM's fault: the panel stays off a player covered by its error.
 PLAYABILITY = """(() => { const p = document.querySelector('#movie_player'); let r = null;
   try { r = p && p.getPlayerResponse && p.getPlayerResponse(); } catch (e) {}
   const s = (r && r.playabilityStatus) || (window.ytInitialPlayerResponse || {}).playabilityStatus || {};
@@ -170,7 +170,7 @@ def youtube(base, origin, engine_dl, engine_home, worker):
         cc.check("YouTube: the watch page loads", False, str(e)[:300])
         return
     cc.check("YouTube: the page script loads",
-             cc.wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 20))
+             cc.wait_for(lambda: tab.evaluate("!!document.querySelector('edm-panel')"), 20))
 
     # The player resizes while the page settles; hover once it has.
     def settled():
@@ -183,7 +183,7 @@ def youtube(base, origin, engine_dl, engine_home, worker):
     if not cc.check("YouTube: a player is on the page", bool(rect), tab.evaluate("document.title")):
         return
     # A player that says it will not play (Linux CI, 2026-11-19: paused and pressed in vain, the
-    # panel then off it) is said as YouTube's wall, and site-table.py tells it from dm's fault.
+    # panel then off it) is said as YouTube's wall, and site-table.py tells it from EDM's fault.
     refused = cc.wait_for(lambda: wall(tab), 3)
     if refused:
         cc.check("YouTube: its player offers the video", False, refused)
@@ -232,7 +232,7 @@ def youtube(base, origin, engine_dl, engine_home, worker):
              bool(listed.get("lines")), str(cc.panel(tab)))
     print("  listed:", listed.get("lines"))
     # The list's Part line takes a start and an end; left empty again so the whole video is fetched.
-    part = tab.evaluate("(() => { const r = document.querySelector('dm-panel')?.shadowRoot;"
+    part = tab.evaluate("(() => { const r = document.querySelector('edm-panel')?.shadowRoot;"
                         " const a = r?.querySelector('.part .from'), b = r?.querySelector('.part .to');"
                         " if (!a || !b) return 'none'; a.value = '0:02'; b.value = '0:06';"
                         " const typed = a.value + '-' + b.value; a.value = ''; b.value = ''; return typed; })()")
@@ -244,27 +244,27 @@ def youtube(base, origin, engine_dl, engine_home, worker):
         cc.mouse(tab, "mouseMoved", x, y)
         cc.mouse(tab, "mousePressed", x, y)
         cc.mouse(tab, "mouseReleased", x, y)
-    said = cc.wait_for(lambda: (cc.panel(tab) or {}).get("title") == "Sent to dm" and cc.panel(tab), 15)
+    said = cc.wait_for(lambda: (cc.panel(tab) or {}).get("title") == "Sent to EDM" and cc.panel(tab), 15)
     cc.check("YouTube: its click is taken by the app", bool(said), str(cc.panel(tab)))
     got = cc.wait_for(lambda: [p for p in engine_dl.rglob("*")
                                if p.is_file() and p.suffix in (".mp4", ".webm", ".mkv")], 240)
-    # Where it did not land, dm's own rows say how far it got (Linux, gaps row Q3).
+    # Where it did not land, EDM's own rows say how far it got (Linux, gaps row Q3).
     rows = [] if got else [(r.get("url", "")[:90], r.get("state"), r.get("path"))
                            for r in cc.queue_rows(engine_home)
                            if "youtube" in r.get("url", "") or "googlevideo" in r.get("url", "")]
-    cc.check("YouTube: the video lands in dm's folder, fetched by dm itself", bool(got),
-             f"{got}; dm's rows: {rows}" if not got else str(got))
+    cc.check("YouTube: the video lands in EDM's folder, fetched by EDM itself", bool(got),
+             f"{got}; EDM's rows: {rows}" if not got else str(got))
     played = cc.plays(got[0]) if got else None
     cc.check("YouTube: the downloaded video is whole (media_check)", bool(played and played[0] > 0 and played[1]),
              f"{played[0]}s, {played[1]}p" if played else "not a playable video")
     # The line names its container ("240p MP4 — 744 KB"), wherever the word is.
     first = (listed.get("lines") or [""])[0].lower().split()
-    # The player's own instant list ("240p") names none: dm saves those as MP4.
+    # The player's own instant list ("240p") names none: EDM saves those as MP4.
     picked = next((w for w in first if w in ("mp4", "webm", "mkv")), "mp4")
     cc.check("YouTube: in the container its line named", bool(got) and got[0].suffix == f".{picked}",
              f"picked {picked}, got {got[0].name if got else None}")
-    errors = [e for e in tab.logged("error") if "dm" in e.lower()]
-    cc.check("YouTube: no errors from dm on the page", not errors, "; ".join(errors)[:300])
+    errors = [e for e in tab.logged("error") if "EDM" in e.lower()]
+    cc.check("YouTube: no errors from EDM on the page", not errors, "; ".join(errors)[:300])
 
 
 def write_json():

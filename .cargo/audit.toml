@@ -1,5 +1,5 @@
 # `cargo audit` reads this. Each advisory ignored here was looked at and is
-# unreachable in dm; the reason is beside it, and the line goes when the
+# unreachable in EDM; the reason is beside it, and the line goes when the
 # crate is upgraded past it.
 [advisories]
 ignore = [
@@ -8,7 +8,7 @@ ignore = [
     # Drop. The fix is ringbuf 0.5, which librqbit has not moved to yet.
     "RUSTSEC-2026-0293",
     # zbus_names, zvariant and zvariant_derive "unmaintained": not a fault in
-    # them, but merged into zbus 6. dm reaches them through zbus 5, which
+    # them, but merged into zbus 6. EDM reaches them through zbus 5, which
     # GPUI's screen-reader support on Linux (accesskit_unix), the Linux tray
     # and the notifications are all built on; the line goes when they move to zbus 6.
     "RUSTSEC-2026-0370",
@@ -16,21 +16,21 @@ ignore = [
     "RUSTSEC-2026-0372",
     # paste "unmaintained" (through rav1d, the AV1 decoder of a Linux GIF, gaps
     # row 54): a macro that joins names while rav1d is compiled, so none of it is
-    # in dm's binary, and no fault is known in it. The line goes when rav1d
+    # in EDM's binary, and no fault is known in it. The line goes when rav1d
     # moves off it.
     "RUSTSEC-2024-0436",
     # "Unmaintained" (2026-11-13), none a known fault, all deep in the GPUI window toolkit
     # with no GPUI release past them yet; each line goes when GPUI moves off its crate:
-    # instant (gpui-base, gpui-component: a timer shim; std's Instant on every system dm
+    # instant (gpui-base, gpui-component: a timer shim; std's Instant on every system EDM
     # builds for), rustls-pemfile (gpui-pre-reqwest, reading PEM files GPUI's assets do not
     # use), rustybuzz and ttf-parser (usvg and fontdb, drawing GPUI's own SVG icons, which
-    # are dm's own files, never a site's).
+    # are EDM's own files, never a site's).
     "RUSTSEC-2024-0384",
     "RUSTSEC-2025-0134",
     "RUSTSEC-2026-0206",
     "RUSTSEC-2026-0192",
     # chrono "unmaintained" (RUSTSEC-2026-0543, published 2026-11-17; no fault known, no
-    # version past it). dm's own crates no longer use it (their dates are `dm_net::clock`,
+    # version past it). EDM's own crates no longer use it (their dates are `edm_net::clock`,
     # gaps row 215), but GPUI, librqbit-dht, serde_with and trash pull it in; the line goes
     # when none of them needs it.
     "RUSTSEC-2026-0543",

@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2026 pranavo72bex and the dm contributors.
+ * Copyright (C) 2026 pranavo72bex and the EDM contributors.
  * SPDX-License-Identifier: GPL-3.0-or-later
- * Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+ * Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
  * with the attribution term in NOTICE. See the LICENSE and NOTICE files.
  *
  * Counts each thread's file-system calls, for a check that holds the main
  * window's draw to none (gaps row 180; `stress-check.py frame`). Preloaded
- * into a debug dm (DYLD_INSERT_LIBRARIES on macOS, LD_PRELOAD on Linux), it
- * says how many calls the calling thread has made as `dm_fs_calls`, which
- * dm's debug build reads as a draw begins and ends (dm-shell `app/costs.rs`).
+ * into a debug EDM (DYLD_INSERT_LIBRARIES on macOS, LD_PRELOAD on Linux), it
+ * says how many calls the calling thread has made as `edm_fs_calls`, which
+ * EDM's debug build reads as a draw begins and ends (edm-shell `app/costs.rs`).
  * Every call goes on to the system's own function unchanged.
  *
  * Built by the check: cc -shared -o fs-count.dylib fs-count.c (macOS),
@@ -26,7 +26,7 @@
 
 static __thread unsigned long long calls;
 
-unsigned long long dm_fs_calls(void) { return calls; }
+unsigned long long edm_fs_calls(void) { return calls; }
 
 /* The mode is there only where the file may be made. */
 #define MODE_OF(flags, mode)                \

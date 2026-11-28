@@ -1,7 +1,7 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # Builds the .rpm from a release binary with nfpm, pinned and checked by its
@@ -37,8 +37,8 @@ cd "$(dirname "$0")/../.."
 # variables in a source path.
 # A folder of its own, so the release build beside it is left alone.
 mkdir -p target/release/nfpm
-if ! cmp -s "$BINARY" target/release/nfpm/dm; then
-  cp "$BINARY" target/release/nfpm/dm
+if ! cmp -s "$BINARY" target/release/nfpm/EDM; then
+  cp "$BINARY" target/release/nfpm/EDM
 fi
 mkdir -p "$OUT"
 VERSION=$VERSION ARCH=$arch "$TOOLS/nfpm" package -f packaging/nfpm.yaml -p rpm -t "$OUT/"

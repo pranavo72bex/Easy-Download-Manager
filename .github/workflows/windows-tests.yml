@@ -2,14 +2,14 @@ name: Windows, chosen window tests
 
 # Started by hand (Actions › this workflow › Run workflow, or
 # `gh workflow run windows-tests.yml -f filter=dialogs --ref <branch>`): the
-# dm-gpui tests whose names hold `filter`, on Windows, one at a time and with
+# edm-gpui tests whose names hold `filter`, on Windows, one at a time and with
 # everything they print, so a test that fails on Windows alone can be read and
 # fixed from a computer that is not Windows.
 on:
   workflow_dispatch:
     inputs:
       filter:
-        description: Part of the tests' names (empty for all of dm-gpui)
+        description: Part of the tests' names (empty for all of edm-gpui)
         required: false
         default: ""
 
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   windows:
-    name: dm-gpui tests on Windows
+    name: edm-gpui tests on Windows
     runs-on: windows-latest
     timeout-minutes: 60
     defaults:
@@ -35,4 +35,4 @@ jobs:
       - name: The chosen tests
         env:
           FILTER: ${{ inputs.filter }}
-        run: cargo test -p dm-gpui --locked -- $env:FILTER --nocapture --test-threads=1
+        run: cargo test -p edm-gpui --locked -- $env:FILTER --nocapture --test-threads=1

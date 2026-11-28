@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           for l in bot-fix bot:queue bot-task:ci bot:reverted; do
-            gh label create "$l" --color 5319e7 --description "dm's bot" 2>/dev/null || true
+            gh label create "$l" --color 5319e7 --description "EDM's bot" 2>/dev/null || true
           done
 
           run_json=$(gh run view "$RUN_ID" --json workflowName,workflowDatabaseId,headSha,url,jobs,conclusion,createdAt)

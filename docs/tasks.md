@@ -1,28 +1,28 @@
 # Twenty everyday tasks, counted
 
 "Easier to use than reference A" is measured here: twenty things people do
-with a download manager every day, each with the path it takes in dm and what
+with a download manager every day, each with the path it takes in EDM and what
 that path costs in clicks, keys, typed fields and windows. A person counts the
-same twenty once in reference A and fills in its columns; any task where dm
+same twenty once in reference A and fills in its columns; any task where EDM
 takes more steps or opens more windows becomes a row in `docs/gaps.md`
 proposing the change (and, since the window's behaviour is fixed by
 `docs/behaviour-contract.md`, the maintainer approves it first).
 
-`scripts/task-steps.py` does every task marked **driven** in dm's real window,
+`scripts/task-steps.py` does every task marked **driven** in EDM's real window,
 through the control port, the way a person would (clicking the words, typing
 into the field that has the keyboard, pressing keys), counts what it did, and
 checks that the task was done (the file whole, the row gone, the setting kept).
 The tasks marked **by hand** need the browser, a real site, or would run a file
-or turn the computer off; their dm counts below are from the path, to be
+or turn the computer off; their EDM counts below are from the path, to be
 confirmed by the person who counts reference A. The script prints all twenty,
-with reference A's numbers beside dm's once they are filled in, and lists each
-task where dm takes more.
+with reference A's numbers beside EDM's once they are filled in, and lists each
+task where EDM takes more.
 
     python -X utf8 scripts/task-steps.py            # every driven task
     python -X utf8 scripts/task-steps.py T05 T09    # some of them
 
 On Windows, start it from PowerShell or Windows Terminal, not Git Bash (as
-`scripts/human-qa.py`; `docs/testing.md`). It needs a debug build (`DM_BINARY`
+`scripts/human-qa.py`; `docs/testing.md`). It needs a debug build (`EDM_BINARY`
 names another) and writes its record to `task-steps.json` in its work folder.
 
 ## How steps are counted
@@ -34,14 +34,14 @@ names another) and writes its record to `task-steps.json` in its work folder.
 - **Window**: each window that opens of itself or from a step: a dialog in a
   window of its own, a progress window, the system's file window. Menus,
   pop-ups and the browser's own panel are not windows.
-- **Steps** = clicks + keys + typed. A task where dm has more steps, or the same
-  steps and more windows, than reference A is one where dm takes more.
+- **Steps** = clicks + keys + typed. A task where EDM has more steps, or the same
+  steps and more windows, than reference A is one where EDM takes more.
 - **Not counted**, being the same in both: what is done outside the download
   manager (copying a link in the browser, going to the page), waiting, and
   closing windows after the task is done.
 - **Where each task starts**: a new install (nothing chosen in Options), the
   window open and showing every download, and what the task needs already
-  there (a finished download, a failed one). On a new install dm opens a
+  there (a finished download, a failed one). On a new install EDM opens a
   download's progress window as it starts (B63), so those are counted.
 
 ## The tasks
@@ -50,12 +50,12 @@ The path uses the words the window shows. "›" goes from a menu to its item.
 "Expected" numbers are the path's; for a driven task the script's count is the
 measure and it says where the two differ.
 
-| ID | Task | How | Path in dm | Clicks | Keys | Typed | Windows | Reference A: steps | Reference A: windows | Reference A: path as taken |
+| ID | Task | How | Path in EDM | Clicks | Keys | Typed | Windows | Reference A: steps | Reference A: windows | Reference A: path as taken |
 |---|---|---|---|---|---|---|---|---|---|---|
-| T01 | Catch a file from the browser | by hand | In the browser, click the link to the file; dm's Download details opens; Start now | 2 | 0 | 0 | 2 |  |  |  |
+| T01 | Catch a file from the browser | by hand | In the browser, click the link to the file; EDM's Download details opens; Start now | 2 | 0 | 0 | 2 |  |  |  |
 | T02 | Download a video at 1080p | by hand | On the playing video, click "Download video"; click the line "… MP4 file, quality 1080p HD"; Download details opens; Start now | 3 | 0 | 0 | 2 |  |  |  |
 | T03 | Download a YouTube playlist | by hand | Copy the playlist's address; Add URL (the address is put in from the clipboard); OK; the Playlist window lists the videos, each ticked; Start now | 3 | 0 | 0 | 2 + 1 a video |  |  |  |
-| T04 | Download every file a page links to | by hand | In the browser, right-click the page; "Download all links with dm"; the Download links window lists them, each ticked; Start now | 3 | 0 | 0 | 1 + 1 a file |  |  |  |
+| T04 | Download every file a page links to | by hand | In the browser, right-click the page; "Download all links with EDM"; the Download links window lists them, each ticked; Start now | 3 | 0 | 0 | 1 + 1 a file |  |  |  |
 | T05 | Add a copied link | driven | Add URL (the copied link is put in); OK; Download details; Start now | 3 | 0 | 0 | 3 |  |  |  |
 | T06 | Pause a download and resume it | driven | Click its row; Stop; later, Resume | 3 | 0 | 0 | 1 |  |  |  |
 | T07 | Download a batch of copied links | driven | Copy the links; Tasks › Add links from clipboard; the Links on the clipboard window lists them, each ticked; Start now | 3 | 0 | 0 | 4 |  |  |  |

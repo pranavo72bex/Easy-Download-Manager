@@ -50,7 +50,7 @@
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   },
   "action": {
-    "default_title": "dm",
+    "default_title": "EDM",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

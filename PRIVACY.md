@@ -1,11 +1,11 @@
-# What dm does with your data
+# What EDM does with your data
 
 Short version: nothing leaves your machine. There is no account, no server of
 ours, and no analytics.
 
 ## Looking for a new version
 
-Only if you turn it on (Options › General, off by default), dm looks for a
+Only if you turn it on (Options › General, off by default), EDM looks for a
 newer version about once a week, as Help › Check for updates does when you
 click it: it fetches the release's `latest.json`, and the signature beside
 it that shows the project made it, from GitHub. Those requests carry nothing
@@ -14,17 +14,17 @@ file, as it does for any download.
 
 ## Video sites
 
-dm reads YouTube itself and fetches nothing to do it. The little JavaScript a
-YouTube video's checks need runs in dm's own interpreter, written in Rust as
-part of dm: no engine of your computer's or of anyone else's is used. It runs
-with nothing of your computer in reach: no files, programs, network or clock. dm does the
+EDM reads YouTube itself and fetches nothing to do it. The little JavaScript a
+YouTube video's checks need runs in EDM's own interpreter, written in Rust as
+part of EDM: no engine of your computer's or of anyone else's is used. It runs
+with nothing of your computer in reach: no files, programs, network or clock. EDM does the
 rest itself too: joining picture and sound, subtitles, and live RTMP (RTMPS and
 RTMPT too), RTSP (RTSPS too) and MMS streams. No program is downloaded and run,
-and nothing installed on your computer is run in dm's place.
+and nothing installed on your computer is run in EDM's place.
 
 ## Share links of file-storage services
 
-A Dropbox, Google Drive or MediaFire share link you give dm is fetched the way
+A Dropbox, Google Drive or MediaFire share link you give EDM is fetched the way
 the service's own Download button fetches it: Dropbox's file at the same
 address, Google Drive's from `drive.usercontent.google.com` (answering its
 "can't scan this file for viruses" question for a large file), MediaFire's
@@ -35,16 +35,16 @@ service, only for a link you gave, and carry no cookie or sign-in.
 
 **Downloads your browser starts.** When the browser begins a download, the
 extension looks at its address, the page it came from, its file name, type and
-size, to decide whether the dm app on this computer should take it. If it
+size, to decide whether the EDM app on this computer should take it. If it
 should, those — the address and the page — are passed to the app over the
 browser's native messaging channel, which only reaches a program registered on
 this computer. Nothing is sent anywhere else.
 
 **Links and media you right-click.** Their address goes to the app the same
-way, only when you ask. The toolbar popup's "Open dm" only brings the app's
+way, only when you ask. The toolbar popup's "Open EDM" only brings the app's
 window up: it sends no address at all. "Download all links" and "Download
 selected links" read the addresses of the page's links, only when you pick
-them; on a tab that was open before dm was installed, the extension first
+them; on a tab that was open before EDM was installed, the extension first
 puts its small links reader into that page (the `scripting` permission),
 which reads link addresses and nothing else.
 
@@ -82,7 +82,7 @@ computer; an address is handed to the app only when you pick that video in
 the panel, as above.
 
 **Nothing else.** The only thing the extension stores is the app's catch
-rules: the file types, size floor and skipped sites from dm's settings. They
+rules: the file types, size floor and skipped sites from EDM's settings. They
 are kept in the browser's extension storage on this computer, so a download
 can be held at once rather than after the app has started. Whether the app
 is there is kept in memory for a minute and then forgotten.
@@ -92,8 +92,8 @@ is there is kept in memory for a minute and then forgotten.
 The app downloads what it is given, with the page as referrer, and keeps its
 queue and history on this computer.
 
-**Your session on a video page.** When you ask dm for a video from a page —
-the "Download video" panel, or "Download media with dm" — the extension
+**Your session on a video page.** When you ask EDM for a video from a page —
+the "Download video" panel, or "Download media with EDM" — the extension
 sends that page's cookies along, for that one video. Video sites turn away a
 download that does not carry the session your browser has ("confirm you're
 not a bot"). They go to the app on this computer only, are sent to that
@@ -101,7 +101,7 @@ page's server only, are kept with the row in `secrets.json` beside the
 queue (readable by your account alone; never in the queue file itself), and
 are dropped from the row once the video is downloaded. This is why the extension has the
 browser's cookies permission. The panel's list of a page's qualities is
-kept for ten minutes, 48 pages at most, in `formats.cache.json` in dm's own
+kept for ten minutes, 48 pages at most, in `formats.cache.json` in EDM's own
 data, so asking again soon after does not read the page again; it is filed
 under the page's address and the names of its cookies, never their values,
 and older ones are deleted.
@@ -112,7 +112,7 @@ over this site's sign-in" on for that site in the extension's toolbar popup.
 From then on that site's cookies travel with its downloads to the app, are
 sent to that site's server only, and are kept with the row in its queue file
 (readable by your account alone) — so that Redownload and the Recheck queue
-can ask that server again — until you delete the download from dm's list.
+can ask that server again — until you delete the download from EDM's list.
 Switching it off stops that for new downloads.
 
 If you would rather every download carry its site's sign-in, the app's
@@ -125,18 +125,18 @@ dropped from the row once that download is done, as a video page's are.
 (an export button, some file hosts), the extension keeps what the form sent, in its own memory
 for two minutes, and hands it to the app with that one download, so the app can send the same
 form to the same address. The app keeps it in memory with the download and never writes it to
-disk; once dm is closed it is gone, and the download is started again from its page.
+disk; once EDM is closed it is gone, and the download is started again from its page.
 
-**On this computer only.** dm listens on no network address by default. Started
+**On this computer only.** EDM listens on no network address by default. Started
 with `--control` (or `--headless --control`), it opens a port on the loopback
 address (`127.0.0.1`), which only programs on this computer can reach, and only
 one that presents a token kept in a file your account alone can read; the
-command line (`dm-desktop list`, `pause`…) and the AI-client server
-(`dm-desktop mcp`) use it. What they print and return carries no cookies,
+command line (`edm-desktop list`, `pause`…) and the AI-client server
+(`edm-desktop mcp`) use it. What they print and return carries no cookies,
 referrers, notes or sign-ins. Extracting a ZIP reads the file and writes a
 new folder; it contacts nothing and runs nothing it extracts.
 
-## What dm never does
+## What EDM never does
 
 - Send your downloads, addresses, browsing or settings to anyone.
 - Include analytics, tracking, crash reporting or advertising.
@@ -144,12 +144,12 @@ new folder; it contacts nothing and runs nothing it extracts.
 
 ## Questions
 
-dm is open source; if this document and the code ever disagree, the code is
+EDM is open source; if this document and the code ever disagree, the code is
 the truth and the disagreement is a bug worth reporting.
 
 This is also checked, not only promised: `cargo xtask privacy` (from the
 repository's root, and as a test in every build) fails if any crate that sends
 reports — analytics, crash reporting, telemetry — enters the build, or if
-shipped code names any address but GitHub's. dm reaches GitHub only when
+shipped code names any address but GitHub's. EDM reaches GitHub only when
 you check for updates or open Help. The two extension stores are
-opened in your browser only when you click to add dm to it.
+opened in your browser only when you click to add EDM to it.

@@ -1,16 +1,16 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Loads the built extension into a real Firefox and reports what Firefox says.
 
     sh scripts/package.sh                         # builds dist/firefox
     python3 scripts/firefox-check.py              # installs it, reads its console
-    python3 scripts/firefox-check.py native       # and watches a hand-off to dm
+    python3 scripts/firefox-check.py native       # and watches a hand-off to EDM
 
 With no Firefox on the machine, the latest release is fetched into
-~/.cache/dm-firefox (DM_FIREFOX_CACHE) and run from there; nothing is installed.
+~/.cache/edm-firefox (EDM_FIREFOX_CACHE) and run from there; nothing is installed.
 
 Firefox validates a manifest at install time and will not say what it
 disliked from a zip on disk, so this drives the remote debugging protocol the
@@ -19,16 +19,16 @@ add-on, then read the background page's console and evaluate in it. No
 web-ext, and no JavaScript of this project's: the extension is Rust compiled
 to WebAssembly, and this asks the loader's `dmReady` what loaded.
 
-`DM_REAL_INPUT=1` (with `native`, under X11 with xdotool) also right-clicks a
-real link with a real mouse and picks "Download link with dm" with real
+`EDM_REAL_INPUT=1` (with `native`, under X11 with xdotool) also right-clicks a
+real link with a real mouse and picks "Download link with EDM" with real
 keys: Firefox runs with a window, and the parent process's console is only
 read, to see which item the keys have reached. `scripts/linux-firefox-check.sh`
 runs it in a Linux container.
 
-`native` needs a built dm (target/debug/dm-gpui, or DM_BINARY).
+`native` needs a built EDM (target/debug/edm-gpui, or EDM_BINARY).
 Firefox reads host manifests only from the real home directory, so for the
-length of the check dm's manifest there is replaced by one naming a copy of
-the binary in a temporary DM_HOME, and the original — if there was one — is
+length of the check EDM's manifest there is replaced by one naming a copy of
+the binary in a temporary EDM_HOME, and the original — if there was one — is
 put back afterwards. The download is served by the same local server
 `chrome-check.py` uses; nothing else on the network is touched.
 """
@@ -43,7 +43,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 EXT = ROOT / "dist" / "firefox"
-CACHE = pathlib.Path(os.environ.get("DM_FIREFOX_CACHE") or pathlib.Path.home() / ".cache/dm-firefox")
+CACHE = pathlib.Path(os.environ.get("EDM_FIREFOX_CACHE") or pathlib.Path.home() / ".cache/edm-firefox")
 
 
 def fetch_firefox():
@@ -57,7 +57,7 @@ def fetch_firefox():
             print("fetching Firefox into", CACHE, flush=True)
             subprocess.run(["curl", "-sSLfo", str(dmg),
                             "https://download.mozilla.org/?product=firefox-latest-ssl&os=osx&lang=en-US"], check=True)
-            mount = tempfile.mkdtemp(prefix="dm-firefox-dmg-")
+            mount = tempfile.mkdtemp(prefix="edm-firefox-dmg-")
             subprocess.run(["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mount, str(dmg)],
                            check=True, stdout=subprocess.DEVNULL)
             try:
@@ -92,7 +92,7 @@ FIREFOX = next(
 )
 PORT = 6100 + os.getpid() % 400
 NATIVE = "native" in sys.argv
-REAL = NATIVE and bool(os.environ.get("DM_REAL_INPUT"))
+REAL = NATIVE and bool(os.environ.get("EDM_REAL_INPUT"))
 
 # The server, the files and the binary are chrome-check's, so the two
 # browsers are checked against the same thing.
@@ -152,7 +152,7 @@ def collect(packet, into):
 
 
 def profile(downloads):
-    d = pathlib.Path(tempfile.mkdtemp(prefix="dm-ffprofile-"))
+    d = pathlib.Path(tempfile.mkdtemp(prefix="edm-ffprofile-"))
     (d / "user.js").write_text(
         'user_pref("devtools.debugger.remote-enabled", true);\n'
         'user_pref("devtools.debugger.prompt-connection", false);\n'
@@ -203,13 +203,13 @@ ACTIVE = """(() => {
   if (!a) return 'none';
   const inner = a.localName === 'menu' && a.menupopup.state === 'open' ? active(a.menupopup) : null;
   const holds = a.localName === 'menu'
-    && [...a.querySelectorAll('menuitem')].some(i => i.label === 'Download link with dm');
+    && [...a.querySelectorAll('menuitem')].some(i => i.label === 'Download link with EDM');
   return JSON.stringify({label: a.label || '', holds, inner: inner ? inner.label : null});
 })()"""
 
 
 def real_menu_click(rdp, evaluate, resolve, origin, engine_dl):
-    """A real right-click on a link, and "Download link with dm" picked with
+    """A real right-click on a link, and "Download link with EDM" picked with
     real keys, as a person picks it."""
     print("\n=== a real right-click on a link ===")
     proc = rdp.ask("root", "getProcess", id=0)
@@ -251,7 +251,7 @@ def real_menu_click(rdp, evaluate, resolve, origin, engine_dl):
         xdo("key", "Down")
         time.sleep(0.15)
         now = active()
-        if now and (now["label"] == "Download link with dm" or now["holds"]):
+        if now and (now["label"] == "Download link with EDM" or now["holds"]):
             reached = now
             break
     if reached and reached["holds"]:
@@ -260,30 +260,30 @@ def real_menu_click(rdp, evaluate, resolve, origin, engine_dl):
         time.sleep(0.4)
         for _ in range(10):
             now = active()
-            if now and now["inner"] == "Download link with dm":
+            if now and now["inner"] == "Download link with EDM":
                 break
             xdo("key", "Down")
             time.sleep(0.15)
         else:
             reached = None
-    print(f"  {'the keys reach Download link with dm':<40} {'yes' if reached else 'NO'}")
+    print(f"  {'the keys reach Download link with EDM':<40} {'yes' if reached else 'NO'}")
     if not reached:
         xdo("key", "Escape")
         return
     xdo("key", "Return")
     landed = common.wait_for(lambda: common.whole(engine_dl, "kept.zip"), 60)
-    print(f"  {'and dm fetched the link':<40} {'yes' if landed else 'NO'}")
+    print(f"  {'and EDM fetched the link':<40} {'yes' if landed else 'NO'}")
 
 
 def live_panel(rdp, evaluate, resolve, url, engine_dl):
-    """The panel on a real site's player (DM_LIVE_PAGE), as a person uses it:
+    """The panel on a real site's player (EDM_LIVE_PAGE), as a person uses it:
     the real pointer (xdotool) moves over the playing video, clicks the
     panel and, where a list of qualities opens, clicks the smallest. The
     panel takes only a person's input, so nothing here can be a click made
     by script. Says why when the site gives no video to hover."""
     print(f"\n=== the panel on {url} ===")
     if not REAL:
-        print(f"  {'the live page':<40} not checked: needs real input (DM_REAL_INPUT=1)")
+        print(f"  {'the live page':<40} not checked: needs real input (EDM_REAL_INPUT=1)")
         return
     resolve("the live page", f"browser.tabs.update({{url: {json.dumps(url)}}}).then(() => 'opened')")
     # The tab in front, wherever the site sent it: a consent page or a
@@ -295,13 +295,13 @@ def live_panel(rdp, evaluate, resolve, url, engine_dl):
     page = None
     for _ in range(60):
         page = active()
-        if page and (evaluate("!!document.querySelector('dm-panel') && document.readyState === 'complete'", page) or {}).get("result") is True:
+        if page and (evaluate("!!document.querySelector('edm-panel') && document.readyState === 'complete'", page) or {}).get("result") is True:
             break
         time.sleep(0.5)
     def in_page(source):
         return (evaluate(source, page) or {}).get("result") if page else None
     where_now = lambda: in_page("location.href + ' — ' + document.title")
-    if not in_page("!!document.querySelector('dm-panel')"):
+    if not in_page("!!document.querySelector('edm-panel')"):
         print(f"  {'the page script loads':<40} NO, at {where_now()}")
         return
     # Every video, including those inside web components' open shadow roots
@@ -315,8 +315,8 @@ def live_panel(rdp, evaluate, resolve, url, engine_dl):
         return
     in_page(f"(() => {{ const v = {video}; v.scrollIntoView({{block: 'center'}}); v.muted = true; v.play().catch(() => 0); return 1; }})()")
     time.sleep(2)
-    panel = "document.querySelector('dm-panel').shadowRoot"
-    state = (f"(() => {{ const h = document.querySelector('dm-panel'); const r = {panel};"
+    panel = "document.querySelector('edm-panel').shadowRoot"
+    state = (f"(() => {{ const h = document.querySelector('edm-panel'); const r = {panel};"
              " return getComputedStyle(h).display + '|' + r.querySelector('.title').textContent + '|'"
              " + [...r.querySelectorAll('.item')].map(i => i.textContent).join(';'); })()")
     on_screen = ("(() => {{ const e = {0}; if (!e) return null; const r = e.getBoundingClientRect();"
@@ -356,7 +356,7 @@ def live_panel(rdp, evaluate, resolve, url, engine_dl):
     listed = None
     for _ in range(60):
         value = in_page(state) or ""
-        if value.split("|")[-1] or "Sent to dm" in value or "browser" in value:
+        if value.split("|")[-1] or "Sent to EDM" in value or "browser" in value:
             listed = value
             break
         time.sleep(1)
@@ -370,7 +370,7 @@ def live_panel(rdp, evaluate, resolve, url, engine_dl):
         real_click(smallest)
     landed = common.wait_for(lambda: [p.name for p in engine_dl.rglob("*")
                                       if p.is_file() and p.name not in before and p.stat().st_size > 0], 240)
-    print(f"  {'and the video lands in dm':<40} {landed or 'NO'}")
+    print(f"  {'and the video lands in EDM':<40} {landed or 'NO'}")
 
 
 def mozilla_hosts():
@@ -390,7 +390,7 @@ PANEL = """(() => {
 
 
 def downloads_panel(rdp, evaluate, resolve, origin, engine_dl, browser_dl):
-    """Gap 137: whether Firefox opens its downloads panel for a download dm
+    """Gap 137: whether Firefox opens its downloads panel for a download EDM
     takes, as a person clicking a link sees it — and whether erasing the
     browser's copy at once, in onCreated before anything else, keeps it shut.
     Firefox opens the panel itself when a download is added to its list
@@ -416,7 +416,7 @@ def downloads_panel(rdp, evaluate, resolve, origin, engine_dl, browser_dl):
         xdo("windowactivate", "--sync", window)
 
     def shoot(name):
-        shots = os.environ.get("DM_SHOTS")
+        shots = os.environ.get("EDM_SHOTS")
         if shots and shutil.which("import"):
             pathlib.Path(shots).mkdir(parents=True, exist_ok=True)
             subprocess.run(["import", "-window", "root", f"{shots}/{name}.png"], check=False)
@@ -454,12 +454,12 @@ def downloads_panel(rdp, evaluate, resolve, origin, engine_dl, browser_dl):
     close_panel()
     seen = click("small.bin", "ff-panel-taken")
     landed = seen is not None and common.wait_for(lambda: common.whole(engine_dl, "small.bin"), 30)
-    print(f"  {'a real click on a caught link':<40} {'dm took it' if landed else 'NO: dm did not take it'}")
+    print(f"  {'a real click on a caught link':<40} {'EDM took it' if landed else 'NO: EDM did not take it'}")
     print(f"  {'Firefox opened its downloads panel':<40} {'yes' if opened(seen) else 'no'} (states seen: {seen})")
     resolve("the browser's list after", listed)
 
     # The soonest an extension can act: cancelled and erased in its own
-    # onCreated listener, before dm's handler has asked the app anything.
+    # onCreated listener, before EDM's handler has asked the app anything.
     close_panel()
     resolve("an erase-at-once listener",
             "(globalThis.__dmEraser = d => browser.downloads.cancel(d.id)"
@@ -470,8 +470,8 @@ def downloads_panel(rdp, evaluate, resolve, origin, engine_dl, browser_dl):
     resolve("the listener taken out",
             "browser.downloads.onCreated.removeListener(globalThis.__dmEraser), 'removed'")
 
-    # With a download of the browser's own in its list (one dm's rules
-    # leave), the panel dm's opens has that one left in it.
+    # With a download of the browser's own in its list (one EDM's rules
+    # leave), the panel EDM's opens has that one left in it.
     close_panel()
     click("kept.zip", "ff-panel-browsers-own")
     common.wait_for(lambda: common.whole(browser_dl, "kept.zip"), 30)
@@ -489,10 +489,10 @@ def main():
     if not FIREFOX:
         print("no Firefox found, and none can be fetched for this platform — nothing was checked")
         return
-    if not (EXT / "pkg" / "dm_catcher_bg.wasm").exists():
+    if not (EXT / "pkg" / "edm_catcher_bg.wasm").exists():
         sys.exit("no built extension at dist/firefox — run: sh scripts/package.sh")
 
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-firefox-check-"))
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-firefox-check-"))
     ext, browser_dl = work / "ext", work / "browser-downloads"
     shutil.copytree(EXT, ext)
     browser_dl.mkdir()
@@ -501,8 +501,8 @@ def main():
     registration, kept, host = None, None, None
     if NATIVE:
         if not common.BINARY.exists():
-            sys.exit(f"no dm binary at {common.BINARY}")
-        engine_home, engine_dl = work / "dm-home", work / "dm-downloads"
+            sys.exit(f"no EDM binary at {common.BINARY}")
+        engine_home, engine_dl = work / "edm-home", work / "edm-downloads"
         engine_home.mkdir()
         engine_dl.mkdir()
         host = engine_home / common.BINARY.name
@@ -512,7 +512,7 @@ def main():
             "catch": {"enabled": True, "extensions": ["bin"], "defaultsVersion": 1},
             # The dialogs the app opens for a caught download and a panel video are the window
             # test's (contract row B63: the browser checks run with both off), and the settings
-            # are of this version, so dm does not turn them on once as for an older file.
+            # are of this version, so EDM does not turn them on once as for an older file.
             "ask_panel_downloads": False,
             "ask_caught_downloads": False,
             # No progress or finished window opens over Firefox, as in chrome-check.py.
@@ -521,14 +521,14 @@ def main():
             "popups_version": 2,
         }), encoding="utf-8")
         shim = engine_home / "host.sh"
-        shim.write_text(f"#!/bin/sh\nexport DM_HOME='{engine_home}'\nexec '{host}' \"$@\"\n", encoding="utf-8")
+        shim.write_text(f"#!/bin/sh\nexport EDM_HOME='{engine_home}'\nexec '{host}' \"$@\"\n", encoding="utf-8")
         shim.chmod(0o755)
         mozilla_hosts().mkdir(parents=True, exist_ok=True)
-        registration = mozilla_hosts() / "com.dm.engine.json"
+        registration = mozilla_hosts() / "com.edm.engine.json"
         if registration.exists():
             kept = registration.read_bytes()
         registration.write_text(json.dumps({
-            "name": "com.dm.engine", "description": "dm (firefox-check)", "path": str(shim),
+            "name": "com.edm.engine", "description": "EDM (firefox-check)", "path": str(shim),
             "type": "stdio", "allowed_extensions": ["easy-download-manager@pranavo72bex.github.io"],
         }), encoding="utf-8")
         server = common.Server(("127.0.0.1", 0), common.Handler)
@@ -626,22 +626,22 @@ def main():
         resolve("handlers", "dmReady.then(m => Object.keys(m).filter(k => k.startsWith('on_')).join(','))")
 
         if NATIVE:
-            print("\n=== the hand-off to dm ===")
+            print("\n=== the hand-off to EDM ===")
             # A navigation download, which the browser starts and the
             # extension did not — so it is caught, unlike one from
             # downloads.download().
             resolve("a download is caught",
                     f"browser.tabs.create({{url: '{origin}/files/caught.bin'}}).then(() => 'opened')")
             landed = common.wait_for(lambda: common.whole(engine_dl, "caught.bin"), 60)
-            print(f"  {'dm fetched it into its folder':<40} {'yes' if landed else 'NO'}")
+            print(f"  {'EDM fetched it into its folder':<40} {'yes' if landed else 'NO'}")
             resolve("the app", "dmReady.then(m => m.app_status())")
             resolve("the browser's list",
                     "browser.downloads.search({}).then(l => JSON.stringify(l.map(d => [d.url, d.state])))")
-            resolve("'Download link with dm'",
-                    f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'dm-link', "
+            resolve("'Download link with EDM'",
+                    f"dmReady.then(m => m.on_menu_clicked({{menuItemId: 'edm-link', "
                     f"linkUrl: '{origin}/files/menu.bin', pageUrl: '{origin}/page.html'}}, {{}})).then(() => 'sent')")
             landed = common.wait_for(lambda: common.whole(engine_dl, "menu.bin"), 60)
-            print(f"  {'and dm fetched it':<40} {'yes' if landed else 'NO'}")
+            print(f"  {'and EDM fetched it':<40} {'yes' if landed else 'NO'}")
 
             if REAL:
                 real_menu_click(rdp, evaluate, resolve, origin, engine_dl)
@@ -654,13 +654,13 @@ def main():
             for _ in range(20):
                 seen = resolve("the background noted it, for the panel's list",
                                "browser.storage.session.get(null).then(o => Object.entries(o)"
-                               ".filter(([k]) => k.startsWith('dm.streams.'))"
+                               ".filter(([k]) => k.startsWith('EDM.streams.'))"
                                ".map(([, v]) => v.map(s => s.label + ' ' + s.url.split('/').pop()).join(', ')).join('; ') || '')",
                                seconds=5)
                 if seen and "stream.m3u8" in seen:
                     break
                 time.sleep(1)
-            print(f"  {'Firefox reports the stream to dm':<40} {'yes' if seen and 'stream.m3u8' in seen else 'NO'}")
+            print(f"  {'Firefox reports the stream to EDM':<40} {'yes' if seen and 'stream.m3u8' in seen else 'NO'}")
 
             print("\n=== the 'Download video' panel ===")
             resolve("a page with a video", f"browser.tabs.create({{url: '{origin}/video.html'}}).then(() => 'opened')")
@@ -676,20 +676,20 @@ def main():
             def in_page(source):
                 return (evaluate(source, page) or {}).get("result")
 
-            loaded = page and common.wait_for(lambda: in_page("!!document.querySelector('dm-panel')") is True, 20)
+            loaded = page and common.wait_for(lambda: in_page("!!document.querySelector('edm-panel')") is True, 20)
             print(f"  {'the page script loads':<40} {'yes' if loaded else 'NO'}")
             if loaded:
                 # The panel acts only on a person's input (a page's script
                 # cannot press it), and Firefox's remote protocol has no
                 # input of its own: the real pointer, through xdotool, moves
                 # over the video and clicks the panel.
-                state = ("(() => { const h = document.querySelector('dm-panel');"
+                state = ("(() => { const h = document.querySelector('edm-panel');"
                          " return getComputedStyle(h).display + '|' + h.shadowRoot.querySelector('.title').textContent + '|' + h.shadowRoot.querySelector('.sub').textContent; })()")
                 on_screen = ("(() => {{ const r = {0}.getBoundingClientRect();"
                              " return Math.round(mozInnerScreenX + r.left + r.width / 2) + ','"
                              " + Math.round(mozInnerScreenY + r.top + r.height / 2); }})()")
                 if not REAL:
-                    print(f"  {'hovering the video shows it':<40} not checked: needs real input (DM_REAL_INPUT=1)")
+                    print(f"  {'hovering the video shows it':<40} not checked: needs real input (EDM_REAL_INPUT=1)")
                 else:
                     window = (xdo("search", "--onlyvisible", "--class", "firefox").split() or [""])[-1]
                     if window:
@@ -707,23 +707,23 @@ def main():
                             shown = value
                             break
                     print(f"  {'hovering the video shows it':<40} {shown or 'NO: ' + str(in_page(state))}")
-                    go = shown and in_page(on_screen.format("document.querySelector('dm-panel').shadowRoot.querySelector('.go')"))
+                    go = shown and in_page(on_screen.format("document.querySelector('edm-panel').shadowRoot.querySelector('.go')"))
                     if go:
                         x, y = go.split(",")
                         xdo("mousemove", "--sync", x, y)
                         time.sleep(0.2)
                         xdo("click", "1")
                     landed = go and common.wait_for(lambda: common.whole(engine_dl, "clip.mp4"), 60)
-                    print(f"  {'its click lands the file in dm':<40} {'yes' if landed else 'NO'}")
+                    print(f"  {'its click lands the file in EDM':<40} {'yes' if landed else 'NO'}")
                     print(f"  {'and it says':<40} {in_page(state)}")
                     # A page's own script pressing the panel hands nothing over.
-                    in_page("document.querySelector('dm-panel').shadowRoot.querySelector('.go').click(), 1")
+                    in_page("document.querySelector('edm-panel').shadowRoot.querySelector('.go').click(), 1")
                     time.sleep(2)
                     again = len([p for p in engine_dl.rglob("clip*.mp4")])
                     print(f"  {'a click a page script makes does nothing':<40} {'yes' if again <= 1 else 'NO: ' + str(again)}")
 
             # One or more real pages, separated by spaces.
-            for live in os.environ.get("DM_LIVE_PAGE", "").split():
+            for live in os.environ.get("EDM_LIVE_PAGE", "").split():
                 live_panel(rdp, evaluate, resolve, live, engine_dl)
 
         print("\n=== what the background logged ===")
@@ -741,7 +741,7 @@ def main():
                 registration.unlink(missing_ok=True)
         if host is not None:
             subprocess.run(["pkill", "-f", str(host)], check=False)
-        # The profile, the copied extension and dm's folders were the
+        # The profile, the copied extension and EDM's folders were the
         # check's own; nothing of them is wanted afterwards.
         shutil.rmtree(work, ignore_errors=True)
         shutil.rmtree(prof, ignore_errors=True)

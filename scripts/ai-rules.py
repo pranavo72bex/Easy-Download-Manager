@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The rules of AGENTS.md and docs/ai-skills/ a bot's change must keep, checked by machine.
@@ -13,7 +13,7 @@ reading a free model's change would otherwise have to catch (AGENTS.md "Rules fo
 docs/ai-skills/engine.md, testing.md, desktop.md):
 
 - shipped code (a crate's src/, not its tests) adds no `unwrap()`, `expect(`, `panic!`,
-  `todo!`, `unimplemented!` or `unreachable!`, and no `eprintln!` or `dbg!` (dm logs with
+  `todo!`, `unimplemented!` or `unreachable!`, and no `eprintln!` or `dbg!` (EDM logs with
   `note!`);
 - a wait or a timeout is a named const: no `Duration::from_…(<number>)` written inline in
   shipped code, but on a `const` line;

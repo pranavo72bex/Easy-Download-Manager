@@ -1,4 +1,4 @@
-# Installing dm on Linux
+# Installing EDM on Linux
 
 Two routes. The Arch package is built, checked and installed with pacman in
 Arch's own container (`scripts/arch-check.sh`, arm64 and emulated x86_64);
@@ -27,7 +27,7 @@ The tagged release carries an AppImage, which needs nothing installed (on
 Ubuntu 22.04 and newer, `sudo apt install libfuse2` first):
 
 ```sh
-chmod +x dm_*.AppImage && ./dm_*.AppImage
+chmod +x edm_*.AppImage && ./edm_*.AppImage
 ```
 
 It is built on Ubuntu 22.04 deliberately — an AppImage built against a newer
@@ -37,10 +37,10 @@ produces the most portable binary.
 ## Building it yourself
 
 ```sh
-cargo build --release -p dm-gpui         # the window, in target/release
+cargo build --release -p edm-gpui         # the window, in target/release
 cargo test --workspace                   # the workspace's tests; no display needed
 ```
 
-The engine (`crates/dm-core`) has no idea a window exists and is tested
+The engine (`crates/edm-core`) has no idea a window exists and is tested
 without one, and the window's tests run in GPUI's test platform, so the whole
 suite runs with no display.

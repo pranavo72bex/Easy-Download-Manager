@@ -1,11 +1,11 @@
 # Videos and their qualities
 
-dm downloads a video from the page it plays on, at the quality you choose.
+EDM downloads a video from the page it plays on, at the quality you choose.
 
 ## From the browser: Download video
 
 Move the mouse over a playing video and a small bar shows on its top-right
-corner: **Download video**. Click it to hand the video to dm; where there is
+corner: **Download video**. Click it to hand the video to EDM; where there is
 a choice, its ▾ lists each quality first. The grip at the bar's left drags
 it out of the way, and × offers to hide it for that video, or never to show
 it on that site. **Options › Browser › Show Download video on web videos**
@@ -19,7 +19,7 @@ turns it off everywhere.
 - On other sites the list is the streams and files the page's player
   loaded. If nothing is listed, play the video for a few seconds first, so
   the player loads it, and try again.
-- You can also right-click a video and choose **Download media with dm**.
+- You can also right-click a video and choose **Download media with EDM**.
 
 With **Options › General › Ask where to save videos** on, [Download
 details](download-details.md) opens first, so you can choose the folder,
@@ -43,9 +43,9 @@ choose another:
   below that height, for a smaller file.
 - **Audio only:** the sound alone, without the picture.
 
-Where the best qualities are copy-protected, dm takes the best one that is
+Where the best qualities are copy-protected, EDM takes the best one that is
 not, and the row says "higher qualities are copy-protected, so the best one
-that is not was taken". dm does not break copy protection.
+that is not was taken". EDM does not break copy protection.
 
 ## A part of a video
 
@@ -66,8 +66,8 @@ that part is downloaded. See [Download details](download-details.md).
   **Options › Downloads › Stop recording after (minutes, 0 for no limit)**
   is reached.
 - A YouTube premiere, or a live stream that has not begun, is waited for:
-  its row says "Waiting: the premiere starts in …", and dm records it once it
+  its row says "Waiting: the premiere starts in …", and EDM records it once it
   begins. One set more than a week ahead is refused, saying when it starts.
 
 When a video does not download, its row says why: see the video and stream
-sections of [What dm's messages mean](failures.md).
+sections of [What EDM's messages mean](failures.md).

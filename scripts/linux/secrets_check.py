@@ -1,20 +1,20 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""The installed dm keeps its secrets in the session's Secret Service (gaps row 39, Linux).
+"""The installed EDM keeps its secrets in the session's Secret Service (gaps row 39, Linux).
 
-Run by `package.sh` with the installed binary (DM_BINARY), inside a D-Bus session with an
-unlocked gnome-keyring: what a person's desktop gives dm. Checks, against a local server that
+Run by `package.sh` with the installed binary (EDM_BINARY), inside a D-Bus session with an
+unlocked gnome-keyring: what a person's desktop gives EDM. Checks, against a local server that
 refuses a request without its sign-in:
 
   * a row with a login in its address, and a browser hand-off with cookies (the native host's
     `download.start`), are fetched with their sign-in;
-  * nothing under dm's home holds the login, the cookie or a Sign-in's password in clear: the
+  * nothing under EDM's home holds the login, the cookie or a Sign-in's password in clear: the
     row's are in a sealed `secrets.json`, whose key the Secret Service keeps, and the Sign-in's
     password is in the Secret Service itself, the settings file keeping it empty;
-  * dm ended mid-download and started again: both rows come back and resume with ranged
+  * EDM ended mid-download and started again: both rows come back and resume with ranged
     requests that carry their sign-in, and both files are whole; the Sign-in is still kept.
 """
 
@@ -41,7 +41,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-BINARY = os.environ.get("DM_BINARY") or "dm-gpui"
+BINARY = os.environ.get("EDM_BINARY") or "edm-gpui"
 # Made up afresh for each run, never written in the repository (a secret scanner reads its history),
 # and never printed: a check that fails names the file, not what it found there.
 LOGIN = ("jo", secrets.token_urlsafe(18))
@@ -78,7 +78,7 @@ class Serve(http.server.BaseHTTPRequestHandler):
         if not wanted[self.path]:
             self.send_response(401 if self.path.startswith("/auth") else 403)
             if self.path.startswith("/auth"):
-                self.send_header("WWW-Authenticate", 'Basic realm="dm"')
+                self.send_header("WWW-Authenticate", 'Basic realm="EDM"')
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
@@ -96,7 +96,7 @@ class Serve(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Range", f"bytes {start}-{end}/{SIZE}")
         self.end_headers()
         try:
-            # About a megabyte a second for each connection, so dm is ended mid-download.
+            # About a megabyte a second for each connection, so EDM is ended mid-download.
             for at in range(start, end + 1, 32 * 1024):
                 self.wfile.write(BODY[at:min(at + 32 * 1024, end + 1)])
                 time.sleep(0.03)
@@ -128,10 +128,10 @@ class Dm:
 
     def start(self):
         (self.home / "control.port").unlink(missing_ok=True)
-        env = dict(os.environ, DM_HOME=str(self.home))
-        env.pop("DM_NO_SECRET_STORE", None)
+        env = dict(os.environ, EDM_HOME=str(self.home))
+        env.pop("EDM_NO_SECRET_STORE", None)
         self.proc = subprocess.Popen([BINARY, "--control", "0"], env=env, stdout=subprocess.DEVNULL,
-                                     stderr=open(self.home.parent / "dm-stderr.txt", "a", encoding="utf-8"))
+                                     stderr=open(self.home.parent / "edm-stderr.txt", "a", encoding="utf-8"))
         port = self.home / "control.port"
         for _ in range(300):
             if port.exists() and port.read_text(encoding="utf-8").strip():
@@ -157,7 +157,7 @@ class Dm:
 
 
 def files_holding(home, named):
-    """Which files under `home` (dm's home and what dm printed beside it) hold which of `named`'s
+    """Which files under `home` (EDM's home and what EDM printed beside it) hold which of `named`'s
     secrets in clear: by their names only."""
     found = []
     for path in home.rglob("*"):
@@ -168,10 +168,10 @@ def files_holding(home, named):
 
 
 def store_items():
-    """What the Secret Service keeps under dm's service: each item's name and its secret."""
+    """What the Secret Service keeps under EDM's service: each item's name and its secret."""
     if not shutil.which("secret-tool"):
         return []
-    got = subprocess.run(["secret-tool", "search", "--all", "--unlock", "service", "dm"],
+    got = subprocess.run(["secret-tool", "search", "--all", "--unlock", "service", "EDM"],
                          capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace")
     items, current = [], {}
     for line in (got.stdout + got.stderr).splitlines():
@@ -186,16 +186,16 @@ def store_items():
 
 
 def store_lookup(name):
-    """The value the Secret Service keeps under dm's `name`, asked for exactly, or nothing."""
+    """The value the Secret Service keeps under EDM's `name`, asked for exactly, or nothing."""
     if not shutil.which("secret-tool"):
         return b""
-    got = subprocess.run(["secret-tool", "lookup", "service", "dm", "name", name],
+    got = subprocess.run(["secret-tool", "lookup", "service", "EDM", "name", name],
                          capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace")
     return decoded(got.stdout) if got.returncode == 0 else b""
 
 
 def decoded(text):
-    """A secret as dm keeps it in the store: base64."""
+    """A secret as EDM keeps it in the store: base64."""
     try:
         return base64.b64decode(text.strip(), validate=True)
     except ValueError:
@@ -210,22 +210,22 @@ def sign_in_kept(items):
 
 def main():
     if not shutil.which("secret-tool"):
-        check("secret-tool, which dm reaches the Secret Service through, is installed with the package", False,
+        check("secret-tool, which EDM reaches the Secret Service through, is installed with the package", False,
               "not on PATH: the store is never used and the secrets stay in a file in clear")
-    work = pathlib.Path(tempfile.mkdtemp(prefix="dm-secrets-"))
+    work = pathlib.Path(tempfile.mkdtemp(prefix="edm-secrets-"))
     home = work / "home"
     home.mkdir()
-    # A Sign-in written in clear by an earlier dm: moved into the store on the first read.
+    # A Sign-in written in clear by an earlier EDM: moved into the store on the first read.
     (home / "settings.json").write_text(json.dumps({"site_logins": [SIGN_IN]}), encoding="utf-8")
     server = Server(("127.0.0.1", 0), Serve)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_address[1]}"
 
-    dm = Dm(home)
-    dm.start()
-    added = dm.call("downloads.add", url=f"http://{LOGIN[0]}:{LOGIN[1]}@127.0.0.1:{server.server_address[1]}/auth/a.bin")
-    env = dict(os.environ, DM_HOME=str(home))
-    env.pop("DM_NO_SECRET_STORE", None)
+    edm = Dm(home)
+    edm.start()
+    added = edm.call("downloads.add", url=f"http://{LOGIN[0]}:{LOGIN[1]}@127.0.0.1:{server.server_address[1]}/auth/a.bin")
+    env = dict(os.environ, EDM_HOME=str(home))
+    env.pop("EDM_NO_SECRET_STORE", None)
     host = subprocess.run([BINARY, "--native-host"], env=env, timeout=30, capture_output=True,
                           input=frame({"protocolVersion": 1, "type": "engine.hello", "id": "h"})
                           + frame({"protocolVersion": 1, "type": "download.start", "id": "c",
@@ -235,10 +235,10 @@ def main():
     check("both are taken: a login in the address, and a browser hand-off with cookies",
           added.get("ok", "error" not in added) and "download.started" in replies,
           f"added {(added.get('result') or {}).get('added')} / {replies}")
-    # Under way on both, with their sign-in, then dm is ended.
+    # Under way on both, with their sign-in, then EDM is ended.
     deadline = time.time() + 30
     while time.time() < deadline:
-        moving = [r for r in dm.rows() if (r.get("progress") or {}).get("downloaded", 0) > 512 * 1024]
+        moving = [r for r in edm.rows() if (r.get("progress") or {}).get("downloaded", 0) > 512 * 1024]
         if len(moving) >= 2:
             break
         time.sleep(0.3)
@@ -246,7 +246,7 @@ def main():
     check("each is fetched with its sign-in", signed("/auth/a.bin", "auth", "Basic") and signed("/cookie/b.bin", "cookie", COOKIE),
           f"{[(e['path'], bool(e['auth']), bool(e['cookie'])) for e in LOG][:6]}")
     held = files_holding(work, SECRETS)
-    check("nothing in dm's home or what it printed holds the login, the cookie or the Sign-in's password in clear",
+    check("nothing in EDM's home or what it printed holds the login, the cookie or the Sign-in's password in clear",
           not held, str(held))
     sealed_file = home / "secrets.json"
     try:
@@ -255,43 +255,43 @@ def main():
         envelope = {}
     check("the rows' secrets file is sealed (ChaCha20-Poly1305, under the key the store keeps)",
           isinstance(envelope, dict) and envelope.get("alg") == "chacha20poly1305"
-          and envelope.get("key") == "dm:queue-secrets-key",
+          and envelope.get("key") == "EDM:queue-secrets-key",
           f"alg {envelope.get('alg')!r}, key {envelope.get('key')!r}" if isinstance(envelope, dict) else "not an envelope")
     items = store_items()
     check("the Secret Service keeps the key that seals it (32 bytes; its value is not printed)",
-          len(store_lookup("dm:queue-secrets-key")) == 32)
+          len(store_lookup("EDM:queue-secrets-key")) == 32)
     check("and the Sign-in's password, which the settings file keeps empty",
           sign_in_kept(items) and json.loads((home / "settings.json").read_text(encoding="utf-8"))["site_logins"][0]["password"] == "",
-          f"{len(items)} items under dm's service")
-    dm.stop()
+          f"{len(items)} items under EDM's service")
+    edm.stop()
     before = {p: max([e["t"] for e in LOG if e["path"] == p] or [0]) for p in ("/auth/a.bin", "/cookie/b.bin")}
 
-    dm.start()
+    edm.start()
     time.sleep(1.5)
-    for r in dm.rows():
+    for r in edm.rows():
         if r["state"]["kind"] in ("paused", "failed", "stopped"):
-            dm.call("downloads.resume", id=r["id"])
+            edm.call("downloads.resume", id=r["id"])
     deadline = time.time() + 90
     while time.time() < deadline:
-        states = {r["url"].rsplit("/", 1)[-1]: r["state"]["kind"] for r in dm.rows()}
+        states = {r["url"].rsplit("/", 1)[-1]: r["state"]["kind"] for r in edm.rows()}
         if all(s == "completed" for s in states.values()) and len(states) == 2:
             break
         time.sleep(0.5)
-    check("dm started again: both rows come back and finish", states == {"a.bin": "completed", "b.bin": "completed"}, str(states))
+    check("EDM started again: both rows come back and finish", states == {"a.bin": "completed", "b.bin": "completed"}, str(states))
     after = [e for e in LOG if e["t"] > before.get(e["path"], 0) and e["range"].startswith("bytes=") and not e["range"].startswith("bytes=0-")]
     check("they resume with ranged requests that carry their sign-in",
           any(e["path"] == "/auth/a.bin" and e["auth"].startswith("Basic") for e in after)
           and any(e["path"] == "/cookie/b.bin" and COOKIE in e["cookie"] for e in after),
           str([(e["path"], e["range"], bool(e["auth"]), bool(e["cookie"])) for e in after][:6]))
-    done = [r for r in dm.rows() if r["state"]["kind"] == "completed"]
+    done = [r for r in edm.rows() if r["state"]["kind"] == "completed"]
     whole = [pathlib.Path(r["path"]).read_bytes() == BODY for r in done if r.get("path")]
     check("and both files are whole", len(whole) == 2 and all(whole), str(whole))
     check("the Sign-in is still kept after the restart",
           sign_in_kept(store_items())
           and json.loads((home / "settings.json").read_text(encoding="utf-8"))["site_logins"][0]["password"] == "")
     held = files_holding(work, SECRETS)
-    check("and still nothing in dm's home or what it printed holds a secret in clear", not held, str(held))
-    dm.stop()
+    check("and still nothing in EDM's home or what it printed holds a secret in clear", not held, str(held))
+    edm.stop()
     print(f"\n{'all' if not FAILED else len(FAILED)} {'checks passed' if not FAILED else 'failed: ' + '; '.join(FAILED)}")
     sys.exit(1 if FAILED else 0)
 

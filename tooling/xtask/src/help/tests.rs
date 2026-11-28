@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 use super::*;
@@ -73,7 +73,7 @@ fn a_sentence_is_compared_with_its_names_as_an_ellipsis_whatever_its_case_and_sp
         "the server answered … for …"
     );
     assert_eq!(normal("{a} {b} left\n  out"), "… left out");
-    assert_eq!(normal("dm’s  own"), "dm's own");
+    assert_eq!(normal("EDM’s  own"), "edm's own");
     assert!(says_something("not enough room: {}"));
     assert!(!says_something("{}: {e}"));
     assert!(!says_something("{why}"));
@@ -121,20 +121,20 @@ fn fixture() -> Scratch {
         "pub enum Error {\n    #[error(\"the archive was stopped\")]\n    Cancelled,\n}\n",
     );
     write(
-        "crates/dm-core/src/a.rs",
+        "crates/edm-core/src/a.rs",
         "fn f() {\n    Err(Error::Internal(\"the page took too long\".into()))?;\n    Err(Error::Internal(\n        format!(\"{} did not answer\", host),\n    ))?;\n    Err(Error::Connection(format!(\"the FTP server said {code}\")))?;\n    Err(Error::Internal(why))?;\n    log(\"not raised\");\n}\n#[cfg(test)]\nmod tests { fn t() { Error::Internal(\"a test's\".into()); } }\n",
     );
     write(
-        "crates/dm-core/src/a/tests.rs",
+        "crates/edm-core/src/a/tests.rs",
         "Error::Internal(\"in a test file\".into());\n",
     );
     write(
-        "crates/dm-net/src/b.rs",
+        "crates/edm-net/src/b.rs",
         "Error::Internal(format!(\"{why}\"))\n",
     );
     write(
         OPTIONS,
-        "fn general() {\n    check(p, cx, \"start-on-login\", t(\"Start dm when I sign in\"), on);\n    p.hint(t(\"Lets other programs add downloads.\"));\n    let k = t(\"key:Shift\");\n    let id = format!(\"browse-{key}\");\n    let pct = tf(\"{}%\", &[&n]);\n}\n",
+        "fn general() {\n    check(p, cx, \"start-on-login\", t(\"Start EDM when I sign in\"), on);\n    p.hint(t(\"Lets other programs add downloads.\"));\n    let k = t(\"key:Shift\");\n    let id = format!(\"browse-{key}\");\n    let pct = tf(\"{}%\", &[&n]);\n}\n",
     );
     write(
         &format!("{OPTIONS_PAGES}/dialup.rs"),
@@ -161,7 +161,7 @@ fn the_sentences_are_read_from_the_notes_the_errors_the_engine_and_options() {
             "the page took too long",
             "{} did not answer",
             "the FTP server said {code}",
-            "Start dm when I sign in",
+            "Start EDM when I sign in",
             "Lets other programs add downloads.",
             "Shift",
             "Dial Up / VPN",
@@ -169,7 +169,7 @@ fn the_sentences_are_read_from_the_notes_the_errors_the_engine_and_options() {
     );
     // Where each is written, to find it from the failure.
     assert_eq!(found[0].at, format!("{NOTES}:3"));
-    assert_eq!(found[8].at, "crates/dm-core/src/a.rs:4");
+    assert_eq!(found[8].at, "crates/edm-core/src/a.rs:4");
 }
 
 #[test]
@@ -177,11 +177,11 @@ fn the_check_names_each_sentence_the_help_lacks_and_passes_once_it_has_them() {
     let dir = fixture();
     let root = &dir.0;
     std::fs::create_dir_all(root.join(PAGES)).unwrap();
-    std::fs::write(root.join(GUIDE), "# Using dm\n\n`a note`\n").unwrap();
+    std::fs::write(root.join(GUIDE), "# Using EDM\n\n`a note`\n").unwrap();
     let why = run(root).unwrap_err();
     assert!(why.contains("13 sentences"), "{why}");
     assert!(
-        why.contains("the page took too long  (crates/dm-core/src/a.rs:2)"),
+        why.contains("the page took too long  (crates/edm-core/src/a.rs:2)"),
         "{why}"
     );
     assert!(!why.contains("  a note "), "{why}");

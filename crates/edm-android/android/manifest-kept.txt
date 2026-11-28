@@ -1,0 +1,16 @@
+# What EDM's Android app asks for and opens to other apps (gaps row H17). `cargo xtask
+# android-manifest` (tooling/xtask/src/android_manifest.rs) reads the manifest, and in CI's
+# release job the release build's merged one, and fails on any line here missing or any line
+# there not here.
+# A change is made here in the same commit as the manifest's, so a review sees it.
+permission android.permission.ACCESS_NETWORK_STATE
+permission android.permission.FOREGROUND_SERVICE
+permission android.permission.FOREGROUND_SERVICE_DATA_SYNC
+permission android.permission.INTERNET
+permission android.permission.POST_NOTIFICATIONS
+permission android.permission.RECEIVE_BOOT_COMPLETED
+permission android.permission.SCHEDULE_EXACT_ALARM
+permission android.permission.WAKE_LOCK
+exported activity com.edm.android.EdmActivity
+exported receiver com.edm.android.EdmBootReceiver guarded by android.permission.RECEIVE_BOOT_COMPLETED
+application allowBackup false

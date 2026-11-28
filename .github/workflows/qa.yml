@@ -1,6 +1,6 @@
 name: QA (Docker)
 
-# The Docker QA stack (qa/): dm built from the pull request, against servers
+# The Docker QA stack (qa/): EDM built from the pull request, against servers
 # that misbehave on request, on a network with no way out. See BUGLOG.md.
 on:
   pull_request:

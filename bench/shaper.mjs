@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 // The line between a person and a server, for the benchmark's `wan` and `lossy` cases (gaps row
@@ -148,7 +148,7 @@ const seq = (...p) => der(0x30, ...p);
 const oid = (...bytes) => der(0x06, bytes);
 const utcTime = (d) => der(0x17, Buffer.from(d.toISOString().replace(/[-:T]/g, '').slice(2, 14) + 'Z'));
 
-export function selfSignedCert({ days = 365, name = 'dm benchmark server' } = {}) {
+export function selfSignedCert({ days = 365, name = 'EDM benchmark server' } = {}) {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const serial = crypto.randomBytes(16);
   serial[0] = (serial[0] & 0x7f) || 1; // positive, and no leading zero byte

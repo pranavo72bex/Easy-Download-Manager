@@ -1,6 +1,6 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Stress run: one Brave session, real YouTube, many rounds of what a person
@@ -85,7 +85,7 @@ for n in range(rounds):
         ws.drain(6)
         if s:
             hover(s); ws.drain(3); checks += 1
-            if ev(s, "document.querySelector('dm-panel') !== null"): panels += 1
+            if ev(s, "document.querySelector('edm-panel') !== null"): panels += 1
             else: say("   no panel:", ev(s, "location.href + ' | ' + document.title + ' | videos=' + document.querySelectorAll('video').length"))
     except Exception as e:
         say(f"round {n} {act}: harness error {e!r}"); ws.drain(2)
@@ -96,7 +96,7 @@ for n in range(rounds):
         p = e.get("params", {}); txt = p.get("entry", {}).get("text") or ""
         if e.get("method") == "Runtime.consoleAPICalled":
             txt = " ".join(str(a.get("value", a.get("description", ""))) for a in p.get("args", []))
-        if "Unsafe attempt" in txt or txt.startswith("dm:"):
+        if "Unsafe attempt" in txt or txt.startswith("EDM:"):
             src = where.get(e.get("sessionId"), "tab" if e.get("sessionId") in tabs.values() else e.get("sessionId"))
             hits.append((n, act, txt[:300])); say(f"round {n} after {act} [{src}] {p.get('entry', {}).get('source', '')}: {txt[:160]}")
     ws.events.clear()

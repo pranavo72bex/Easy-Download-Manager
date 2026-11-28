@@ -2,7 +2,7 @@
 
 How to save a video from the page it plays on, step by step.
 
-1. Open the video's page in your browser, with dm's extension added (see
+1. Open the video's page in your browser, with EDM's extension added (see
    [Downloads from your browser](browser-downloads.md)).
 2. Play the video for a moment, then move the mouse over it. A small bar
    shows on its top-right corner: **Download video**.

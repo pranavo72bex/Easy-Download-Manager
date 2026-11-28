@@ -22,8 +22,8 @@ right of the last. A window you closed is not opened again by itself;
 - First, in larger type, how far it is, its speed and the time left
   ("54% · 300 KB/s · 3s left"); where it is not running, its status as the
   list says it. Under it the bar.
-- The download's address. Under a failure dm adds one plain next step where
-  it knows one (see [What dm's messages mean](failures.md)).
+- The download's address. Under a failure EDM adds one plain next step where
+  it knows one (see [What EDM's messages mean](failures.md)).
 - **File size:** "unknown" until the server says.
 - **Downloaded:** how much has come.
 - **Networks:** where a second network is chosen (Options › Advanced ›
@@ -59,12 +59,12 @@ failed or been cancelled.
   download shares (see [Speed limiter](speed-limiter.md)). While it is
   ticked, a new number takes effect as you type it.
 - **When done** (the choice): opens to **When this download is done**, what
-  dm does when this download finishes:
-  **Do nothing**, **Open**, **Open folder**, **Exit dm**, **Sleep**,
+  EDM does when this download finishes:
+  **Do nothing**, **Open**, **Open folder**, **Exit EDM**, **Sleep**,
   **Hibernate** or **Turn off computer**. A choice this computer cannot do
   is not offered. Exit, sleep, hibernate and turning off go through the
   same countdown as **Downloads › When done** ("Downloads are done" in
-  [Questions dm asks](questions.md)). dm keeps this choice only while it
+  [Questions EDM asks](questions.md)). EDM keeps this choice only while it
   runs.
 - **Connections:** click to open or close the list of the download's
   pieces: "… of … pieces done", then each piece with its own bar and
@@ -88,7 +88,7 @@ Which buttons show depends on where the download stands:
 - **Resume:** after a stop. It reads **Start now** for a download the
   Scheduler stopped; starting it then asks **Start outside the schedule?**.
 - **Cancel download:** asks **Cancel this download?** first (see
-  [Questions dm asks](questions.md)).
+  [Questions EDM asks](questions.md)).
 - **Open** and **Open folder:** once it has finished, when **Options ›
   General › Show a message when a download finishes** is on. Either one
   closes the window.

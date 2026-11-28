@@ -1,15 +1,15 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-// Judges dm's benchmark results against reference A's frozen baseline, parameter by parameter.
+// Judges EDM's benchmark results against reference A's frozen baseline, parameter by parameter.
 //
 //   node bench/compare.mjs [results folder or result files ...] [--group <name>] [--json]
 //
 // With no folder, the newest under bench/results. The group is `standard` unless the results were
-// run with BENCH_DM_CONNECTIONS=16 (then `connections16`) or --group names another.
-// Exit status: 0 dm is better than the floor in every parameter of every scenario it ran;
+// run with BENCH_EDM_CONNECTIONS=16 (then `connections16`) or --group names another.
+// Exit status: 0 EDM is better than the floor in every parameter of every scenario it ran;
 // 1 worse somewhere, a file not whole, or a machine-bound scenario run without `ceiling`;
 // 2 the baseline was changed, or there is nothing to judge.
 import fs from 'node:fs';
@@ -36,7 +36,7 @@ const B = JSON.parse(text);
 const median = (xs) => { const v = xs.filter((x) => x != null).sort((a, b) => a - b); if (!v.length) return null; const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
 const judged = B.metrics.filter((m) => !m.info);
 // Scenarios added to bench.mjs after the baseline was frozen (gaps row W2: what a person's line
-// adds). Reference A has not been measured on them: dm's numbers are shown, and judged by nothing,
+// adds). Reference A has not been measured on them: EDM's numbers are shown, and judged by nothing,
 // until its numbers are frozen in a baseline file of their own beside this one (bench/README.md).
 const NEW_CASES = { wan: 'the 80 ms, 20 Mbit/s line over TLS', lossy: 'the 80 ms, 20 Mbit/s line with 1% of pieces stalled',
   slowname: 'a name that resolves slowly each time it is asked' };
@@ -68,15 +68,15 @@ const ceilingHere = results.find((r) => r.j.scenario === 'ceiling')?.j;
 const byScenario = new Map();
 for (const { f, j } of results) {
   if (!Array.isArray(j.runs) || !j.scenario || j.scenario === 'inet') continue;
-  const e = byScenario.get(j.scenario) || { files: [], dm: [], refa: [], meta: j.meta, label: j.label, params: j.params };
+  const e = byScenario.get(j.scenario) || { files: [], edm: [], refa: [], meta: j.meta, label: j.label, params: j.params };
   e.files.push(path.basename(f));
   for (const r of j.runs) {
     const run = { ...r, transferSeconds: r.seconds != null && r.firstRequestMs != null ? r.seconds - r.firstRequestMs / 1000 : null };
-    if (r.app === 'dm') e.dm.push(run); else if (r.app === 'refa') e.refa.push(run);
+    if (r.app === 'EDM') e.edm.push(run); else if (r.app === 'refa') e.refa.push(run);
   }
   byScenario.set(j.scenario, e);
 }
-if (!byScenario.size) die(2, `No scenario results with dm in ${inputs.join(', ')}.`);
+if (!byScenario.size) die(2, `No scenario results with EDM in ${inputs.join(', ')}.`);
 const anyMeta = [...byScenario.values()][0].meta || {};
 const group = groupAsked || (anyMeta.dmConnections === 16 ? 'connections16' : 'standard');
 if (!B.floors[group]) die(2, `No group ${group} in the baseline (${Object.keys(B.floors).join(', ')}).`);
@@ -89,21 +89,21 @@ for (const sc of [...byScenario.keys()].sort((a, b) => order.indexOf(a) - order.
   const entry = B.floors[group][sc];
   const spec = B.scenarios[sc];
   const fresh = !spec && sc in NEW_CASES;
-  const out = { scenario: sc, label: spec?.label || got.label, dmRuns: got.dm.length, whole: got.dm.filter((r) => r.ok).length, rows: [] };
+  const out = { scenario: sc, label: spec?.label || got.label, dmRuns: got.edm.length, whole: got.edm.filter((r) => r.ok).length, rows: [] };
   report.scenarios.push(out);
-  if (!got.dm.length) { out.note = 'no dm runs'; continue; }
-  if (out.whole < got.dm.length) report.worse.push(`${sc}: ${got.dm.length - out.whole} of ${got.dm.length} dm runs did not end with every file whole`);
+  if (!got.edm.length) { out.note = 'no EDM runs'; continue; }
+  if (out.whole < got.edm.length) report.worse.push(`${sc}: ${got.EDM.length - out.whole} of ${got.edm.length} EDM runs did not end with every file whole`);
   if (fresh) {
-    out.note = `no baseline yet: reference A has not been measured on ${NEW_CASES[sc]}; dm's numbers are recorded, not judged${got.params?.rttMs && got.params.tls === false && sc === 'wan' ? ' (this run was plain HTTP: BENCH_WAN_TLS=0)' : ''}`;
+    out.note = `no baseline yet: reference A has not been measured on ${NEW_CASES[sc]}; EDM's numbers are recorded, not judged${got.params?.rttMs && got.params.tls === false && sc === 'wan' ? ' (this run was plain HTTP: BENCH_WAN_TLS=0)' : ''}`;
     report.notJudged.push(`${sc}: no baseline yet`);
-    const late = median(got.dm.map((r) => r.line?.late?.meanMs));
+    const late = median(got.edm.map((r) => r.line?.late?.meanMs));
     if (late != null) out.note += `; the line held pieces ${late} ms longer than asked on average (timers)`;
     // `slowname`: how often each app asked for its run's name, each lookup taking the delay.
     const asked = (rs) => median(rs.map((r) => r.lookups?.a));
-    const dmAsked = asked(got.dm), refaAsked = asked(got.refa);
+    const dmAsked = asked(got.edm), refaAsked = asked(got.refa);
     if (dmAsked != null) {
-      const first = got.dm.find((r) => r.lookups)?.lookups;
-      out.note += `; dm asked for the name ${dmAsked} times a run (median; each answer ${first.delayMs} ms, through ${first.through})${refaAsked != null ? `, reference A ${refaAsked}` : ''}`;
+      const first = got.edm.find((r) => r.lookups)?.lookups;
+      out.note += `; EDM asked for the name ${dmAsked} times a run (median; each answer ${first.delayMs} ms, through ${first.through})${refaAsked != null ? `, reference A ${refaAsked}` : ''}`;
     }
   } else if (!entry?.floor) { out.note = `no reference A floor in ${group}: ${B.notMeasured?.[sc] || entry?.why || 'not measured'}`; report.notJudged.push(`${sc}: no floor`); }
   let factor = 1;
@@ -113,7 +113,7 @@ for (const sc of [...byScenario.keys()].sort((a, b) => order.indexOf(a) - order.
     else factor = Math.min(1, here / B.ceiling.results[spec.scaleByCeiling].best);
     out.ceiling = { here, baseline: B.ceiling.results[spec.scaleByCeiling].best, factor };
   }
-  const ok = got.dm.filter((r) => r.ok);
+  const ok = got.edm.filter((r) => r.ok);
   for (const m of B.metrics) {
     const vals = ok.map((r) => r[m.key]).filter((v) => v != null);
     const refaHere = median(got.refa.filter((r) => r.ok).map((r) => r[m.key]));
@@ -123,9 +123,9 @@ for (const sc of [...byScenario.keys()].sort((a, b) => order.indexOf(a) - order.
     const row = { metric: m.key, unit: m.unit, dmMedian: median(vals), dmBest: vals.length ? Math.min(...vals) : null, dmWorst: vals.length ? Math.max(...vals) : null, refaThisRun: refaHere };
     if (m.info) { row.refaMedian = f?.median ?? null; row.verdict = 'recorded'; }
     else if (!f && fresh) {
-      // Beside reference A on the same computer the same run, the gaps row's test (dm's median
+      // Beside reference A on the same computer the same run, the gaps row's test (EDM's median
       // better than reference A's) is shown, and judged by nothing until a baseline is frozen.
-      const said = refaHere == null || row.dmMedian == null ? '' : row.dmMedian < refaHere ? ', dm better this run' : ', dm not better this run';
+      const said = refaHere == null || row.dmMedian == null ? '' : row.dmMedian < refaHere ? ', EDM better this run' : ', EDM not better this run';
       row.verdict = `no baseline yet${said}`;
     } else if (!f) row.verdict = 'no floor';
     else if (!vals.length) row.verdict = 'not sampled here';
@@ -136,7 +136,7 @@ for (const sc of [...byScenario.keys()].sort((a, b) => order.indexOf(a) - order.
       const better = row.dmMedian < row.floor || (row.floor === 0 && row.dmMedian === 0);
       row.verdict = better ? 'better' : 'WORSE';
       row.by = row.floor ? +(100 * (row.dmMedian - row.floor) / row.floor).toFixed(1) : null;
-      if (!better) report.worse.push(`${sc} ${m.key}: dm ${+row.dmMedian.toFixed(3)} ${m.unit} against reference A's floor ${row.floor} ${m.unit}`);
+      if (!better) report.worse.push(`${sc} ${m.key}: EDM ${+row.dmMedian.toFixed(3)} ${m.unit} against reference A's floor ${row.floor} ${m.unit}`);
     }
     out.rows.push(row);
   }
@@ -148,17 +148,17 @@ else {
   console.log(`Baseline frozen ${B.frozen} (SHA-256 ${digest.slice(0, 12)}…), group ${group}`);
   if (report.system) console.log(`Measured on: ${report.system.cpu}, ${report.system.logicalCores} threads, ${report.system.memoryGB} GB, ${report.system.platform} ${report.system.release}`);
   for (const s of report.scenarios) {
-    console.log(`\n## ${s.scenario}: ${s.label || ''}  (dm runs ${s.dmRuns}, whole ${s.whole})`);
+    console.log(`\n## ${s.scenario}: ${s.label || ''}  (EDM runs ${s.dmRuns}, whole ${s.whole})`);
     if (s.ceiling) console.log(`   ceiling here ${n(s.ceiling.here)} s, baseline ${n(s.ceiling.baseline)} s: time floors x ${s.ceiling.factor == null ? '-' : s.ceiling.factor.toFixed(3)}`);
     if (s.note) console.log(`   ${s.note}`);
-    console.log(`   ${'metric'.padEnd(24)}${'reference A floor'.padStart(19)}${'dm median'.padStart(12)}${'dm best..worst'.padStart(20)}  verdict`);
+    console.log(`   ${'metric'.padEnd(24)}${'reference A floor'.padStart(19)}${'EDM median'.padStart(12)}${'EDM best..worst'.padStart(20)}  verdict`);
     for (const r of s.rows) {
       const floor = r.floor != null ? `${n(r.floor)}${r.floorAsFrozen != null && r.floorAsFrozen !== r.floor ? ` (${n(r.floorAsFrozen)})` : ''}` : r.refaMedian != null ? `median ${n(r.refaMedian)}` : '-';
       const verdict = r.verdict === 'better' || r.verdict === 'WORSE' ? `${r.verdict}${r.by != null ? ` (${r.by > 0 ? '+' : ''}${r.by}%)` : ''}` : r.verdict;
       console.log(`   ${(r.metric + (r.unit ? ` ${r.unit}` : '')).padEnd(24)}${floor.padStart(19)}${n(r.dmMedian).padStart(12)}${`${n(r.dmBest)}..${n(r.dmWorst)}`.padStart(20)}  ${verdict}${r.refaThisRun != null ? `   [reference A this run ${n(r.refaThisRun)}]` : ''}`);
     }
   }
-  console.log(report.worse.length ? `\nWORSE than reference A's floor (${report.worse.length}):\n- ${report.worse.join('\n- ')}` : '\ndm is better than reference A\'s floor in every judged parameter.');
+  console.log(report.worse.length ? `\nWORSE than reference A's floor (${report.worse.length}):\n- ${report.worse.join('\n- ')}` : '\nEDM is better than reference A\'s floor in every judged parameter.');
   if (report.notJudged.length) console.log(`Not judged: ${report.notJudged.join('; ')}`);
 }
 process.exit(report.worse.length ? 1 : 0);

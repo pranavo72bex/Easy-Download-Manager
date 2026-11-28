@@ -1,0 +1,510 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+#[test]
+fn a_file_uri_escapes_what_an_address_cannot_hold() {
+    crate::region::pin(None);
+    assert_eq!(
+        super::file_uri("/home/a b/50%#ü.zip"),
+        "file:///home/a%20b/50%25%23%C3%BC.zip"
+    );
+}
+
+use super::*;
+
+/// No piece holds more than its range, and they add up to
+/// what "Downloaded" says, whichever of the two ran ahead.
+#[test]
+fn pieces_add_up_to_downloaded_and_stay_in_their_ranges() {
+    crate::region::pin(None);
+    // One 1.4 MB piece holding 1.3 MB on disk while 864 KB had been
+    // counted through the limit.
+    assert_eq!(pieces_shown(&[(1_400_000, 1_300_000)], 864_000), [864_000]);
+    // Eight pieces each 2.2 MB on disk, 14.7 MB counted.
+    let eight = [(7_200_000, 2_200_000); 8];
+    let shown = pieces_shown(&eight, 14_700_000);
+    assert_eq!(shown.iter().sum::<u64>(), 14_700_000);
+    assert!(
+        shown.iter().all(|&s| s <= 2_200_000 && s > 1_700_000),
+        "{shown:?}"
+    );
+    // A finished piece stays finished while there are others to take from.
+    assert_eq!(pieces_shown(&[(100, 100), (100, 60)], 150), [100, 50]);
+    // The count ahead of the parts goes to the one under way.
+    assert_eq!(
+        pieces_shown(&[(100, 100), (100, 40), (100, 0)], 160),
+        [100, 60, 0]
+    );
+    // Never more than the ranges hold.
+    assert_eq!(pieces_shown(&[(100, 500), (50, 0)], 10_000), [100, 50]);
+    for downloaded in [0, 1, 99, 120, 199, 250, 300, 1000] {
+        let pieces = [(100, 100), (100, 77), (100, 3), (100, 0)];
+        let shown = pieces_shown(&pieces, downloaded);
+        assert_eq!(
+            shown.iter().sum::<u64>(),
+            downloaded.min(400),
+            "{downloaded}"
+        );
+        assert!(shown.iter().zip(&pieces).all(|(s, (span, _))| s <= span));
+    }
+}
+
+/// What is counted ahead of the parts goes evenly to the
+/// pieces under way, not all to the first.
+#[test]
+fn a_count_ahead_of_the_parts_is_shared_by_the_pieces_under_way() {
+    crate::region::pin(None);
+    let pieces = [(1000, 0); 4];
+    let shown = pieces_shown_open(&pieces, &[true, true, true, false], 600);
+    assert_eq!(shown, [200, 200, 200, 0]);
+    // Each up to its range, the rest to the others.
+    let shown = pieces_shown_open(&[(100, 0), (1000, 0)], &[true, true], 600);
+    assert_eq!(shown, [100, 500]);
+    // None under way: in order, as before.
+    assert_eq!(
+        pieces_shown_open(&[(100, 0), (100, 0)], &[false, false], 150),
+        [100, 50]
+    );
+}
+
+/// The network library's words for a cut connection are said
+/// plainly; what EDM does not know is left as it was.
+#[test]
+fn common_failures_have_plain_reasons() {
+    crate::region::pin(None);
+    let cut = "network: error decoding response body: error reading a body from connection";
+    assert_eq!(
+        reason(cut),
+        Some("the connection dropped before the file was complete")
+    );
+    assert_eq!(
+        reason("network: connection reset by peer (os error 54)"),
+        reason(cut)
+    );
+    assert_eq!(
+        reason("the connection ended after 10 of 20 bytes"),
+        reason(cut)
+    );
+    assert_eq!(
+        retry_cause("the server answered 500 Internal Server Error for http://a/x"),
+        Some("Server error")
+    );
+    assert_eq!(
+        retry_cause("the connection ended after 10 of 20 bytes"),
+        Some("Connection dropped")
+    );
+    for raw in [
+        "the server answered 503 Service Unavailable for http://a/x",
+        "the server answered 429 Too Many Requests for http://a/x",
+        "the connection ended after 10 of 20 bytes",
+        "network: the server refused the connection",
+        "network: operation timed out",
+    ] {
+        let cause = retry_cause(raw).unwrap_or_else(|| panic!("{raw}"));
+        assert!(RETRY_CAUSES.contains(&cause), "{cause}");
+    }
+    // A download waiting for the one network downloads are held to (gaps row W12), whatever
+    // its adapter is called.
+    assert_eq!(
+        retry_cause(
+            "the network Proton VPN timed out that downloads go only through is not connected"
+        ),
+        Some("Waiting for the network")
+    );
+    assert_eq!(retry_cause("disk: No space left on device"), None);
+    assert_eq!(
+        reason("network: error following redirect for url (http://a/loop): too many redirects"),
+        Some("the site keeps redirecting in a loop, so the file can’t be reached")
+    );
+    assert_eq!(
+        reason("disk: No space left on device (os error 28)"),
+        Some("the disk is full")
+    );
+    assert_eq!(reason("a sentence of the engine’s own"), None);
+    // What the address or the server's page says is not the reason.
+    assert_eq!(
+        reason("the server answered 404 Not Found for https://e.com/birth-certificate.pdf"),
+        Some("this link no longer works")
+    );
+    assert_eq!(
+        reason("the torrent could not be added: error decoding torrent: invalid value"),
+        Some("the file is not a torrent")
+    );
+    assert_eq!(
+            reason("could not read the torrent file /home/a/x.torrent: No such file or directory (os error 2)"),
+            Some("the .torrent file couldn’t be read")
+        );
+    assert_eq!(
+            reason("network: error sending request for url (http://h/x) — SOCKS error: failed to create underlying connection"),
+            Some("the server couldn’t be reached"),
+            "only the words before the dash decide"
+        );
+    assert_eq!(
+        reason("the server answered 401 Unauthorized for http://h/x"),
+        Some("the server wants you to sign in")
+    );
+    assert_eq!(
+        reason("the server answered 502 Bad Gateway for https://e.com/a — upstream timed out"),
+        Some("the server had a problem on its end"),
+        "the server’s status decides, not the page’s \"timed out\""
+    );
+    assert_eq!(
+        reason(
+            "the server answered 500 Internal Server Error for http://127.0.0.1:1/broken-link.zip"
+        ),
+        Some("the server had a problem on its end")
+    );
+    assert_eq!(
+            reason("the server answered 429 Too Many Requests for https://www.google.com/sorry/index — In order to continue"),
+            Some("the site is busy and turning downloads away")
+        );
+    assert_eq!(
+        reason("YouTube says: Sign in to confirm you’re not a bot"),
+        Some("the site wants to check you’re not a bot")
+    );
+    assert_eq!(
+        reason("YouTube says: Video unavailable"),
+        Some("this video isn’t available")
+    );
+    assert_eq!(
+        reason("no stream at that quality"),
+        Some("EDM couldn’t get the video from this page")
+    );
+    assert_eq!(
+            reason("EDM’s video helper could not be got ready (network: error sending request for url (https://github.com/x))"),
+            Some("EDM couldn’t get ready for videos")
+        );
+    assert_eq!(
+        reason("could not write C:\\Users\\me\\no space left\\a.zip"),
+        None
+    );
+    assert_eq!(
+            reason("error sending request for url (https://e.com/a): invalid peer certificate: UnknownIssuer"),
+            Some("the site’s security certificate is from an issuer EDM doesn’t trust, so EDM didn’t connect")
+        );
+}
+
+/// A certificate failure is said by its cause, each with what to do, and never with a way
+/// around it (gaps row H8); a cause the library names otherwise is one that could not be
+/// checked.
+#[test]
+fn a_certificate_failure_is_said_by_its_cause() {
+    let raw = |cause: &str| {
+        format!("network: error sending request for url (https://e.com/a): invalid peer certificate: {cause}")
+    };
+    for (cause, said) in [
+        ("Expired", "has expired"),
+        ("ExpiredContext { time: 1, not_after: 0 }", "has expired"),
+        ("NotValidYet", "isn’t valid yet"),
+        (
+            "NotValidForNameContext { expected: e.com, presented: [] }",
+            "is for another site",
+        ),
+        ("UnknownIssuer", "is from an issuer EDM doesn’t trust"),
+        ("BadSignature", "couldn’t be checked"),
+    ] {
+        let plain = reason(&raw(cause)).unwrap_or_default();
+        assert!(plain.contains(said), "{cause}: {plain}");
+        let step = next_step(&raw(cause)).unwrap_or_default();
+        assert!(!step.is_empty(), "{cause}: no next step");
+        assert!(!step.to_lowercase().contains("anyway"), "{cause}: {step}");
+    }
+}
+
+#[test]
+fn sizes_read_the_way_the_web_window_read_them() {
+    crate::region::pin(None);
+    // Counted as this computer's file manager counts (gaps row U34): in 1,024s on Windows, in
+    // 1,000s on macOS and Linux.
+    let k = edm_core::KB;
+    assert_eq!(bytes(512), "512 B");
+    assert_eq!(bytes(k + k / 2), "1.5 KB");
+    // Rounded up to the next unit, not "1024.0 KB".
+    assert_eq!(bytes(k * k - 1), "1.0 MB");
+    assert_eq!(
+        bytes(k * k - 60),
+        if k == 1024 { "1023.9 KB" } else { "999.9 KB" }
+    );
+    assert_eq!(bytes(k * k * k - 1), "1.00 GB");
+    // A file macOS's Finder calls 100.7 MB is said so, not 96.0 MB.
+    if k == 1000 {
+        assert_eq!(bytes(100_700_000), "100.7 MB");
+    }
+    assert_eq!(bytes(5 * k * k), "5.0 MB");
+    assert_eq!(bytes(3 * k * k * k), "3.00 GB");
+    assert_eq!(
+        bytes((k - 1) * k * k * k),
+        if k == 1024 { "1023.00 GB" } else { "999.00 GB" }
+    );
+    assert_eq!(bytes(3 * k * k * k * k), "3.00 TB");
+    assert_eq!(rate(2.0 * k as f64), "2.0 KB/s");
+}
+
+#[test]
+fn time_left_is_said_only_when_there_is_some() {
+    crate::region::pin(None);
+    assert_eq!(clock(None), "");
+    assert_eq!(clock(Some(Duration::ZERO)), "");
+    assert_eq!(clock(Some(Duration::from_secs(42))), "42s left");
+    assert_eq!(clock(Some(Duration::from_secs(125))), "2m 5s left");
+    assert_eq!(clock(Some(Duration::from_secs(7260))), "2h 1m left");
+    // Over a day, in days: not "1494h 36m left".
+    let long = Duration::from_secs(1494 * 3600 + 36 * 60);
+    assert_eq!(clock(Some(long)), "62d 6h left");
+    assert_eq!(span(Duration::from_secs(7380)), "2h 3m", "no \"left\"");
+    // Under a second is said; nothing is nothing.
+    assert_eq!(span(Duration::from_millis(400)), "<1s");
+    assert_eq!(span(Duration::ZERO), "");
+}
+
+#[test]
+fn time_left_is_said_in_the_language_in_force() {
+    crate::region::pin(None);
+    crate::i18n::set("de");
+    let said = clock(Some(Duration::from_secs(90_000)));
+    crate::i18n::set("en");
+    assert_eq!(said, "noch 1 T. 1 h");
+}
+
+/// 12:00 on 5 March two years ago on this computer's clock: the year, and the moment in
+/// seconds since 1970.
+fn noon_two_years_ago() -> (i32, u64) {
+    let year = edm_core::clock::local_now().date.year() - 2;
+    let date = edm_core::clock::Date::new(year, 3, 5).unwrap();
+    let noon = date.days_since_epoch() * 86_400 + 12 * 3_600;
+    let offset = edm_core::clock::local_at(noon).unwrap().offset;
+    (year, (noon - i64::from(offset)) as u64)
+}
+
+#[test]
+fn a_date_of_another_year_says_the_year_and_the_month_is_translated() {
+    crate::region::pin(None);
+    let (year, then) = noon_two_years_ago();
+    assert_eq!(when(Some(then)), format!("5 Mar {year}"));
+    crate::i18n::set("fr");
+    let said = when(Some(then));
+    crate::i18n::set("en");
+    assert_eq!(said, format!("5 mars {year}"));
+}
+
+/// The words kept for a time are `when`'s, and are let go where the
+/// language they were worked out in is no longer the one asked for.
+#[test]
+fn the_words_kept_for_a_time_are_whens_and_follow_the_language() {
+    crate::region::pin(None);
+    let (_, then) = noon_two_years_ago();
+    let mut whens = super::Whens::default();
+    assert!(whens.renew("en"), "nothing kept yet");
+    whens.keep([then]);
+    assert_eq!(whens.of(Some(then)), when(Some(then)));
+    assert!(!whens.renew("en"), "the same day, zone and language");
+    assert!(whens.renew("de"), "another language");
+    assert_eq!(whens.of(None), "");
+}
+
+#[test]
+fn names_sort_with_their_numbers_by_value() {
+    crate::region::pin(None);
+    use std::cmp::Ordering::*;
+    assert_eq!(natural("part 2.zip", "part 10.zip"), Less);
+    assert_eq!(natural("Part 10", "part 9"), Greater);
+    assert_eq!(natural("a", "B"), Less);
+    assert_ne!(natural("file007", "file7"), Equal, "a total order");
+    let mut names = vec!["x10", "x2", "X1", "x02b"];
+    names.sort_by(|a, b| natural(a, b));
+    assert_eq!(names, ["X1", "x2", "x02b", "x10"]);
+}
+
+#[test]
+fn a_password_in_an_address_is_never_shown() {
+    crate::region::pin(None);
+    let shown = shown_url(concat!("https://me:", "secret", "@e.com/f.zip"));
+    assert!(!shown.contains("secret"), "{shown}");
+    assert!(shown.contains("me:"));
+    // Dots a person can read, not their percent-encoding.
+    assert_eq!(shown, concat!("https://me:", "•••", "@e.com/f.zip"));
+    assert_eq!(
+        shown_url(concat!("https://a%40b:", "p%3Aw", "@e.com/f.zip")),
+        concat!("https://a%40b:", "•••", "@e.com/f.zip")
+    );
+    assert_eq!(shown_url("https://e.com/f.zip"), "https://e.com/f.zip");
+}
+
+#[test]
+fn a_row_is_named_before_the_server_names_it() {
+    crate::region::pin(None);
+    assert_eq!(
+        provisional("https://www.e.com/a/My%20File.zip?x=1"),
+        "My File.zip"
+    );
+    assert_eq!(provisional("https://e.com/"), "e.com");
+    assert_eq!(
+        provisional("https://www.youtube.com/watch?v=jNQXAC9IVRw"),
+        "youtube.com/watch?v=jNQXAC9IVRw"
+    );
+    // A file is still its file's name, whatever follows it.
+    assert_eq!(
+        provisional("https://e.com/get/report.pdf?token=1"),
+        "report.pdf"
+    );
+    assert_eq!(
+        provisional("magnet:?xt=urn:btih:abc&dn=Big+Film"),
+        "Big Film"
+    );
+    assert_eq!(provisional("magnet:?xt=urn:btih:abc"), "Magnet link");
+    assert_eq!(host("https://www.e.com/a"), "e.com");
+    assert_eq!(host("magnet:?xt=x"), "torrent");
+}
+
+#[test]
+fn a_pattern_names_several_files_and_keeps_their_endings() {
+    assert_eq!(pattern_name("Trip {n}", 1, "IMG_0001.jpg"), "Trip 1.jpg");
+    assert_eq!(pattern_name("Trip {n}", 12, "clip.mp4"), "Trip 12.mp4");
+    assert_eq!(
+        pattern_name("{name} (copy)", 3, "report.pdf"),
+        "report (copy).pdf"
+    );
+    assert_eq!(pattern_name("{n}-{name}", 2, "notes"), "2-notes");
+    assert_eq!(
+        pattern_name("Backup {n}", 1, "site.TAR.GZ"),
+        "Backup 1.TAR.GZ"
+    );
+    assert_eq!(pattern_name("v{n}", 1, "a.b.c.txt"), "v1.txt");
+    // Empty keeps the name; a dot that is not an ending is part of the name.
+    assert_eq!(pattern_name("  ", 1, "keep.me"), "keep.me");
+    assert_eq!(pattern_name("x{n}", 1, ".hidden"), "x1");
+    assert_eq!(pattern_name("x{n}", 1, "a.very-long-ending-here"), "x1");
+}
+
+#[test]
+fn dms_own_words_follow_the_vague_video_sentence() {
+    use super::video_said;
+    // Its first line, whole.
+    assert_eq!(
+        video_said("the solver failed: no such function").as_deref(),
+        Some("the solver failed: no such function")
+    );
+    // An address (a signed one included) left out.
+    let said =
+        video_said("the solver would not start: https://rr1.example/v?sig=SECRET went wrong")
+            .unwrap();
+    assert!(
+        !said.contains("SECRET") && !said.contains("rr1.example"),
+        "{said}"
+    );
+    // Long ones are cut.
+    let long = "word ".repeat(80);
+    let cut = video_said(&long).unwrap();
+    assert!(cut.chars().count() <= 121 && cut.ends_with('…'), "{cut}");
+    assert_eq!(video_said(""), None);
+}
+
+#[test]
+fn a_failure_that_only_says_what_went_wrong_says_what_to_do() {
+    // Every next step is keyed by plain words that exist, and the steps are
+    // found from the raw message.
+    for (plain, step) in NEXT_STEPS {
+        assert!(REASONS.iter().any(|(_, said)| *said == plain), "{plain}");
+        assert!(!step.is_empty());
+    }
+    let step = next_step("No space left on device (os error 28)");
+    assert_eq!(step, Some(NEXT_STEPS[0].1));
+    // A failure that already says what to do, and one not known, have none.
+    assert_eq!(next_step("something nobody has seen before"), None);
+}
+
+/// A download whose dial-up or VPN connection never came up says reference A's
+/// words, with Windows' own reason under them (which reads as a refused
+/// server too), what to do, and "Redialling" while it tries again.
+#[test]
+fn a_connection_that_did_not_come_up_is_said_as_reference_a_says_it() {
+    let failed = "the connection Office VPN did not come up after 2 tries: No connection could be \
+                  made because the target machine actively refused it. (os error 10061)";
+    let plain = "the dial-up or VPN connection didn’t come up";
+    assert_eq!(reason(failed), Some(plain));
+    assert!(next_step(failed).is_some_and(|step| step.contains("Dial Up / VPN")));
+    let redialling = "the connection Office VPN did not come up: Undefined RAS Dial Error.";
+    assert_eq!(retry_cause(redialling), Some("Redialling"));
+}
+
+/// Every next step EDM can take has its button, and a step that is the person's alone has none
+/// (gaps row U10); every failure with a button has a step that says what it does (V4).
+#[test]
+fn a_failures_next_step_is_a_button_where_edm_can_take_it() {
+    for (said, step) in NEXT_STEPS {
+        let raw = REASONS
+            .iter()
+            .find(|(_, plain)| *plain == said)
+            .and_then(|(raws, _)| raws.first())
+            .copied()
+            .unwrap_or(said);
+        let button = step_button(raw);
+        // A step that moves the file elsewhere, fetches a new link, opens the page, renames or
+        // opens Options is one EDM can take; anything else (try again, a firewall, the clock) is
+        // the person's.
+        let dms = step.contains("folder")
+            || said == "this link no longer works"
+            || said.contains("redirecting")
+            || said.contains("already there")
+            || said.contains("dial-up");
+        let theirs = said.contains("refused")
+            || said.contains("certificate")
+            || step.starts_with("Try again")
+            || !dms;
+        assert_eq!(button.is_none(), theirs, "{said}: {button:?}");
+    }
+    assert_eq!(step_button("nothing EDM knows"), None);
+}
+
+/// Every failure EDM knows says what happened in one short sentence, without what to do in it:
+/// that is the next step's (gaps row V4).
+#[test]
+fn a_failure_on_the_row_says_what_happened_in_one_sentence() {
+    for (_, plain) in REASONS {
+        assert!(!plain.contains(". "), "two sentences on the row: {plain}");
+        for told in [
+            "Try again",
+            "Check ",
+            "Choose ",
+            "Add the login",
+            "click Retry",
+        ] {
+            assert!(!plain.contains(told), "what to do on the row: {plain}");
+        }
+    }
+}
+
+#[test]
+fn the_saved_proxy_turned_off_at_launch_is_said_in_the_windows_words() {
+    let said = worded_problem(
+        "the saved proxy could not be used (the proxy has no host), so it is turned off and downloads \
+         go out directly. Fix it under Options › Advanced and tick it again.",
+    );
+    assert!(
+        said.starts_with("The proxy can’t be used (the proxy has no host)"),
+        "{said}"
+    );
+    assert_eq!(worded_problem("something else"), "something else");
+    assert_eq!(
+        as_shown("the cookies file x could not be read"),
+        "The cookies file x could not be read"
+    );
+    assert_eq!(as_shown("ünlü"), "Ünlü");
+    assert_eq!(as_shown(""), "");
+}
+
+/// A phone taps Retry (gaps row 224): every next step that says "click" has a phone wording
+/// without it, and the phone's wordings say "tap".
+#[test]
+fn a_phone_taps_retry_where_a_computer_clicks_it() {
+    for (_, step) in super::NEXT_STEPS {
+        let phone = super::on_a_phone(step);
+        if step.contains("click Retry") && !step.contains("Dial Up") {
+            assert!(phone.contains("tap Retry"), "{phone}");
+        } else {
+            assert_eq!(phone, step);
+        }
+    }
+}

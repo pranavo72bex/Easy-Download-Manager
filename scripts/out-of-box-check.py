@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""dm as a person meets it after installing it: nothing else on the computer.
+"""EDM as a person meets it after installing it: nothing else on the computer.
 
-The real dm binary (dm-gpui), headless, with a dm home of its own made for
-this run, and given the PATH a browser or the Dock gives an app. dm runs no
+The real EDM binary (edm-gpui), headless, with an EDM home of its own made for
+this run, and given the PATH a browser or the Dock gives an app. EDM runs no
 program but itself: YouTube's checks are answered in the computer's own
 JavaScript engine. Real
 YouTube videos are handed to it through its inbox, as the browser's
@@ -21,8 +21,8 @@ each file's own structure (its tracks, the picture's height, the length,
 and that every sample the file points at is in it); it needs nothing
 installed. Needs the network; not run in CI.
 
-    python3 scripts/out-of-box-check.py            # builds dm if needed
-    DM_BINARY=path/to/dm-gpui python3 scripts/out-of-box-check.py
+    python3 scripts/out-of-box-check.py            # builds EDM if needed
+    EDM_BINARY=path/to/edm-gpui python3 scripts/out-of-box-check.py
 """
 
 import json
@@ -46,7 +46,7 @@ import media_check  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BINARY = pathlib.Path(os.environ.get(
-    "DM_BINARY", ROOT / "target/release" / ("dm-gpui.exe" if sys.platform == "win32" else "dm-gpui")))
+    "EDM_BINARY", ROOT / "target/release" / ("edm-gpui.exe" if sys.platform == "win32" else "edm-gpui")))
 
 # (what is asked, the quality word the panel sends, what must arrive)
 CASES = [
@@ -63,7 +63,7 @@ failures = []
 
 
 def ring(home):
-    """Rings dm's inbox bell, as dm's own writers do: it looks at once, not at its next look,
+    """Rings EDM's inbox bell, as EDM's own writers do: it looks at once, not at its next look,
     seconds away (gaps row S18)."""
     import socket
     try:
@@ -81,7 +81,7 @@ def check(name, ok, detail=""):
 
 def rows(home):
     try:
-        # UTF-8, as dm writes it: Windows reads text as its own code page, and a title in
+        # UTF-8, as EDM writes it: Windows reads text as its own code page, and a title in
         # another script (Gangnam Style's) made the list unreadable, so nothing seemed done.
         data = json.loads((home / "queue.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -91,9 +91,9 @@ def rows(home):
 
 def main():
     if not BINARY.exists():
-        print("building dm…")
+        print("building EDM…")
         subprocess.run(["cargo", "build", "--release", "-p", BINARY.stem], cwd=ROOT, check=True)
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-fresh-"))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-fresh-"))
     out = home / "out"
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(out),
@@ -115,7 +115,7 @@ def main():
             "TMPDIR": os.environ.get("TMPDIR", "/tmp"),
             "PATH": "/usr/bin:/bin",
         }
-    env.update({"DM_HOME": str(home)})
+    env.update({"EDM_HOME": str(home)})
     app = subprocess.Popen([str(BINARY), "--headless"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -127,7 +127,7 @@ def main():
             request = {"url": url, "referrer": url}
             if quality:
                 request["quality"] = quality
-            # Whole, then named: dm reads only finished files.
+            # Whole, then named: EDM reads only finished files.
             tmp = inbox / f".case{n}.tmp"
             tmp.write_text(json.dumps(request), encoding="utf-8")
             tmp.rename(inbox / f"case{n}.json")
@@ -141,8 +141,8 @@ def main():
                 break
             time.sleep(3)
         listed = rows(home)
-        # Nothing fetched to run (gaps row P1): dm keeps no tools folder at all.
-        check("dm fetched no program for itself", not (home / "tools").exists(),
+        # Nothing fetched to run (gaps row P1): EDM keeps no tools folder at all.
+        check("EDM fetched no program for itself", not (home / "tools").exists(),
               sorted(p.name for p in (home / "tools").iterdir()) if (home / "tools").exists() else [])
         for n, (name, url, quality, (container, height)) in enumerate(CASES):
             print(name)
@@ -182,7 +182,7 @@ def main():
         if not failures:
             shutil.rmtree(home, ignore_errors=True)
         else:
-            print(f"dm's home is kept for a look: {home}")
+            print(f"EDM's home is kept for a look: {home}")
     if failures:
         print(f"\n{len(failures)} check(s) failed")
         sys.exit(1)

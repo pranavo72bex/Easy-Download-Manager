@@ -1,7 +1,7 @@
-# dm's window, scene options-advanced (linux, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene options-advanced (linux, 1280x720, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "Tasks" 48 7 90 29.5
 "File" 106 7 140 29.5
 "Downloads" 156 7 232 29.5
@@ -23,7 +23,7 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add dm to your browser:" 236 99.5 430 122
+"Add EDM to your browser:" 236 99.5 430 122
 "Microsoft Edge" 453 99.5 571 122
 "Firefox" 609 99.5 668 122
 "Chrome and others" 706 99.5 849 122
@@ -54,16 +54,16 @@
 "Network" 220 87 860 109.5
 "Speed limit (KB/s, 0 for none)" 220 121 758 143.5
 "0" 770 115.5 860 149.5
-"Keeps dm from using all of your connection." 220 151.5 700 171
+"Keeps EDM from using all of your connection." 220 151.5 700 171
 "Attempts per connection (0 to keep trying)" 220 190.5 758 213
 "15" 770 185 860 219
-"How many times dm tries again after a connection fails." 220 221 700 240.5
+"How many times EDM tries again after a connection fails." 220 221 700 240.5
 "Wait between attempts (seconds, 0 for automatic)" 220 260 758 282.5
 "0" 770 254.5 860 288.5
-"How long dm waits before it tries again." 220 290.5 700 310
+"How long EDM waits before it tries again." 220 290.5 700 310
 "Time out a silent connection after (seconds)" 220 329.5 758 352
 "30" 770 324 860 358
-"How long a connection may say nothing before dm gives up on it." 220 360 700 379.5
+"How long a connection may say nothing before EDM gives up on it." 220 360 700 379.5
 "Only through" 220 399 719 421.5
 "Any network" 741 399 834 421.5
 "Every download goes out over this network alone, such as your VPN’s. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used." 220 429.5 700 527

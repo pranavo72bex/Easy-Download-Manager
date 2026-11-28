@@ -1,9 +1,9 @@
 name: Windows, the app driven end to end
 
 # Started by hand (Actions › this workflow › Run workflow). The real
-# dm-gpui.exe (the GPUI window, the one dm ships)
+# edm-gpui.exe (the GPUI window, the one EDM ships)
 # on Windows, driven by scripts/app-check.py as it is on
-# macOS and Linux: one dm at a time and links handed to it, a browser's
+# macOS and Linux: one EDM at a time and links handed to it, a browser's
 # hand-off through the native host, downloads sorted by kind, an HLS stream
 # and a player page that is not YouTube's, refused, a proxy not gone around, a speed limit and a
 # schedule, the login item's launch, the command line, the control protocol,
@@ -28,21 +28,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: 1.98.1 # as rust-toolchain.toml
-      - name: dm
+      - name: EDM
         # The runner has no graphics driver: GPUI draws through Direct3D 11
         # on Windows' own software adapter (WARP), which needs nothing beside
         # the program (docs/decisions.md, 2026-11-11).
-        run: cargo build --release -p dm-gpui --locked
+        run: cargo build --release -p edm-gpui --locked
       - name: app-check
         env:
-          DM_BINARY: ${{ github.workspace }}\target\release\dm-gpui.exe
+          EDM_BINARY: ${{ github.workspace }}\target\release\edm-gpui.exe
           PYTHONUNBUFFERED: "1"
         run: python scripts/app-check.py
-      - name: YouTube read by dm's own JavaScript alone
-        # dm-js (gaps row F15), with Windows' own Chakra kept out (DM_JS_ONLY): live
+      - name: YouTube read by EDM's own JavaScript alone
+        # edm-js (gaps row F15), with Windows' own Chakra kept out (EDM_JS_ONLY): live
         # videos read and the first kilobyte of each chosen stream asked for, as a download
         # asks it.
         env:
-          DM_JS_ONLY: "1"
-          DM_FETCH_FIRST: "1"
-        run: cargo run --release -p dm-core --example youtube_read --locked -- "https://www.youtube.com/watch?v=jNQXAC9IVRw" "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          EDM_JS_ONLY: "1"
+          EDM_FETCH_FIRST: "1"
+        run: cargo run --release -p edm-core --example youtube_read --locked -- "https://www.youtube.com/watch?v=jNQXAC9IVRw" "https://www.youtube.com/watch?v=dQw4w9WgXcQ"

@@ -2,11 +2,11 @@
 
 Download links lists the links of a web page so you can pick which to
 download. It opens when you right-click a page in your browser and choose
-**Download all links with dm**, or select part of a page and choose
-**Download selected links with dm**.
+**Download all links with EDM**, or select part of a page and choose
+**Download selected links with EDM**.
 
 The first line says how many links are listed and from which page ("24
-links on example.com/files"). dm asks each link's server for its name, kind
+links on example.com/files"). EDM asks each link's server for its name, kind
 and size, a few at a time, and fills the list in as they answer.
 
 ## The list
@@ -15,8 +15,8 @@ Each row has a tick box and these columns:
 
 - **File name:** the name the file will be saved under: one you gave with
   **Edit**, else the server's, else the one in its address. A link already
-  in dm's list says "(already in the list)" and starts unticked.
-- **Type:** the kind of file, as its server says it; "…" while dm is still
+  in EDM's list says "(already in the list)" and starts unticked.
+- **Type:** the kind of file, as its server says it; "…" while EDM is still
   asking; **Error** when the server refused it. A refused link is unticked
   once, and you can tick it again.
 - **Size:** as its server says it.
@@ -46,14 +46,14 @@ Only links that are both ticked and shown are added.
 - **Use link texts as descriptions:** each download keeps its link's words
   on the page as its note (on at first).
 - **Save to:**
-  - **Each file to the folder of its category:** as dm sorts any download.
+  - **Each file to the folder of its category:** as EDM sorts any download.
   - **Every file to this category:** every file to the folder of the kind
     picked beside it.
   - **Every file to this folder:** every file to the folder typed beside it,
     or chosen with **Browse…**. Typing in the field picks this choice. A
     name alone ("Holiday") is a folder in the download folder. A folder
     that is not there yet is made when you add the files. With no folder
-    typed dm says "Choose the folder every file goes to."
+    typed EDM says "Choose the folder every file goes to."
 
 ## Buttons
 

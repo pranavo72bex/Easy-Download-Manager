@@ -1,9 +1,9 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! `cargo xtask check`: every check dm has that needs no window, in one command, in the order
+//! `cargo xtask check`: every check EDM has that needs no window, in one command, in the order
 //! that fails soonest (gaps row A1). Before it the gate was nine or more commands in three
 //! languages, written out in `CLAUDE.md`, the workflows and people's memories.
 //!
@@ -37,10 +37,10 @@ fn step(name: &'static str, dir: &Path, program: &'static str, args: &[&'static 
 
 /// The steps, cheapest first. `root` is the repository's root.
 fn steps(root: &Path) -> Vec<Step> {
-    // One workspace at the repository's root, with crates/dm-catcher/ in it (gaps row A15): the
+    // One workspace at the repository's root, with crates/edm-catcher/ in it (gaps row A15): the
     // desktop steps format, lint and test the extension's crate too.
     let desktop = root.to_path_buf();
-    let browser = root.join("crates").join("dm-catcher");
+    let browser = root.join("crates").join("edm-catcher");
     // nextest runs the test binaries side by side and stops a test that hangs; plain
     // `cargo test` where it is not installed, which is slower but checks the same.
     let nextest = Command::new("cargo")

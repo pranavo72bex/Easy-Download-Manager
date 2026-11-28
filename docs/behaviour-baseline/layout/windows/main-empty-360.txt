@@ -1,11 +1,11 @@
-# dm's window, scene main-empty-360 (windows, 360x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene main-empty-360 (windows, 360x720, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 360x720]
+[main "EDM" 360x720]
 "All downloads" 24 8 106 38.5
 "Filter" 122 11.5 146 35.5
 "Menu" 174 11.5 198 35.5
-"Add dm to your browser:" 36 54 230 76.5
+"Add EDM to your browser:" 36 54 230 76.5
 "Microsoft Edge" 51 89 169 111.5
 "Firefox" 207 89 266 111.5
 "Chrome and others" 51 129 194 151.5

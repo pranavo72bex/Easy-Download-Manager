@@ -1,24 +1,24 @@
 {
   "extName": {
-    "message": "dm — Download-Manager"
+    "message": "EDM — Download-Manager"
   },
   "extDescription": {
-    "message": "Übergibt Downloads und Videos an die dm-App, die sie herunterlädt. Ohne App behält der Browser sie."
+    "message": "Übergibt Downloads und Videos an die edm-App, die sie herunterlädt. Ohne App behält der Browser sie."
   },
   "menuLink": {
-    "message": "Link mit dm herunterladen"
+    "message": "Link mit EDM herunterladen"
   },
   "menuMedia": {
-    "message": "Medien mit dm herunterladen"
+    "message": "Medien mit EDM herunterladen"
   },
   "menuAllLinks": {
-    "message": "Alle Links mit dm herunterladen"
+    "message": "Alle Links mit EDM herunterladen"
   },
   "menuSelectedLinks": {
-    "message": "Ausgewählte Links mit dm herunterladen"
+    "message": "Ausgewählte Links mit EDM herunterladen"
   },
   "popupLooking": {
-    "message": "Die dm-App wird gesucht…"
+    "message": "Die edm-App wird gesucht…"
   },
   "popupCatch": {
     "message": "Downloads abfangen"
@@ -80,22 +80,22 @@
     "message": "Keine Anmeldung von dieser Seite zu übergeben"
   },
   "popupOpen": {
-    "message": "dm öffnen"
+    "message": "EDM öffnen"
   },
   "popupGetApp": {
-    "message": "Die dm-App holen"
+    "message": "Die edm-App holen"
   },
   "popupNoAnswer": {
-    "message": "Die dm-App hat nicht geantwortet"
+    "message": "Die edm-App hat nicht geantwortet"
   },
   "popupOpening": {
-    "message": "dm wird geöffnet…"
+    "message": "EDM wird geöffnet…"
   },
   "popupIsOpen": {
-    "message": "dm ist geöffnet"
+    "message": "EDM ist geöffnet"
   },
   "popupConnected": {
-    "message": "Mit dm $VERSION$ verbunden",
+    "message": "Mit EDM $VERSION$ verbunden",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -103,7 +103,7 @@
     }
   },
   "popupConnectedOld": {
-    "message": "Mit dm $VERSION$ verbunden · Aktualisieren Sie die dm-App: Bis dahin behält der Browser seine Downloads",
+    "message": "Mit EDM $VERSION$ verbunden · Aktualisieren Sie die edm-App: Bis dahin behält der Browser seine Downloads",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -130,13 +130,13 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm ist noch nicht mit diesem Browser verbunden."
+    "message": "EDM ist noch nicht mit diesem Browser verbunden."
   },
   "popupStepGet": {
-    "message": "1. Noch keine dm-App auf diesem Computer? Holen Sie sie, installieren Sie sie und öffnen Sie sie einmal."
+    "message": "1. Noch keine edm-App auf diesem Computer? Holen Sie sie, installieren Sie sie und öffnen Sie sie einmal."
   },
   "popupStepOpen": {
-    "message": "2. Schon installiert? Öffnen Sie dm (ist es schon offen, öffnen Sie es erneut). Dieses Fenster verbindet sich von selbst."
+    "message": "2. Schon installiert? Öffnen Sie EDM (ist es schon offen, öffnen Sie es erneut). Dieses Fenster verbindet sich von selbst."
   },
   "popupAdvanced": {
     "message": "Für Fortgeschrittene: $COMMAND$",
@@ -187,7 +187,7 @@
     "message": "Fertige entfernen"
   },
   "popupNotAnswering": {
-    "message": "dm hat nicht geantwortet ($REASON$). Öffnen Sie dm (ist es schon offen, öffnen Sie es erneut); dieses Fenster versucht es von selbst erneut. Wenn es immer noch nicht antwortet: $COMMAND$",
+    "message": "EDM hat nicht geantwortet ($REASON$). Öffnen Sie EDM (ist es schon offen, öffnen Sie es erneut); dieses Fenster versucht es von selbst erneut. Wenn es immer noch nicht antwortet: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"
@@ -207,13 +207,13 @@
     "message": "Geschütztes Video"
   },
   "panelProtectedSaid": {
-    "message": "Dieses Video ist kopiergeschützt, daher kann nur der Player der Website es abspielen. dm lädt geschützte Videos nicht herunter."
+    "message": "Dieses Video ist kopiergeschützt, daher kann nur der Player der Website es abspielen. EDM lädt geschützte Videos nicht herunter."
   },
   "panelThroughApp": {
-    "message": "diese Seite, über die dm-App"
+    "message": "diese Seite, über die edm-App"
   },
   "panelHelp": {
-    "message": "dm lädt dieses Video mit der dm-App herunter, in der Sie Namen und Ordner wählen. Ein Link, der mit gedrückter Behalten-Taste angeklickt wird (Alt, sofern nicht in den Optionen von dm geändert), bleibt im Browser."
+    "message": "EDM lädt dieses Video mit der edm-App herunter, in der Sie Namen und Ordner wählen. Ein Link, der mit gedrückter Behalten-Taste angeklickt wird (Alt, sofern nicht in den Optionen von EDM geändert), bleibt im Browser."
   },
   "panelDrag": {
     "message": "Zum Verschieben ziehen"
@@ -242,22 +242,22 @@
     "message": "Qualitäten werden gelesen…"
   },
   "panelReadingSaid": {
-    "message": "dm liest die Videoqualitäten dieser Seite; das kann bis zu einer halben Minute dauern."
+    "message": "EDM liest die Videoqualitäten dieser Seite; das kann bis zu einer halben Minute dauern."
   },
   "panelTimedOut": {
-    "message": "dm hat nicht rechtzeitig geantwortet. Versuchen Sie es erneut, oder klicken Sie mit der rechten Maustaste auf das Video und wählen Sie „Medien mit dm herunterladen“."
+    "message": "EDM hat nicht rechtzeitig geantwortet. Versuchen Sie es erneut, oder klicken Sie mit der rechten Maustaste auf das Video und wählen Sie „Medien mit EDM herunterladen“."
   },
   "panelSending": {
-    "message": "Wird an dm gesendet…"
+    "message": "Wird an EDM gesendet…"
   },
   "panelNotTaken": {
-    "message": "dm konnte es nicht übernehmen"
+    "message": "EDM konnte es nicht übernehmen"
   },
   "panelUpdated": {
-    "message": "dm wurde aktualisiert: Laden Sie diese Seite neu, um es zu verwenden"
+    "message": "EDM wurde aktualisiert: Laden Sie diese Seite neu, um es zu verwenden"
   },
   "panelSent": {
-    "message": "An dm gesendet"
+    "message": "An EDM gesendet"
   },
   "panelInBrowser": {
     "message": "Wird im Browser heruntergeladen"
@@ -289,19 +289,19 @@
     }
   },
   "panelAppReading": {
-    "message": "Die dm-App liest diese Seite für ihr Video"
+    "message": "Die edm-App liest diese Seite für ihr Video"
   },
   "panelAppHas": {
-    "message": "Die dm-App hat es"
+    "message": "Die edm-App hat es"
   },
   "panelAppDownloading": {
-    "message": "Die dm-App lädt es herunter"
+    "message": "Die edm-App lädt es herunter"
   },
   "panelNoAnswer": {
-    "message": "dm hat nicht geantwortet"
+    "message": "EDM hat nicht geantwortet"
   },
   "panelFailed": {
-    "message": "dm hat nicht geantwortet. Versuchen Sie es erneut, oder klicken Sie mit der rechten Maustaste auf das Video und wählen Sie „Medien mit dm herunterladen“."
+    "message": "EDM hat nicht geantwortet. Versuchen Sie es erneut, oder klicken Sie mit der rechten Maustaste auf das Video und wählen Sie „Medien mit EDM herunterladen“."
   },
   "panelHls": {
     "message": "HLS-Stream, beste Qualität"
@@ -310,7 +310,7 @@
     "message": "Herunterladen"
   },
   "toastSentMany": {
-    "message": "$COUNT$ Downloads an dm gesendet",
+    "message": "$COUNT$ Downloads an EDM gesendet",
     "description": "The one toast for several downloads handed to the app together.",
     "placeholders": {
       "count": {

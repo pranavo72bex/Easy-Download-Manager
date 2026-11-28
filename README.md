@@ -1,4 +1,4 @@
-<h1 align="center">Easy Download Manager (dm)</h1>
+<h1 align="center">Easy Download Manager (EDM)</h1>
 
 <p align="center"><strong>Faster downloads, picked up where they left off.</strong></p>
 
@@ -23,25 +23,25 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
-  <img alt="The dm window: a title bar naming the place shown with a search button at its end, a toolbar, a list of places on the left, and the downloads as a table with their size, status, time left and speed" src="docs/screenshot.png">
+  <img alt="The EDM window: a title bar naming the place shown with a search button at its end, a toolbar, a list of places on the left, and the downloads as a table with their size, status, time left and speed" src="docs/screenshot.png">
 </picture>
 
-| 🚀 [Download](#step-1--download-the-files) | ✨ [Why dm](#why-dm) | 🎬 [Demo](#see-it-in-action) | ⚙️ [How it works](#how-dm-works) | 🧰 [What it does](#what-it-does) | 📱 [On your phone](#on-your-phone-android) | 🖼️ [Screenshots](#screenshots) | 🛠️ [Install](#install) | ❓ [FAQ](#faq) | 🌍 [Languages](#languages) | 📖 [User guide](docs/user-guide.md) | 💻 [Developers](#for-developers) |
+| 🚀 [Download](#step-1--download-the-files) | ✨ [Why EDM](#why-EDM) | 🎬 [Demo](#see-it-in-action) | ⚙️ [How it works](#how-edm-works) | 🧰 [What it does](#what-it-does) | 📱 [On your phone](#on-your-phone-android) | 🖼️ [Screenshots](#screenshots) | 🛠️ [Install](#install) | ❓ [FAQ](#faq) | 🌍 [Languages](#languages) | 📖 [User guide](docs/user-guide.md) | 💻 [Developers](#for-developers) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
-dm is a free download manager for Windows, macOS, Linux and Android phones. It
+EDM is a free download manager for Windows, macOS, Linux and Android phones. It
 downloads files faster by using several connections at once, picks up where it
 left off when your internet drops, and takes over the downloads you start in
-your browser. On a computer you install two things, both free: **the dm app**,
+your browser. On a computer you install two things, both free: **the EDM app**,
 which does the downloading, and **the browser extension**, which sends your
 downloads to it. On a phone, the app alone.
 
-## Why dm
+## Why EDM
 
 - **Fast where downloads are slow.** Up to 16 connections a file, and more only
   while they make it faster: a server that slows each connection gets them all,
   and one that refuses extra connections is never flooded.
-- **Nothing is lost.** A dropped connection, a sleep or a restart: dm goes on
+- **Nothing is lost.** A dropped connection, a sleep or a restart: EDM goes on
   from the last byte it saved, and checks the joins between the parts so a file
   that changed while it downloaded is caught, not saved broken.
 - **Everything in one place.** Web, FTP, torrents and magnet links, and the
@@ -58,25 +58,25 @@ downloads to it. On a phone, the app alone.
 <table>
   <tr>
     <td align="center" width="72%">
-      <img src="docs/demo-desktop.gif" alt="dm on a Mac: five downloads arrive, the large ones run side by side at about 20 MB/s, the small ones finish at once, then one download's own window shows its speed, time left and parts">
+      <img src="docs/demo-desktop.gif" alt="EDM on a Mac: five downloads arrive, the large ones run side by side at about 20 MB/s, the small ones finish at once, then one download's own window shows its speed, time left and parts">
       <br><sub><strong>On a computer</strong>: downloads side by side, and one's own window</sub>
     </td>
     <td align="center" width="28%">
-      <img src="docs/demo-phone.gif" alt="dm on an Android phone: links shared to it arrive as cards, two large ones downloading, three small ones complete">
-      <br><sub><strong>On a phone</strong>: links shared to dm</sub>
+      <img src="docs/demo-phone.gif" alt="EDM on an Android phone: links shared to it arrive as cards, two large ones downloading, three small ones complete">
+      <br><sub><strong>On a phone</strong>: links shared to EDM</sub>
     </td>
   </tr>
 </table>
 
 <sub>Recorded with made-up files from a server on the same computer.</sub>
 
-## How dm works
+## How EDM works
 
 ```mermaid
 flowchart LR
-    A["A click on a link<br/>in your browser"] --> B{"dm's extension:<br/>a file dm takes?"}
+    A["A click on a link<br/>in your browser"] --> B{"EDM's extension:<br/>a file EDM takes?"}
     B -- no --> K["The browser<br/>keeps it"]
-    B -- yes --> C["The dm app"]
+    B -- yes --> C["The EDM app"]
     P["Add URL, a shared link,<br/>a magnet, the clipboard"] --> C
     C --> D["Asks the server:<br/>how big, can it resume?"]
     D --> E["Splits the file and fetches<br/>the parts side by side:<br/>8 connections, up to 16<br/>while they make it faster"]
@@ -85,10 +85,10 @@ flowchart LR
 ```
 
 1. **Catching.** The extension looks at each download the browser starts. A
-   file type dm takes goes to the app over the browser's own channel to
+   file type EDM takes goes to the app over the browser's own channel to
    programs on your computer (native messaging); anything else, and everything
-   when dm is not running, stays with the browser.
-2. **Asking.** dm asks the server how big the file is and whether it can send
+   when EDM is not running, stays with the browser.
+2. **Asking.** EDM asks the server how big the file is and whether it can send
    it in parts. A server that cannot is downloaded in one piece, as a browser
    would.
 3. **Fetching.** The file is split into parts fetched at the same time. A part
@@ -110,10 +110,10 @@ streams have engines of their own beside this one. The whole design:
 ## Quick start
 
 1. **Get the app** for your computer from the [Releases page](https://github.com/pranavo72bex/Easy-Download-Manager/releases) and install it ([how](#install)).
-2. **Open dm once.** It tells your browsers where it is.
-3. **Add the extension** from [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej), [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/), or the release's `dm-chrome-….zip` for Chrome, Brave, Vivaldi and Opera.
+2. **Open EDM once.** It tells your browsers where it is.
+3. **Add the extension** from [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej), [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/), or the release's `edm-chrome-….zip` for Chrome, Brave, Vivaldi and Opera.
 
-Then click any download link: it lands in dm.
+Then click any download link: it lands in EDM.
 
 ## What it does
 
@@ -121,11 +121,11 @@ Then click any download link: it lands in dm.
 | --- | --- |
 | **Several connections at once** | A file is split into parts fetched side by side, and a slow part is helped by the others. |
 | **Resume after a drop** | A lost connection, a sleep or a restart: the download goes on from where it stopped. |
-| **Takes over the browser's downloads** | Click a link and it lands in dm, not the browser. Alt-click leaves it with the browser. |
+| **Takes over the browser's downloads** | Click a link and it lands in EDM, not the browser. Alt-click leaves it with the browser. |
 | **Videos from the page** | Play a video and click **Download video** in its corner, then pick a quality. YouTube needs nothing extra. |
 | **Queues, schedule and limits** | Queues, a scheduler, a speed limit for everything or for one site, and a folder per site. |
-| **Your downloads in the browser's toolbar** | The extension's popup lists what dm is fetching, how far and how fast, and its last failure. |
-| **Driven from a terminal or an AI assistant** | `dm-desktop list`, `pause`, `resume`; or any MCP client, with no key and nothing sent off your computer. |
+| **Your downloads in the browser's toolbar** | The extension's popup lists what EDM is fetching, how far and how fast, and its last failure. |
+| **Driven from a terminal or an AI assistant** | `edm-desktop list`, `pause`, `resume`; or any MCP client, with no key and nothing sent off your computer. |
 | **Torrents** | Magnet links and `.torrent` files: peers found in seconds, the files you tick, sharing only when you turn it on. |
 | **Checked files** | Each download's SHA-256 in its Properties, and a box to check it against the one a site gives. |
 | **On your phone too** | The same app on Android 10 and newer: share a link to it from any app ([more](#on-your-phone-android)). |
@@ -151,7 +151,7 @@ Then click any download link: it lands in dm.
   </tr>
   <tr>
     <td align="center" width="50%">
-      <img src="docs/phone.png" width="260" alt="dm on an Android phone: five downloads as cards, two large ones downloading and three complete">
+      <img src="docs/phone.png" width="260" alt="EDM on an Android phone: five downloads as cards, two large ones downloading and three complete">
       <br><sub><strong>On a phone</strong>: the same app, each download a card</sub>
     </td>
     <td align="center" width="50%">
@@ -176,7 +176,7 @@ Then click any download link: it lands in dm.
 
 ## Supported
 
-| Kind | What dm takes |
+| Kind | What EDM takes |
 | --- | --- |
 | **Web** | `http://`, `https://`, through HTTP or SOCKS5 proxies, with sign-ins and cookies |
 | **FTP** | `ftp://` and FTPS |
@@ -188,14 +188,14 @@ Then click any download link: it lands in dm.
 
 ## On your phone (Android)
 
-<img align="right" width="240" src="docs/phone.png" alt="dm on an Android phone: the list of downloads as cards, each with its kind's picture, its name, a bar and Complete with its size; All, Unfinished, Places and Options at the bottom">
+<img align="right" width="240" src="docs/phone.png" alt="EDM on an Android phone: the list of downloads as cards, each with its kind's picture, its name, a bar and Complete with its size; All, Unfinished, Places and Options at the bottom">
 
-dm runs on Android 10 and newer, with the same engine and the same window as
+EDM runs on Android 10 and newer, with the same engine and the same window as
 on a computer, laid out for a phone: each download a card, the menus in one
 sheet, a button to add a link.
 
-- **Share a link to dm** from any app (the browser's Share, a chat), or open a
-  magnet link or a `.torrent` file with it, and dm downloads it.
+- **Share a link to EDM** from any app (the browser's Share, a chat), or open a
+  magnet link or a `.torrent` file with it, and EDM downloads it.
 - **It keeps going** with the screen off and after you switch apps, and picks
   up where it stopped if the app is closed.
 - **Torrents and magnet links** find their peers in seconds.
@@ -208,25 +208,25 @@ allow it, and tap **Install**.
 
 | Your phone | Download this file |
 | --- | --- |
-| Almost every phone from the last ten years | `dm-…-arm64-v8a.apk` |
-| An older phone with a 32-bit processor | `dm-…-armeabi-v7a.apk` |
-| An emulator or a Chromebook | `dm-…-x86_64.apk` |
-| Not sure | `dm-…-universal.apk` (larger, works on all of them) |
+| Almost every phone from the last ten years | `edm-…-arm64-v8a.apk` |
+| An older phone with a 32-bit processor | `edm-…-armeabi-v7a.apk` |
+| An emulator or a Chromebook | `edm-…-x86_64.apk` |
+| Not sure | `edm-…-universal.apk` (larger, works on all of them) |
 
 Each APK has a `.sha256` file beside it with its checksum, and every APK is
 signed with the same key, so a new version installs over the old one and keeps
 your list. Building it yourself: [docs/android.md](docs/android.md).
 
-**Is this APK dm's own?** Its signing certificate's SHA-256 is
+**Is this APK EDM's own?** Its signing certificate's SHA-256 is
 
 ```
 f8:ad:24:17:39:50:d8:8c:bf:1c:df:83:05:f0:44:9f:ed:53:f3:ed:94:e9:0a:ed:8e:b8:56:0e:26:28:29:9f
 ```
 
 Check it with Android's `apksigner` (in the SDK's build tools) before installing:
-`apksigner verify --print-certs dm-….apk`, whose "certificate SHA-256 digest" must
+`apksigner verify --print-certs edm-….apk`, whose "certificate SHA-256 digest" must
 read `f8ad24173950d88cbf1cdf8305f0449fed53f3ed94e90aed8eb8560e2628299f`. Any other
-value is not dm's.
+value is not EDM's.
 <br clear="right">
 
 ## Install
@@ -239,20 +239,20 @@ computer, and the extension for your browser:
 
 | Your computer | Download this file | Choose it when |
 |---|---|---|
-| Windows 10 or 11 | `dm_…_x64-setup.exe` | **Not sure? Take this one.** It installs dm and starts it when you sign in. |
-| Windows 10 or 11, without installing | `dm_…_x64-portable.zip` | You want dm on a USB stick, or nothing written to the computer. |
-| Windows on ARM (Snapdragon and other ARM laptops) | `dm_…_arm64-setup.exe` or `dm_…_arm64-portable.zip` | The same two, for an ARM processor. |
-| Mac with an Apple chip (M1 or newer) | `dm_…_aarch64.dmg` | Most Macs from 2020 on. |
-| Mac with an Intel chip | `dm_…_x64.dmg` | Older Macs. |
-| Ubuntu, Debian, Linux Mint, Pop!_OS | `dm_…_amd64.deb` | `dm_…_arm64.deb` on an ARM computer. |
-| Fedora, openSUSE, RHEL | `dm-…x86_64.rpm` | `dm-…aarch64.rpm` on an ARM computer. |
-| Arch Linux | `dm-…-x86_64.pkg.tar.zst` | Or from the AUR, below. |
-| Any other Linux | `dm_…_x86_64.AppImage` | `dm_…_aarch64.AppImage` on an ARM computer. |
-| An Android phone | `dm-…-arm64-v8a.apk` | [On your phone](#on-your-phone-android) says which APK. |
+| Windows 10 or 11 | `edm_…_x64-setup.exe` | **Not sure? Take this one.** It installs EDM and starts it when you sign in. |
+| Windows 10 or 11, without installing | `edm_…_x64-portable.zip` | You want EDM on a USB stick, or nothing written to the computer. |
+| Windows on ARM (Snapdragon and other ARM laptops) | `edm_…_arm64-setup.exe` or `edm_…_arm64-portable.zip` | The same two, for an ARM processor. |
+| Mac with an Apple chip (M1 or newer) | `edm_…_aarch64.dmg` | Most Macs from 2020 on. |
+| Mac with an Intel chip | `edm_…_x64.dmg` | Older Macs. |
+| Ubuntu, Debian, Linux Mint, Pop!_OS | `edm_…_amd64.deb` | `edm_…_arm64.deb` on an ARM computer. |
+| Fedora, openSUSE, RHEL | `edm-…x86_64.rpm` | `edm-…aarch64.rpm` on an ARM computer. |
+| Arch Linux | `edm-…-x86_64.pkg.tar.zst` | Or from the AUR, below. |
+| Any other Linux | `edm_…_x86_64.AppImage` | `edm_…_aarch64.AppImage` on an ARM computer. |
+| An Android phone | `edm-…-arm64-v8a.apk` | [On your phone](#on-your-phone-android) says which APK. |
 
 | Your browser | Download this file |
 |---|---|
-| Chrome, Edge, Brave, Vivaldi or Opera | `dm-chrome-….zip` |
+| Chrome, Edge, Brave, Vivaldi or Opera | `edm-chrome-….zip` |
 | Firefox | Nothing to download: it installs from [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/) |
 
 Every release lists each file's SHA-256 in `SHA256SUMS`, to check a download
@@ -262,7 +262,7 @@ How the Windows installer is signed: see the [Code signing policy](#code-signing
 
 ### Step 2 — Install the app
 
-dm is not signed with a paid certificate yet, so your computer will warn
+EDM is not signed with a paid certificate yet, so your computer will warn
 you the first time. That is expected; here is how to get past it.
 
 <details>
@@ -271,7 +271,7 @@ you the first time. That is expected; here is how to get past it.
 1. If your browser says the file "isn't commonly downloaded" or might be
    harmful, open its downloads list and choose **Keep** (in Edge: **…** →
    **Keep** → **Show more** → **Keep anyway**).
-2. Double-click `dm_…_x64-setup.exe`.
+2. Double-click `edm_…_x64-setup.exe`.
 3. If you see **"Windows protected your PC"**, click **More info**, then
    **Run anyway**.
 4. Click through the installer.
@@ -281,38 +281,38 @@ you the first time. That is expected; here is how to get past it.
 <details>
 <summary><strong>Windows, portable (no installer)</strong></summary>
 
-Prefer not to install anything, or want dm on a USB stick? Download
-`dm_…_x64-portable.zip` instead, unzip it anywhere and double-click
-`dm-gpui.exe`. The empty file named `portable` beside it makes dm keep its
-settings and its list in a `dm-data` folder next to it and write nothing else
-to the computer; delete the folder and dm is gone. A portable dm does not start
+Prefer not to install anything, or want EDM on a USB stick? Download
+`edm_…_x64-portable.zip` instead, unzip it anywhere and double-click
+`edm-gpui.exe`. The empty file named `portable` beside it makes EDM keep its
+settings and its list in a `edm-data` folder next to it and write nothing else
+to the computer; delete the folder and EDM is gone. A portable EDM does not start
 when you sign in. To let the browser extension hand downloads to this copy, run
-`dm-gpui.exe --register` once in its folder (and again if you move it).
+`edm-gpui.exe --register` once in its folder (and again if you move it).
 
 </details>
 
 <details>
 <summary><strong>Mac</strong></summary>
 
-1. Double-click `dm_…_aarch64.dmg` (`dm_…_x64.dmg` on an Intel Mac).
-2. Drag **dm** into the **Applications** folder.
-3. Open **Applications** and double-click **dm**. When macOS says it cannot
-   check dm, click **Done** (or **Cancel**).
+1. Double-click `edm_…_aarch64.dmg` (`edm_…_x64.dmg` on an Intel Mac).
+2. Drag **EDM** into the **Applications** folder.
+3. Open **Applications** and double-click **EDM**. When macOS says it cannot
+   check EDM, click **Done** (or **Cancel**).
 4. Open **System Settings → Privacy & Security**, scroll down, and click
-   **Open Anyway** next to the message about dm. Confirm with your password.
+   **Open Anyway** next to the message about EDM. Confirm with your password.
 
-Always open dm from **Applications**, not from the downloaded disk image.
+Always open EDM from **Applications**, not from the downloaded disk image.
 
 </details>
 
 <details>
 <summary><strong>Ubuntu, Debian, Linux Mint</strong></summary>
 
-Double-click `dm_…_amd64.deb` and click **Install**. Or, in a terminal in
+Double-click `edm_…_amd64.deb` and click **Install**. Or, in a terminal in
 the folder you downloaded it to:
 
 ```sh
-sudo apt install ./dm_*_amd64.deb
+sudo apt install ./edm_*_amd64.deb
 ```
 
 </details>
@@ -323,8 +323,8 @@ sudo apt install ./dm_*_amd64.deb
 In a terminal in the folder you downloaded it to:
 
 ```sh
-sudo dnf install ./dm-*.rpm        # Fedora, RHEL
-sudo zypper install ./dm-*.rpm     # openSUSE
+sudo dnf install ./edm-*.rpm        # Fedora, RHEL
+sudo zypper install ./edm-*.rpm     # openSUSE
 ```
 
 </details>
@@ -332,7 +332,7 @@ sudo zypper install ./dm-*.rpm     # openSUSE
 <details>
 <summary><strong>Any other Linux (AppImage)</strong></summary>
 
-1. Right-click `dm_…_x86_64.AppImage` → **Properties** → **Permissions**,
+1. Right-click `edm_…_x86_64.AppImage` → **Properties** → **Permissions**,
    and tick **Allow executing file as program**.
 2. Double-click it.
 
@@ -344,7 +344,7 @@ told where it lives. (If you move it, open it once from its new place.)
 <details>
 <summary><strong>Arch Linux</strong></summary>
 
-From the AUR, where [dm-appimage](https://aur.archlinux.org/packages/dm-appimage)
+From the AUR, where [edm-appimage](https://aur.archlinux.org/packages/dm-appimage)
 installs the release's AppImage (packaged and kept up by
 [Cleboost](https://github.com/Cleboost/missing-aur), not by this project):
 
@@ -362,15 +362,15 @@ makepkg -si
 
 </details>
 
-### Step 3 — Open dm once
+### Step 3 — Open EDM once
 
-Open **dm** from your Start menu, Applications folder or app menu. That is
-all it takes: the first time it opens, dm tells your browsers where it is.
+Open **EDM** from your Start menu, Applications folder or app menu. That is
+all it takes: the first time it opens, EDM tells your browsers where it is.
 
-dm keeps running in the tray (Windows, Linux) or the menu bar (Mac) when you
+EDM keeps running in the tray (Windows, Linux) or the menu bar (Mac) when you
 close its window, so your browser always has it to hand downloads to.
 
-Until you add the extension, dm shows a bar above its list with a button for
+Until you add the extension, EDM shows a bar above its list with a button for
 each browser: **Microsoft Edge**, **Firefox** and **Chrome and others**.
 Click yours and it opens the page you add it from. (The same buttons are in
 **Options › Browser**.)
@@ -380,9 +380,9 @@ Click yours and it opens the page you add it from. (The same buttons are in
 <details>
 <summary><strong>Microsoft Edge</strong></summary>
 
-dm is on Microsoft Edge Add-ons, Microsoft's own store.
+EDM is on Microsoft Edge Add-ons, Microsoft's own store.
 
-1. Open **[dm on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)** in Edge.
+1. Open **[EDM on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)** in Edge.
 2. Click **Get**, then **Add extension**.
 
 </details>
@@ -390,7 +390,7 @@ dm is on Microsoft Edge Add-ons, Microsoft's own store.
 <details>
 <summary><strong>Chrome, Brave, Vivaldi and Opera</strong></summary>
 
-1. Unzip `dm-chrome-….zip`. Move the folder it makes somewhere it can stay,
+1. Unzip `edm-chrome-….zip`. Move the folder it makes somewhere it can stay,
    such as your Documents folder. **Do not delete this folder later** — the
    browser loads the extension from it.
 2. Open the extensions page by typing this in the address bar:
@@ -408,33 +408,33 @@ dm is on Microsoft Edge Add-ons, Microsoft's own store.
 <details>
 <summary><strong>Firefox</strong></summary>
 
-dm is on Firefox Add-ons, Mozilla's own store.
+EDM is on Firefox Add-ons, Mozilla's own store.
 
-1. Open **[dm — Download Manager on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/)** in Firefox.
+1. Open **[EDM — Download Manager on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/)** in Firefox.
 2. Click **Add to Firefox**, then **Add**.
 3. If Firefox asks, allow it to run in private windows only if you want it
-   to; dm leaves private-window downloads with the browser either way.
+   to; EDM leaves private-window downloads with the browser either way.
 
 **If Firefox Add-ons says it is not available yet** (a new version waits
 in Mozilla's review), install the copy Mozilla has already signed from the
 Releases page instead. It is the same extension, and it stays installed:
 
 1. On the **[Releases page](https://github.com/pranavo72bex/Easy-Download-Manager/releases)**,
-   find the newest release with a `dm-firefox-….xpi` file and click it
+   find the newest release with a `edm-firefox-….xpi` file and click it
    *in Firefox*.
 2. Firefox asks whether to allow the site to install an add-on: click
    **Continue to Installation**, then **Add**.
 
-On Ubuntu, where Firefox comes as a Snap, open dm once *before* adding the
+On Ubuntu, where Firefox comes as a Snap, open EDM once *before* adding the
 extension, so that it can tell Firefox where it is. If you installed Firefox
-while dm was already running, open dm again (from the Start menu,
+while EDM was already running, open EDM again (from the Start menu,
 Applications folder or app menu): it connects to browsers installed since
 each time you open it.
 
-Firefox may briefly show its downloads panel when dm takes a download; dm
+Firefox may briefly show its downloads panel when EDM takes a download; EDM
 has the download. Firefox opens that panel itself for every download it
-starts, sooner than dm can hear back from the app, and does not let an
-extension turn it off. When dm's was the only download listed, the panel
+starts, sooner than EDM can hear back from the app, and does not let an
+extension turn it off. When EDM's was the only download listed, the panel
 closes again by itself; with older downloads listed it stays open showing
 them, until you click elsewhere or press Esc.
 
@@ -443,16 +443,16 @@ them, until you click elsewhere or press Esc.
 ### Step 5 — Try it
 
 Click a download link on any website, for example a `.zip` or `.exe` file.
-It appears in dm instead of in the browser, and downloads there.
+It appears in EDM instead of in the browser, and downloads there.
 
 - **Download a video:** play it, move the mouse over it and click
   **Download video** in its top corner, then pick a quality. That is all:
   YouTube and most video sites work straight away, with nothing else to
-  install. The very first video takes a little longer while dm gets ready
+  install. The very first video takes a little longer while EDM gets ready
   for videos; its row says so.
 - **Hide the video panel:** click its **×**: **Hide for now**, or **Never on
   this site**.
-- **Only a part of a video:** in dm, **Add URL** with the video's address,
+- **Only a part of a video:** in EDM, **Add URL** with the video's address,
   and in Download details tick **Only a part of the video** and give from
   and to, such as 4:10 and 4:45. Only that part is fetched, as the site's
   own picture and sound, cut to the second. (YouTube today.)
@@ -460,21 +460,21 @@ It appears in dm instead of in the browser, and downloads there.
   playlist address lists its videos with a tick each; pick the quality, or
   sound alone, and start. A channel's address (`/@name`, `/channel/…`,
   `/c/…`, `/user/…`, or one of its tabs) lists the channel's uploads.
-- **The dm icon in the toolbar** opens a small menu: whether dm is
+- **The EDM icon in the toolbar** opens a small menu: whether EDM is
   connected, **Catch downloads** on or off, the video panel on this site on
-  or off, and **Open dm**. It never downloads anything by itself.
-- **Download a link:** right-click it and choose **Download link with dm**.
-- **Add a link by hand:** in dm, click **Add URL** and paste it. Web
+  or off, and **Open EDM**. It never downloads anything by itself.
+- **Download a link:** right-click it and choose **Download link with EDM**.
+- **Add a link by hand:** in EDM, click **Add URL** and paste it. Web
   (`https://`), FTP (`ftp://`) and magnet links all work.
-- **Drag a link** from the browser onto dm's window to download it.
-- **Unzip a finished download:** right-click a `.zip` in dm's list and choose
+- **Drag a link** from the browser onto EDM's window to download it.
+- **Unzip a finished download:** right-click a `.zip` in EDM's list and choose
   **Extract here** (a new folder beside it) or **Extract to…** (a new folder
   inside one you pick). Nothing is replaced, the zip is kept, and a zip
   with an entry that would land outside the folder, a link, or a password
   is refused whole before anything is written.
 - **Save links in a folder:** in **Options › Downloads**, name a folder to
   watch. A `.url`, `.webloc` or text file of links, or a `.torrent`, saved
-  there is added to dm and moved into a `done` folder inside it (nothing is
+  there is added to EDM and moved into a `done` folder inside it (nothing is
   deleted). Leave it empty to turn it off.
 - **Give a site its own folder and speed:** **Options › Advanced › Network › Sites
   with their own folder, speed and headers** (the site's subdomains are
@@ -482,7 +482,7 @@ It appears in dm instead of in the browser, and downloads there.
   rule can also give a **User-Agent** and **Request headers** for that site.
 - **A server that wants its own User-Agent or headers:** a download's
   **Properties** has **User-Agent** and **Request headers** fields. The name
-  given is sent on every request of that download in place of dm's, and the
+  given is sent on every request of that download in place of EDM's, and the
   headers, written `Name: value | Name: value`, go only to the download's
   own server.
 - **Check a finished file:** **Properties** shows its SHA-256 and a box to
@@ -491,7 +491,7 @@ It appears in dm instead of in the browser, and downloads there.
   `Trip {n} ({name})`; the endings are kept.
 - **Change the language:** **View › Language** — English, Español,
   Português, Français, Deutsch, Italiano, Nederlands, Polski, Русский,
-  Bahasa Indonesia, Türkçe, 简体中文, 日本語 or 한국어. dm starts in your
+  Bahasa Indonesia, Türkçe, 简体中文, 日本語 or 한국어. EDM starts in your
   computer's language when it has it. Chinese, Japanese and Korean are drawn
   in your computer's own font for them.
 
@@ -500,26 +500,26 @@ It appears in dm instead of in the browser, and downloads there.
 <details>
 <summary><strong>From a terminal</strong></summary>
 
-Turn on **Options › General › Allow the command line to control dm** (off until you do), or start dm with `--control 0` (also
+Turn on **Options › General › Allow the command line to control EDM** (off until you do), or start EDM with `--control 0` (also
 `--headless --control 0` for no window), and another terminal can see and
 steer its downloads:
 
 ```sh
-dm-desktop list                # what is downloading, one line each  (--json too)
-dm-desktop status 3            # one download, by the number `list` gives
-dm-desktop pause 3 4           # or: resume, cancel
-dm-desktop --later https://example.com/a.iso     # add a link (starts dm if needed)
-dm-desktop --queue Nightly https://example.com/a.iso   # into the queue Nightly, not started
-dm-desktop --quiet https://example.com/a.iso     # start it with nothing asked
-dm-desktop --save-to ~/ISOs --name ubuntu.iso https://example.com/a.iso   # where and as what
-dm-desktop /d https://example.com/a.iso /p ~/ISOs /f ubuntu.iso /n        # reference A's switches, as your scripts may already use them
+edm-desktop list                # what is downloading, one line each  (--json too)
+edm-desktop status 3            # one download, by the number `list` gives
+edm-desktop pause 3 4           # or: resume, cancel
+edm-desktop --later https://example.com/a.iso     # add a link (starts EDM if needed)
+edm-desktop --queue Nightly https://example.com/a.iso   # into the queue Nightly, not started
+edm-desktop --quiet https://example.com/a.iso     # start it with nothing asked
+edm-desktop --save-to ~/ISOs --name ubuntu.iso https://example.com/a.iso   # where and as what
+edm-desktop /d https://example.com/a.iso /p ~/ISOs /f ubuntu.iso /n        # reference A's switches, as your scripts may already use them
 ```
 
-It exits 0 when done, 1 when dm refused or a number was not acted on, 2 for
-a wrong command and 3 when no dm is running. It talks only to your own dm
+It exits 0 when done, 1 when EDM refused or a number was not acted on, 2 for
+a wrong command and 3 when no EDM is running. It talks only to your own EDM
 over the loopback address with a token only your account can read, and
-prints no cookies or sign-ins. (The program is `dm-gpui` on macOS and Windows
-(`dm-desktop` in an older dm), and `dm` rather than `dm-desktop` on the
+prints no cookies or sign-ins. (The program is `edm-gpui` on macOS and Windows
+(`edm-desktop` in an older EDM), and `EDM` rather than `edm-desktop` on the
 Fedora, openSUSE, Arch and AppImage installs.)
 
 </details>
@@ -527,34 +527,34 @@ Fedora, openSUSE, Arch and AppImage installs.)
 <details>
 <summary><strong>From an AI assistant (MCP)</strong></summary>
 
-dm can be driven by any AI client that speaks the Model Context Protocol
-(Claude Desktop and others), using the client's own account: dm needs no key
+EDM can be driven by any AI client that speaks the Model Context Protocol
+(Claude Desktop and others), using the client's own account: EDM needs no key
 and sends nothing off your computer. It is **off until you turn it on**: tick
-**Options › General › Allow AI assistants to control dm (MCP)**, and dm opens a local
+**Options › General › Allow AI assistants to control EDM (MCP)**, and EDM opens a local
 control port at every start, reachable only from your own computer and only with a
 token that your account alone can read. Untick it and assistants are refused at once.
-Add dm to the client's settings:
+Add EDM to the client's settings:
 
 ```json
-{ "mcpServers": { "dm": { "command": "/path/to/dm-desktop", "args": ["mcp"] } } }
+{ "mcpServers": { "EDM": { "command": "/path/to/edm-desktop", "args": ["mcp"] } } }
 ```
 
 Then ask in plain words, such as "download these three links, but slowly".
-The tools are `dm_add_downloads`, `dm_list_downloads`, `dm_pause`,
-`dm_resume`, `dm_cancel` (by number; the file is kept), `dm_move` (up or down
-the queue), `dm_queue` (start or stop the main queue), `dm_set_speed_limit`
-(exact KB/s, or low, medium, high, unlimited), `dm_list_commands`,
-`dm_run_command`, `dm_select`, `dm_inspect` and `dm_screenshot`.
+The tools are `edm_add_downloads`, `edm_list_downloads`, `edm_pause`,
+`edm_resume`, `edm_cancel` (by number; the file is kept), `edm_move` (up or down
+the queue), `edm_queue` (start or stop the main queue), `edm_set_speed_limit`
+(exact KB/s, or low, medium, high, unlimited), `edm_list_commands`,
+`edm_run_command`, `edm_select`, `edm_inspect` and `edm_screenshot`.
 
-To use the window as a person does, with dm started *with* its window (not
-`--headless`): `dm_screen` reads every word on screen, `dm_click` clicks a
+To use the window as a person does, with EDM started *with* its window (not
+`--headless`): `edm_screen` reads every word on screen, `edm_click` clicks a
 button, tab, menu item or checkbox by the words on it (right-click and
-double-click too), `dm_type` types into the focused field and `dm_press_key`
+double-click too), `edm_type` types into the focused field and `edm_press_key`
 presses a key (Escape closes a dialog, Enter presses its default button). An
 assistant can open Options, click through its tabs, add a link by typing it
-and check the result in `dm_screenshot`. Opening a
+and check the result in `edm_screenshot`. Opening a
 downloaded file and deleting a download stay a person's click in the window.
-Untick the box and the assistant is refused at once, with a message that says why. If dm is restarted, the assistant reconnects on
+Untick the box and the assistant is refused at once, with a message that says why. If EDM is restarted, the assistant reconnects on
 its next request.
 
 </details>
@@ -564,19 +564,19 @@ its next request.
 
 You do not need to install anything for video.
 
-- **YouTube needs nothing extra.** dm reads a YouTube page itself and
+- **YouTube needs nothing extra.** EDM reads a YouTube page itself and
   fetches the picture and the sound on its own connections.
-- **The first video from another site takes a little longer.** dm
+- **The first video from another site takes a little longer.** EDM
   downloads the part of itself that finds the video behind a site's player
   (about 35 MB, once, checked before it is kept) and keeps it up to date by
   itself, since video sites change often. The video's row says "Getting
   ready for videos (first time only)" while this happens. Every video
-  after that starts straight away. It is also what dm falls back on for a
+  after that starts straight away. It is also what EDM falls back on for a
   YouTube video it cannot read itself.
 - **Picture and sound in one file.** Sites send picture and sound
-  separately. dm joins them into one file, in MP4 or WebM, at the quality
+  separately. EDM joins them into one file, in MP4 or WebM, at the quality
   you picked, 4K included. Live streams (`rtmp://`, `rtmpt://`, `rtsp://`,
-  `rtsps://`, `mms://`), HLS playlists and subtitles are handled by dm too.
+  `rtsps://`, `mms://`), HLS playlists and subtitles are handled by EDM too.
 
 The extension sends the page's sign-in along with the video, so a site that
 checks you are not a bot lets the download through.
@@ -589,42 +589,42 @@ No daily check has run yet: the table is filled from the first scheduled run of
 <!-- site-table:end -->
 
 Queues, the Scheduler, the Grabber, a page's links and torrents are described in
-[docs/user-guide.md](docs/user-guide.md), which dm's **Help** menu opens.
+[docs/user-guide.md](docs/user-guide.md), which EDM's **Help** menu opens.
 
 </details>
 
 <details>
 <summary><strong>If something is not working</strong></summary>
 
-- **Downloads still go to the browser.** Click the dm icon in the browser's
-  toolbar: it says whether dm is connected, and if not, why. Check that
-  **Catch downloads** is on there. Open dm once (it connects itself to your
+- **Downloads still go to the browser.** Click the EDM icon in the browser's
+  toolbar: it says whether EDM is connected, and if not, why. Check that
+  **Catch downloads** is on there. Open EDM once (it connects itself to your
   browsers when it opens), then close the browser completely and open it
-  again. If dm shows a message at the top of its window, it says what is
+  again. If EDM shows a message at the top of its window, it says what is
   wrong.
-- **Mac says dm "is damaged", or there is no Open Anyway button.** Open
+- **Mac says EDM "is damaged", or there is no Open Anyway button.** Open
   **Terminal** and run
-  `xattr -dr com.apple.quarantine /Applications/dm.app`, then open dm again.
+  `xattr -dr com.apple.quarantine /Applications/EDM.app`, then open EDM again.
 - **The AppImage does not start (Ubuntu 22.04 or newer).** Run
   `sudo apt install libfuse2`.
 - **File names in Chinese, Japanese or Korean show as blanks (Linux).**
-  dm draws them with a font your computer has, and this one has none for
+  EDM draws them with a font your computer has, and this one has none for
   them. On Ubuntu or Debian run `sudo apt install fonts-noto-cjk`; the
-  Fedora, openSUSE and Arch packages suggest one when dm is installed.
+  Fedora, openSUSE and Arch packages suggest one when EDM is installed.
 - **Closing the window on KDE Plasma (or another Wayland desktop) minimizes
-  it.** A program cannot hide its own window on Wayland, so dm minimizes it
-  and keeps downloading; bring it back from the task manager, or open dm
+  it.** A program cannot hide its own window on Wayland, so EDM minimizes it
+  and keeps downloading; bring it back from the task manager, or open EDM
   again. (Quit from the tray's menu or **Program › Exit**.)
-- **No tray icon on Linux.** dm's icon shows in any panel that shows
+- **No tray icon on Linux.** EDM's icon shows in any panel that shows
   "StatusNotifier" icons: KDE, Ubuntu's GNOME, Cinnamon, Xfce, LXQt, and
   waybar on niri, Sway or Hyprland. On other GNOME (Fedora, Debian) turn on
   the "AppIndicator and KStatusNotifierItem Support" extension. With no such
-  panel, closing dm's window quits dm rather than hiding it where you could
+  panel, closing EDM's window quits EDM rather than hiding it where you could
   not get it back.
 - **A download needs you to be signed in** (it finishes in the browser, or
   a video says to sign in or prove you are not a bot). Export your
   browser's cookies as `cookies.txt` with any "Get cookies.txt" add-on, then
-  in dm choose it under **Options › Advanced › Network › Cookies file**. dm then
+  in EDM choose it under **Options › Advanced › Network › Cookies file**. EDM then
   sends those cookies itself, to the site they belong to.
 
 </details>
@@ -632,44 +632,44 @@ Queues, the Scheduler, the Grabber, a page's links and torrents are described in
 <details>
 <summary><strong>Uninstall</strong></summary>
 
-First tell your browsers dm is going, and remove its login item (Start on
-login), so nothing is left pointing at a program that is not there. Quit dm,
+First tell your browsers EDM is going, and remove its login item (Start on
+login), so nothing is left pointing at a program that is not there. Quit EDM,
 then run:
 
 - **Windows:** in Command Prompt,
-  `start "" /wait "%LOCALAPPDATA%\dm\dm-gpui.exe" --unregister`, or in
+  `start "" /wait "%LOCALAPPDATA%\EDM\edm-gpui.exe" --unregister`, or in
   PowerShell,
-  `Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\dm\dm-gpui.exe" --unregister`
-  (`dm-desktop.exe` in an older dm).
-  dm is a windowed program, so without `start /wait` (or `-Wait`) the prompt
-  comes back before dm has finished and what it says lands after it;
-  `echo %errorlevel%` then shows 0 for success. dm's uninstaller also runs
+  `Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\EDM\edm-gpui.exe" --unregister`
+  (`edm-desktop.exe` in an older EDM).
+  EDM is a windowed program, so without `start /wait` (or `-Wait`) the prompt
+  comes back before EDM has finished and what it says lands after it;
+  `echo %errorlevel%` then shows 0 for success. EDM's uninstaller also runs
   this before it removes the files.
-- **Mac:** `/Applications/dm.app/Contents/MacOS/dm-gpui --unregister` (`dm-desktop` in an older dm)
-- **Ubuntu / Debian (.deb):** `dm-desktop --unregister`
-- **Fedora / openSUSE / Arch:** `dm --unregister`
-- **AppImage:** `/path/to/dm.AppImage --unregister`
+- **Mac:** `/Applications/EDM.app/Contents/MacOS/edm-gpui --unregister` (`edm-desktop` in an older EDM)
+- **Ubuntu / Debian (.deb):** `edm-desktop --unregister`
+- **Fedora / openSUSE / Arch:** `EDM --unregister`
+- **AppImage:** `/path/to/EDM.AppImage --unregister`
 
 It says each thing it removed. Then remove the app:
 
-- **Windows:** Settings → Apps → **dm** → Uninstall.
-- **Mac:** drag **dm** from Applications to the Bin.
-- **Ubuntu / Debian:** `sudo apt remove dm`.
-- **Fedora / openSUSE:** `sudo dnf remove dm` or `sudo zypper remove dm`.
-- **Arch:** `sudo pacman -R dm`.
+- **Windows:** Settings → Apps → **EDM** → Uninstall.
+- **Mac:** drag **EDM** from Applications to the Bin.
+- **Ubuntu / Debian:** `sudo apt remove EDM`.
+- **Fedora / openSUSE:** `sudo dnf remove EDM` or `sudo zypper remove EDM`.
+- **Arch:** `sudo pacman -R EDM`.
 - **AppImage:** delete the file.
 - **Extension:** remove it from your browser's extensions page.
 
-Your settings, the download list and its history stay in dm's own folder,
+Your settings, the download list and its history stay in EDM's own folder,
 in case you install it again. Delete that folder too if you want them gone:
 
-- **Windows:** `%LOCALAPPDATA%\dm-engine`
-- **Mac:** `~/Library/Application Support/dm-engine`
-- **Linux:** `~/.local/share/dm-engine`
+- **Windows:** `%LOCALAPPDATA%\edm-engine`
+- **Mac:** `~/Library/Application Support/edm-engine`
+- **Linux:** `~/.local/share/edm-engine`
 
 The window's size and place are kept in one more folder:
-`%APPDATA%\dm\data` on Windows, `~/Library/Application Support/dm` on a
-Mac, `~/.local/share/dm` on Linux.
+`%APPDATA%\EDM\data` on Windows, `~/Library/Application Support/EDM` on a
+Mac, `~/.local/share/EDM` on Linux.
 
 </details>
 
@@ -689,24 +689,24 @@ Not done yet, and said plainly:
   was put in by a machine pass and waits for a native reader
   ([help with one](docs/guide/translating.md)).
 - **Some video sites** put a sign-in or a bot check in front of a signed-out
-  visitor; dm does not get around those.
+  visitor; EDM does not get around those.
 
 What is being worked on next is in [docs/gaps.md](docs/gaps.md).
 
 ## Languages
 
-dm speaks **English, Español, Português, Français, Deutsch, Italiano,
+EDM speaks **English, Español, Português, Français, Deutsch, Italiano,
 Nederlands, Polski, Русский, Bahasa Indonesia, Türkçe, 简体中文, 日本語 and
 한국어**. It starts in your computer's language when it has it, and **View ›
 Language** changes it at any time, with no restart. Chinese, Japanese and Korean
 are drawn in your computer's own font for them. A language missing, or a word
-that reads wrong? [Translating dm](docs/guide/translating.md) says how to mend
+that reads wrong? [Translating EDM](docs/guide/translating.md) says how to mend
 one or start a new one.
 
 ## FAQ
 
 <details>
-<summary><strong>Is dm really free?</strong></summary>
+<summary><strong>Is EDM really free?</strong></summary>
 
 Yes, for good: no ads, no trial, no account, no paid edition. It is open source
 under the GPL v3, so anyone can read, check and build it.
@@ -723,7 +723,7 @@ shows how to open it once; after that it opens like any other program.
 </details>
 
 <details>
-<summary><strong>Does dm send anything about me anywhere?</strong></summary>
+<summary><strong>Does EDM send anything about me anywhere?</strong></summary>
 
 No. It reaches other computers only to fetch what you ask it to, and to look
 for a new version if you turn that on. There is no analytics and no crash
@@ -734,18 +734,18 @@ reporting. [PRIVACY.md](PRIVACY.md) has the details.
 <details>
 <summary><strong>A site's download still goes to the browser.</strong></summary>
 
-Click dm's icon in the browser's toolbar: it says whether dm is connected and,
+Click EDM's icon in the browser's toolbar: it says whether EDM is connected and,
 if not, why. **If something is not working**, under [More](#more), goes
 through each cause.
 
 </details>
 
 <details>
-<summary><strong>Can dm download from sites that need a sign-in?</strong></summary>
+<summary><strong>Can EDM download from sites that need a sign-in?</strong></summary>
 
-Yes: the extension hands dm the page's sign-in with the download, and a
+Yes: the extension hands EDM the page's sign-in with the download, and a
 `cookies.txt` exported from your browser works too. What a site does not let
-you download, dm does not either: it does not get around DRM, paywalls or bot
+you download, EDM does not either: it does not get around DRM, paywalls or bot
 checks.
 
 </details>
@@ -753,21 +753,21 @@ checks.
 <details>
 <summary><strong>How do I move my downloads to a new computer?</strong></summary>
 
-**File › Back up dm…** writes one file with your settings, queues, schedules,
+**File › Back up EDM…** writes one file with your settings, queues, schedules,
 site rules and list of downloads (sign-ins only with a passphrase). **File ›
 Restore…** on the new computer reads it back.
 
 </details>
 
-## Help make dm better
+## Help make EDM better
 
 - **Found a bug?** [Open an issue](https://github.com/pranavo72bex/Easy-Download-Manager/issues/new/choose).
   For a download that failed, its **Copy details** puts what helps on the
   clipboard (your version and system, the server's answer; never a path,
   a sign-in or a cookie).
-- **Have an idea?** Open an issue and say what you would like dm to do.
-- **Speak another language?** Read dm in it and mend what is wrong:
-  [Translating dm](docs/guide/translating.md).
+- **Have an idea?** Open an issue and say what you would like EDM to do.
+- **Speak another language?** Read EDM in it and mend what is wrong:
+  [Translating EDM](docs/guide/translating.md).
 - **Write code?** [CONTRIBUTING.md](CONTRIBUTING.md) says how, and
   [AGENTS.md](AGENTS.md) where to start. A security problem goes privately, as
   [SECURITY.md](SECURITY.md) says.
@@ -775,13 +775,13 @@ Restore…** on the new computer reads it back.
 
 Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-<a href="https://github.com/pranavo72bex/Easy-Download-Manager/graphs/contributors"><img alt="The people who contributed to dm" src="https://contrib.rocks/image?repo=pranavo72bex/Easy-Download-Manager"></a>
+<a href="https://github.com/pranavo72bex/Easy-Download-Manager/graphs/contributors"><img alt="The people who contributed to EDM" src="https://contrib.rocks/image?repo=pranavo72bex/Easy-Download-Manager"></a>
 
-<a href="https://star-history.com/#pranavo72bex/Easy-Download-Manager&Date"><img alt="dm's GitHub stars over time" src="https://api.star-history.com/svg?repos=pranavo72bex/Easy-Download-Manager&type=Date" width="600"></a>
+<a href="https://star-history.com/#pranavo72bex/Easy-Download-Manager&Date"><img alt="EDM's GitHub stars over time" src="https://api.star-history.com/svg?repos=pranavo72bex/Easy-Download-Manager&type=Date" width="600"></a>
 
 ## Built with
 
-dm is written in [Rust](https://www.rust-lang.org) from scratch. Its window is
+EDM is written in [Rust](https://www.rust-lang.org) from scratch. Its window is
 drawn with [GPUI](https://www.gpui.rs) (from the Zed editor) and
 [gpui-component](https://github.com/longbridge/gpui-component), the same code
 on every system and on Android. Downloads go through
@@ -796,8 +796,8 @@ for the ones carried here with changes.
 ## Downloads
 
 - [The newest release](https://github.com/pranavo72bex/Easy-Download-Manager/releases): Windows, macOS and Linux, the Android app, and the Chrome extension
-- [dm on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)
-- [dm on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/)
+- [EDM on Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/ooafpfjpliofcdlnbdkjhonaoebcpnej)
+- [EDM on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/)
 - [Build from source](#for-developers)
 
 ## Documentation
@@ -806,14 +806,14 @@ for the ones carried here with changes.
 - [How it works](docs/how-it-works.md)
 - [Testing](docs/testing.md)
 - [Where to start changing it](AGENTS.md)
-- [Translating dm](docs/guide/translating.md): mend a language, read one, or start a new one
+- [Translating EDM](docs/guide/translating.md): mend a language, read one, or start a new one
 - [The open work list](docs/gaps.md)
 - [Privacy](PRIVACY.md)
-- [What dm protects you from](docs/guide/security.md): each guard and the test that holds it
+- [What EDM protects you from](docs/guide/security.md): each guard and the test that holds it
 
 ## For developers
 
-How dm is built and measured: [docs/how-it-works.md](docs/how-it-works.md).
+How EDM is built and measured: [docs/how-it-works.md](docs/how-it-works.md).
 How it is tested, including in Docker: [docs/testing.md](docs/testing.md).
 Where to start changing it: [AGENTS.md](AGENTS.md). The open work list:
 [docs/gaps.md](docs/gaps.md).
@@ -823,7 +823,7 @@ Where to start changing it: [AGENTS.md](AGENTS.md). The open work list:
 From a clone, as with the flutter tool:
 
 ```sh
-make run          # build what changed and start dm with its window
+make run          # build what changed and start EDM with its window
 make build        # installers for every platform this computer can build, into build/
 make devices      # which platforms that is (macOS on a Mac; Linux and Windows with Docker)
 make help         # everything else: test, analyze, format, qa, install
@@ -835,10 +835,10 @@ The quick checks, on any computer with Rust:
 
 ```sh
 cargo test --workspace
-(cd crates/dm-catcher && cargo test)
+(cd crates/edm-catcher && cargo test)
 ```
 
-The Docker QA stack: dm built from this checkout, run headless against a
+The Docker QA stack: EDM built from this checkout, run headless against a
 server that misbehaves on request (ranges or none, lying lengths, redirects,
 hostile file names, files replaced mid-download, 4xx/5xx and Retry-After,
 stalls, bad certificates, logins and cookies), a link that drops and slows
@@ -858,13 +858,13 @@ Reports (JSON and JUnit per run, and each container's log) go to
 
 ## Use it responsibly
 
-Only download what you have the right to download. dm does not get around
+Only download what you have the right to download. EDM does not get around
 DRM, paywalls, sign-ins or any other protection: what a website does not
-let you download, dm does not either.
+let you download, EDM does not either.
 
 ## Code signing policy
 
-dm is applying to [SignPath Foundation](https://signpath.org) for free code
+EDM is applying to [SignPath Foundation](https://signpath.org) for free code
 signing of the Windows installer, through [SignPath.io](https://signpath.io).
 Until a certificate is issued the installer is **not signed** (Step 2 says
 how to open it). Once it is, this is the policy:
@@ -872,7 +872,7 @@ how to open it). Once it is, this is the policy:
 - Only what this repository builds is signed: the Windows installer and the
   program inside it, built from this source by GitHub Actions
   ([desktop.yml](.github/workflows/desktop.yml)). Nothing made elsewhere is
-  signed with dm's certificate.
+  signed with EDM's certificate.
 - Committers and reviewers:
   [pranavo72bex](https://github.com/pranavo72bex) (the project's members are
   listed under [Contributors](https://github.com/pranavo72bex/Easy-Download-Manager/graphs/contributors)).
@@ -882,21 +882,21 @@ how to open it). Once it is, this is the policy:
 - Everyone above signs in to GitHub and SignPath with two-factor
   authentication.
 
-Privacy: dm sends nothing about you anywhere. It reaches other computers
+Privacy: EDM sends nothing about you anywhere. It reaches other computers
 only to fetch what you ask it to download, and to check GitHub for a new
 version (off until you turn it on). No program is downloaded and run.
 See [PRIVACY.md](PRIVACY.md).
 
 ## License
 
-dm is free and open source under the [GNU General Public License v3.0 or later](LICENSE),
+EDM is free and open source under the [GNU General Public License v3.0 or later](LICENSE),
 with additional terms under its section 7(b) in [NOTICE](NOTICE). It has no ads, no
 accounts and no analytics, and it sends nothing about you anywhere (see [PRIVACY.md](PRIVACY.md)).
 
-**Using dm's code in your own project?** You may, under the GPL v3: your project must be
+**Using EDM's code in your own project?** You may, under the GPL v3: your project must be
 released under the GPL v3 too, keep the [NOTICE](NOTICE) file, and show this attribution
 in your README (or wherever it shows its licence information):
 
-> Based on [Easy Download Manager (dm)](https://github.com/pranavo72bex/Easy-Download-Manager) by pranavo72bex
+> Based on [Easy Download Manager (EDM)](https://github.com/pranavo72bex/Easy-Download-Manager) by pranavo72bex
 
 Releases up to desktop-v0.8.7 and extension v3.2.1 were published under the MIT licence.

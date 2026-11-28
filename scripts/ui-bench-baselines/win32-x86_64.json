@@ -7,10 +7,10 @@
   "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
   "host": "x86_64-pc-windows-msvc",
   "build": {
-   "path": "%LOCALAPPDATA%\\dm\\dm-gpui.exe",
+   "path": "%LOCALAPPDATA%\\EDM\\edm-gpui.exe",
    "bytes": 36807680,
    "modified": 1794889140,
-   "profile": "dm",
+   "profile": "EDM",
    "target": "x86_64-pc-windows-msvc"
   },
   "system": {

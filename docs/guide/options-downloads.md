@@ -1,14 +1,14 @@
 # Options › Downloads
 
-How dm fetches, and what happens around a download. See
+How EDM fetches, and what happens around a download. See
 [Options](options.md) for how the window works.
 
 ## Connections and files at once
 
-- **Connections per file:** "The most parts of a file dm fetches at once. It
+- **Connections per file:** "The most parts of a file EDM fetches at once. It
   opens more only while they make it faster; some sites limit it."
 - **Presets:** **Slow (2)**, **Normal (8)**, **Fast (16)** and **Maximum
-  (32)** each set the number above; the one that matches it is marked. A new dm
+  (32)** each set the number above; the one that matches it is marked. A new EDM
   uses 16.
 - **Files at once:** "How many files download at the same time."
 
@@ -31,12 +31,12 @@ A site that allows fewer connections can be given its own number: see
 - **Save streams that arrive as .ts as MP4:** "Streamed videos are saved as
   MP4 files, which more players open."
 - **Stop recording after (minutes, 0 for no limit):** a live stream is
-  recorded for this long, then dm ends the recording and keeps what it has.
+  recorded for this long, then EDM ends the recording and keeps what it has.
   0 records until the stream ends or you stop it.
 
 ## Queues
 
-- **Start the Main queue when dm opens:** "Downloads waiting in the Main
+- **Start the Main queue when EDM opens:** "Downloads waiting in the Main
   queue start without a click."
 - **Queues with their own limit:** a queue that runs fewer (or more) files at
   once than **Files at once**. **Add a queue limit** adds a line with
@@ -55,7 +55,7 @@ A site that allows fewer connections can be given its own number: see
 
 - **Forget finished downloads after (days, 0 for never):** "A finished
   download leaves the list once it is that many days old. Its file stays
-  where it was saved." dm looks when it starts, once a day after that, and
+  where it was saved." EDM looks when it starts, once a day after that, and
   as soon as you change the number. 0, the setting at first, keeps every
   finished download. A download that failed, one in the Recheck queue and
   one whose **Delete file after** has still to come are kept. To forget a
@@ -66,12 +66,12 @@ A site that allows fewer connections can be given its own number: see
 
 - "Watch a folder: links (.url, .webloc or a text file of links) and
   .torrent files saved there are added, then moved to its “done” folder.
-  Leave it empty to turn this off." **Browse…** picks the folder. dm looks
+  Leave it empty to turn this off." **Browse…** picks the folder. EDM looks
   in it every few seconds.
 - "When a download finishes, run this command (a virus checker or a script).
   The file's path is added at the end:" type it in **Command**. Empty runs
-  nothing. The path is also in the variable `DM_FILE`. On Windows, with
-  `cmd /c` or PowerShell, use `%DM_FILE%` or `$env:DM_FILE`: a file name
+  nothing. The path is also in the variable `EDM_FILE`. On Windows, with
+  `cmd /c` or PowerShell, use `%EDM_FILE%` or `$env:EDM_FILE`: a file name
   that holds `&`, `;` or the like, which they would run as a command, is
   not added at the end for them.
 
@@ -82,12 +82,12 @@ A site that allows fewer connections can be given its own number: see
   capped plan. Downloads that wait go on by themselves once it is not."
   With **Wait**, every download waits while the connection is metered, its
   row saying "Waiting: the connection is metered", and goes on by itself
-  when it is not. With **Ask**, dm asks "The connection is metered" once
+  when it is not. With **Ask**, EDM asks "The connection is metered" once
   each time the connection becomes metered, the downloads waiting until you
   choose **Download anyway** or **Wait**; with no window open, **Ask**
   waits. Windows says a connection is metered from Settings › Network
   (and for a phone's connection by itself); on Linux, NetworkManager says
-  it. macOS does not tell dm, so there the downloads go on.
+  it. macOS does not tell EDM, so there the downloads go on.
 - **On battery: wait below (%, 0 for never):** "Downloads wait while the
   computer runs on its battery below this level, and go on once it charges
   or is above it again." On the phone: "Downloads wait while the phone's
@@ -104,7 +104,7 @@ On a phone, four more lines follow, each off at first:
 - **Pause when Data Saver is on:** "Downloads wait while Android's Data
   Saver is on, and go on once it is off." Their rows say "Waiting: Data
   Saver is on".
-- **Keep downloads and torrents going when dm is closed:** "Swiped away from the recent apps, dm goes on under its notification until every download is done and every torrent has finished sharing." Opened again, dm shows them where they got to.
+- **Keep downloads and torrents going when EDM is closed:** "Swiped away from the recent apps, EDM goes on under its notification until every download is done and every torrent has finished sharing." Opened again, EDM shows them where they got to.
 
 A connection or a battery the system says nothing of never holds a
 download. A download you start with **Start download** while they wait

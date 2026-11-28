@@ -1,6 +1,6 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # Coverage-guided fuzzing of every reader of outside input (gaps row H11): `cargo fuzz run
@@ -8,7 +8,7 @@
 # Not a member of the workspace and never shipped: libFuzzer is a test's tool, as cargo-audit
 # is (docs/decisions.md, 2026-11-24).
 [package]
-name = "dm-fuzz"
+name = "edm-fuzz"
 version = "0.0.0"
 edition = "2021"
 publish = false
@@ -24,17 +24,17 @@ default = ["libfuzzer-sys/link_libfuzzer"]
 
 [dependencies]
 libfuzzer-sys = { version = "=0.4.10", default-features = false }
-dm-core = { path = "../crates/dm-core" }
-dm-torrent = { path = "../crates/dm-torrent" }
-dm-media = { path = "../crates/dm-media" }
-dm-js = { path = "../crates/dm-js" }
+edm-core = { path = "../crates/edm-core" }
+edm-torrent = { path = "../crates/edm-torrent" }
+edm-media = { path = "../crates/edm-media" }
+edm-js = { path = "../crates/edm-js" }
 tempfile = "3"
 
 [workspace]
 
-# The crates dm builds with changes of its own (vendor/README.md), as the root workspace takes
+# The crates EDM builds with changes of its own (vendor/README.md), as the root workspace takes
 # them: without these the targets fuzzed crates.io's librqbit-bencode, whose unchecked number
-# reader overflows, not the checked one dm ships (issue #72). The fuzz targets build no window,
+# reader overflows, not the checked one EDM ships (issue #72). The fuzz targets build no window,
 # so the GPUI copies are not named.
 [patch.crates-io]
 librqbit = { path = "../vendor/librqbit" }

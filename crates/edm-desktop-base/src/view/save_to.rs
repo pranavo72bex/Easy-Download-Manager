@@ -1,0 +1,146 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! "Save to", where several links added together go, for every window and
+//! every dialog that adds several at once ("Download links", "Links on the
+//! clipboard"): each to its category's folder, all to one category's, or
+//! all to one folder, typed or chosen, which is made when they are added if
+//! it is not there yet.
+
+use std::path::{Path, PathBuf};
+
+use crate::i18n::{t, tf};
+
+/// Where the links ticked are saved, as reference A offers: each to its
+/// category's folder, all to one category's, or all to one folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SaveTo {
+    /// Each file to the folder of its category.
+    #[default]
+    ByCategory,
+    /// Every file to one category's folder (`SaveChoice::category`).
+    OneCategory,
+    /// Every file to one folder (`SaveChoice::folder`).
+    OneFolder,
+}
+
+/// The choice a dialog's Save to holds.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SaveChoice {
+    /// Which of the three.
+    pub save_to: SaveTo,
+    /// The category every file goes to, for `SaveTo::OneCategory`: a kind's
+    /// word or a person's own category's name.
+    pub category: String,
+    /// The folder every file goes to, for `SaveTo::OneFolder`, as typed.
+    pub folder: String,
+}
+
+impl Default for SaveChoice {
+    /// Each to its category's folder, as EDM sorts a download; Archives
+    /// offered first for one category, as reference A offers it.
+    fn default() -> SaveChoice {
+        SaveChoice {
+            save_to: SaveTo::ByCategory,
+            category: edm_shell::app::names::category_word(edm_core::Category::Archives),
+            folder: String::new(),
+        }
+    }
+}
+
+impl SaveChoice {
+    /// The folder the links go to where the choice names one: `None` is each
+    /// to the folder of its category, as EDM sorts a download. A folder typed
+    /// as a name alone ("Holiday") is one in the download folder `root`, as
+    /// a person who types a name there means; `~` is the home folder.
+    pub fn save_dir(&self, root: &Path, categories: &edm_core::Categories) -> Option<String> {
+        match self.save_to {
+            SaveTo::ByCategory => None,
+            SaveTo::OneFolder => {
+                let typed = self.folder.trim();
+                if typed.is_empty() {
+                    return None;
+                }
+                // Left as typed where it cannot be read as a folder: the
+                // queue then refuses it in its own words.
+                Some(
+                    edm_shell::settings::full_folder(typed, Some(root))
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_else(|| typed.to_string()),
+                )
+            }
+            SaveTo::OneCategory => Some(
+                edm_shell::app::names::category_folder(&self.category, root, categories)
+                    .display()
+                    .to_string(),
+            ),
+        }
+    }
+
+    /// The folder a file called `name` will be saved to, as a Save to
+    /// column says it.
+    pub fn folder_of(&self, name: &str, root: &Path, categories: &edm_core::Categories) -> String {
+        if let Some(dir) = self.save_dir(root, categories) {
+            return dir;
+        }
+        categories
+            .destination(root, edm_core::classify(name, None))
+            .display()
+            .to_string()
+    }
+
+    /// What Start now and Add for later check before adding: a folder is
+    /// typed where every file goes to one, and the folder named is there,
+    /// made now if it was not (with the folders above it), so a new folder
+    /// typed or made in the system's panel holds the files at once, Add for
+    /// later's too. The folder they go to, or the words to say in the
+    /// dialog, which stays open: none typed, or one that cannot be made (EDM
+    /// not allowed to, a file of that name in the way).
+    pub fn ready(
+        &self,
+        root: &Path,
+        categories: &edm_core::Categories,
+    ) -> Result<Option<String>, String> {
+        if self.save_to == SaveTo::OneFolder && self.folder.trim().is_empty() {
+            return Err(t("Choose the folder every file goes to.").to_string());
+        }
+        let Some(dir) = self.save_dir(root, categories) else {
+            return Ok(None);
+        };
+        let path = PathBuf::from(&dir);
+        // A folder not read as a full path is left to the queue, which says
+        // why it refuses it.
+        if path.is_absolute() {
+            made(&path).map_err(|e| {
+                tf(
+                    "{} couldn’t be written: {}",
+                    &[&path.display(), &crate::format::file_error(&e)],
+                )
+            })?;
+        }
+        Ok(Some(dir))
+    }
+}
+
+/// `path` as a folder: there already, or made with the folders above it. A
+/// file of that name, here or above, is the error the system gives for a
+/// name taken (`AlreadyExists`), whichever the system says, so it is told
+/// the same way everywhere.
+fn made(path: &Path) -> std::io::Result<()> {
+    if path.is_dir() {
+        return Ok(());
+    }
+    let in_the_way = path
+        .ancestors()
+        .find(|p| p.exists())
+        .is_some_and(|p| !p.is_dir());
+    if in_the_way {
+        return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists));
+    }
+    std::fs::create_dir_all(path)
+}
+
+#[cfg(test)]
+mod tests;

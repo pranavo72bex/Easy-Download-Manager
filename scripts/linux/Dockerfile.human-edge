@@ -1,10 +1,10 @@
 # Microsoft Edge on Debian 12, for the Chromium checks run with Edge
-# (DM_DISTRO=edge in linux-chromium-human.sh). Edge for Linux is published
+# (EDM_DISTRO=edge in linux-chromium-human.sh). Edge for Linux is published
 # only for x86_64, so this image is amd64 (human-distro.sh builds and runs it
 # with --platform linux/amd64, under emulation on an arm64 machine). Edge
 # comes from Microsoft's own apt repository, signed with Microsoft's key, as
-# Microsoft tells a Debian user to add it. dm is built in the Debian image
-# (amd64) and copied in. Plus what Dockerfile.human-fedora installs: dm's
+# Microsoft tells a Debian user to add it. EDM is built in the Debian image
+# (amd64) and copied in. Plus what Dockerfile.human-fedora installs: EDM's
 # libraries, Mesa for GL under Xvfb, and the test's X server, window
 # manager, xdotool, the accessibility bus and ImageMagick for screenshots.
 FROM debian:12

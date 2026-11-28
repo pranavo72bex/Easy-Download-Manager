@@ -1,6 +1,6 @@
 # A second network for faster downloads
 
-dm can download over two networks at once: the one your computer normally uses, and a
+EDM can download over two networks at once: the one your computer normally uses, and a
 second one you choose in **Options › Advanced › Network › Second network**. Half of each
 download's connections then go over the second network, so a download can be as fast as both
 lines together. Once a second is chosen, **Third network** beside it adds one more line, and
@@ -37,7 +37,7 @@ network.
    **Windows:** Windows needs Apple's own driver for this, which comes with the Apple Devices
    app (or iTunes) from the Microsoft Store.
    **Linux:** most systems take it as a wired connection by themselves.
-4. In dm, choose it in **Options › Advanced › Network › Second network**.
+4. In EDM, choose it in **Options › Advanced › Network › Second network**.
 
 ### Android
 
@@ -47,7 +47,7 @@ network.
 3. **Windows and Linux:** the phone shows as a new wired connection.
    **macOS:** macOS does not take most Android phones' USB tethering by itself. Use an iPhone,
    or a second line of another kind.
-4. In dm, choose it in **Options › Advanced › Network › Second network**.
+4. In EDM, choose it in **Options › Advanced › Network › Second network**.
 
 ## If it does not seem faster
 

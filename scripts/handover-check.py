@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Real download pages: their own Download buttons, handed to dm by the extension.
+"""Real download pages: their own Download buttons, handed to EDM by the extension.
 
     python3 scripts/handover-check.py [site ...]     # every site below, or those named
 
@@ -13,11 +13,11 @@ does the extension take a download a real page starts, out of the box, whatever 
 page starts it? A plain link, a button that runs a script, a page that counts down and
 then starts it, a redirect to a mirror or to a signed address on another host. Like
 sites-check.py it goes to the real sites, so it is run by hand, never in CI; it reuses
-chrome-check.py's setup (a visible browser with dm's extension and the app behind it),
+chrome-check.py's setup (a visible browser with EDM's extension and the app behind it),
 with the app's catch rules put back to a new install's (every type) for these sites.
 
 For each site: the page is opened, its button clicked as a person clicks it (or nothing,
-where the page starts the download itself), and the check waits for a row in dm for it
+where the page starts the download itself), and the check waits for a row in EDM for it
 that is receiving bytes, and for the browser to have kept nothing. A file is not waited
 for to the end: the first bytes are the hand-over working. No account is used; a page
 that answers an automated browser with a challenge is reported as that.
@@ -165,10 +165,10 @@ def one(base, name, site, engine_home, worker):
     if not row:
         kept = [d for d in worker.evaluate(BROWSER_KEPT) or [] if d["url"] not in kept_before]
         out["browser"] = kept
-        out["result"] = ("the browser kept it: dm was not handed it" if kept
+        out["result"] = ("the browser kept it: EDM was not handed it" if kept
                          else "nothing started (the page did not start a download)")
         return out
-    out["dm_url"] = row.get("url", "")[:140]
+    out["edm_url"] = row.get("url", "")[:140]
 
     def moving():
         now = next((r for r in cc.queue_rows(engine_home) if r["id"] == row["id"]), None)
@@ -182,23 +182,23 @@ def one(base, name, site, engine_home, worker):
     got = cc.wait_for(moving, 60) or next((r for r in cc.queue_rows(engine_home) if r["id"] == row["id"]), {})
     state = got.get("state") or {}
     kind = state.get("kind") if isinstance(state, dict) else str(state)
-    out["dm_state"] = kind
-    out["dm_bytes"] = (got.get("progress") or {}).get("downloaded", 0)
-    out["dm_name"] = pathlib.Path(got.get("path") or got.get("filename") or "").name
+    out["edm_state"] = kind
+    out["edm_bytes"] = (got.get("progress") or {}).get("downloaded", 0)
+    out["edm_name"] = pathlib.Path(got.get("path") or got.get("filename") or "").name
     if kind == "failed":
-        out["dm_reason"] = (state.get("reason") or "")[:200]
+        out["edm_reason"] = (state.get("reason") or "")[:200]
     time.sleep(2)
     kept = [d for d in worker.evaluate(BROWSER_KEPT) or []
             if d["url"] not in kept_before and d["state"] != "interrupted" and d["exists"]]
     out["browser"] = kept
     if kind == "failed":
-        out["result"] = "dm took it and failed: " + out.get("dm_reason", "")
+        out["result"] = "EDM took it and failed: " + out.get("edm_reason", "")
     elif kept:
-        out["result"] = "dm took it, and the browser kept a copy too"
-    elif out["dm_bytes"] > 0 or kind == "completed":
+        out["result"] = "EDM took it, and the browser kept a copy too"
+    elif out["edm_bytes"] > 0 or kind == "completed":
         out["result"] = "OK"
     else:
-        out["result"] = "dm took it, and no bytes came in a minute"
+        out["result"] = "EDM took it, and no bytes came in a minute"
     return out
 
 
@@ -207,7 +207,7 @@ def sites(base, origin, engine_dl, engine_home, worker):
     settings = json.loads((engine_home / "settings.json").read_text(encoding="utf-8"))
     settings["catch"] = DEFAULT_CATCH
     (engine_home / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
-    worker.evaluate("chrome.storage.local.set({'dm.catch': %s})" % json.dumps(DEFAULT_CATCH))
+    worker.evaluate("chrome.storage.local.set({'EDM.catch': %s})" % json.dumps(DEFAULT_CATCH))
     worker.evaluate("dmReady.then(m => m.forget_app())")
     results = []
     for name in WANT:
@@ -217,11 +217,11 @@ def sites(base, origin, engine_dl, engine_home, worker):
             r = {"site": name, "result": f"check failed: {e!r}"}
         results.append(r)
         print("SITE", json.dumps(r, default=str), flush=True)
-        cc.check(f"{name}: the page's download is handed to dm and arrives", r.get("result") == "OK",
+        cc.check(f"{name}: the page's download is handed to EDM and arrives", r.get("result") == "OK",
                  r.get("result", ""))
     print("\nSUMMARY")
     for r in results:
-        print(f"  {r['site']:15} {r.get('result')}   {r.get('dm_name') or ''} {r.get('dm_bytes') or ''}")
+        print(f"  {r['site']:15} {r.get('result')}   {r.get('edm_name') or ''} {r.get('edm_bytes') or ''}")
 
 
 cc.panel_checks = sites

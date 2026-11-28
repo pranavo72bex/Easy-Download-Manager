@@ -1,0 +1,264 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! Streams served over RTMP, RTSP and MMS: the protocols of media servers
+//! and older players, which no HTTP request reaches.
+//!
+//! RTMP (RTMPS and RTMPT too) is EDM's own client (`rtmp.rs`), RTSP (RTSPS
+//! too) goes through the `retina` crate (`rtsp.rs`): the stream recorded as
+//! it comes into a fragmented MP4 that
+//! plays however far it got (`fmp4`), rewritten as a plain one when it ends
+//! (`mp4mux`). MMS is asked for over HTTP (`mms.rs`) and kept as the
+//! Windows Media it is. RTMPE, Flash's encrypted RTMP, is refused. Each is
+//! placed as every finished download is (`finish`: its category,
+//! its folder, a digest checked). A live stream has no end and no position
+//! to come back to: it runs until its server ends it or the person stops
+//! it, and a resume starts it again. None of these goes through a proxy, so
+//! with a proxy in force the download is refused rather than sent around it.
+
+use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
+use tokio::fs;
+
+use crate::download::{Finished, Options, Update};
+use crate::Error;
+
+/// The stream schemes EDM knows, and the container their streams go into:
+/// MMS carries Windows Media, which only its own container takes as it is.
+const SCHEMES: [(&str, &str); 9] = [
+    ("rtmp", "mp4"),
+    ("rtmps", "mp4"),
+    ("rtmpe", "mp4"),
+    ("rtmpt", "mp4"),
+    ("rtsp", "mp4"),
+    ("rtsps", "mp4"),
+    ("mms", "wmv"),
+    ("mmsh", "wmv"),
+    ("mmst", "wmv"),
+];
+
+fn scheme_of(url: &str) -> Option<&'static (&'static str, &'static str)> {
+    let (scheme, _) = url.trim().split_once("://")?;
+    SCHEMES.iter().find(|(s, _)| s.eq_ignore_ascii_case(scheme))
+}
+
+/// Whether `url` is one of the stream addresses this module fetches.
+pub fn is_live(url: &str) -> bool {
+    scheme_of(url).is_some()
+}
+
+/// Whether EDM records such a stream: every one but RTMPE.
+fn own(url: &str) -> bool {
+    scheme_of(url).is_some_and(|(s, _)| {
+        [
+            "rtmp", "rtmps", "rtmpt", "rtsp", "rtsps", "mms", "mmsh", "mmst",
+        ]
+        .contains(s)
+    })
+}
+
+/// The name a stream is saved under: the address's last part, in the
+/// container its stream goes into.
+pub fn name_for(url: &str) -> String {
+    let ext = scheme_of(url).map_or("mp4", |(_, ext)| ext);
+    let last = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or("")
+        .rsplit('/')
+        .find(|part| !part.is_empty() && !part.contains("://") && !part.contains(':'))
+        .map(crate::probe::decode)
+        .unwrap_or_default();
+    let stem = match last.rsplit_once('.') {
+        Some((stem, _)) if !stem.is_empty() => stem.to_string(),
+        _ => last,
+    };
+    let stem = crate::probe::sanitize(&stem);
+    let stem = if stem.trim().is_empty() {
+        "stream".to_string()
+    } else {
+        stem
+    };
+    format!("{stem}.{ext}")
+}
+
+/// How often a recording's watcher looks at the row's stop and at the time limit.
+const WATCH_EVERY: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// Records a live stream into the folder in `options` until it ends or is stopped; returns what came of it.
+pub async fn download_live(
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let scheme = scheme_of(url).map_or("stream", |(s, _)| *s);
+    if options.proxy_for(url).is_some()
+        || options.no_route_through_system_proxy(url, scheme).is_some()
+    {
+        return Err(Error::Internal(format!(
+            "a {scheme}:// stream cannot go through a proxy, and EDM does not send it around one: \
+             turn the proxy off for this site (Options › Advanced) to fetch it"
+        )));
+    }
+    // A plain RTSP stream's sockets are the RTSP library's, which EDM cannot bind to one
+    // network: held to one (gaps row W12), it is not recorded rather than sent around it. An
+    // `rtsps://` stream's one outside socket is EDM's bridge's, bound (`rtsp::bridge`, gaps row
+    // H23b); RTMP's are EDM's own (`only_through::connect_tcp`), and RTMPT's and MMS's go through
+    // a bound client (gaps row H23a).
+    if let Some(name) = crate::only_through::only_through().filter(|_| scheme == "rtsp") {
+        let what = format!("a {scheme}:// stream");
+        return Err(Error::Internal(crate::only_through::refused_words(
+            &what, &name,
+        )));
+    }
+    // RTMPE is not EDM's: Flash's encrypted RTMP, a protection EDM does not
+    // undo.
+    if !own(url) {
+        return Err(Error::Internal(format!(
+            "{scheme}:// is an encrypted stream EDM cannot record"
+        )));
+    }
+    let name = name_for(url);
+    fs::create_dir_all(&options.parts_dir).await?;
+    let ext = name.rsplit('.').next().unwrap_or("mp4");
+    let part: PathBuf = options.parts_dir.join(format!("stream.{ext}"));
+    // A stream has no place to resume from: what an earlier run left is
+    // replaced.
+    let _ = fs::remove_file(&part).await;
+
+    let category = crate::category::classify(&name, None);
+    if let Some(tx) = &report {
+        let _ = tx
+            .send(Update::Named {
+                name: name.clone(),
+                category,
+            })
+            .await;
+    }
+    let downloaded = Arc::new(AtomicU64::new(0));
+    let reporter = report.map(|tx| crate::download::watch(Arc::clone(&downloaded), None, tx));
+
+    // The recorders stop, and close their file, when their control says so.
+    // They are given one of their own that mirrors the download's, so the
+    // time limit can stop a recording the way Stop does without pausing the
+    // row: a limit is an end, not a pause.
+    let control = crate::Control::new();
+    let limited = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let watcher = {
+        let (outer, inner, limited) = (
+            options.control.clone(),
+            control.clone(),
+            Arc::clone(&limited),
+        );
+        let deadline = options
+            .record_limit
+            .map(|l| tokio::time::Instant::now() + l);
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(WATCH_EVERY).await;
+                match outer.wanted() {
+                    crate::control::Wanted::Run => {}
+                    crate::control::Wanted::Pause => return inner.pause(),
+                    crate::control::Wanted::Cancel => return inner.cancel(),
+                }
+                if deadline.is_some_and(|d| tokio::time::Instant::now() >= d) {
+                    limited.store(true, std::sync::atomic::Ordering::SeqCst);
+                    return inner.pause();
+                }
+            }
+        })
+    };
+    let recorded = if scheme.starts_with("rtsp") {
+        crate::rtsp::record(url, &part, &control, &downloaded).await
+    } else if scheme.starts_with("mms") {
+        crate::mms::record(url, &part, &control, &downloaded).await
+    } else {
+        crate::rtmp::record(url, &part, &control, &downloaded).await
+    };
+    watcher.abort();
+    // Ended by the limit: what was recorded is kept and placed, as when the
+    // server ends the stream.
+    let recorded = match recorded {
+        Err(Error::Paused) if limited.load(std::sync::atomic::Ordering::SeqCst) => Ok(0),
+        other => other,
+    };
+    stop_reporting(reporter).await;
+    if let Err(stopped) = recorded {
+        if !matches!(stopped, Error::Paused) {
+            let _ = fs::remove_file(&part).await;
+        }
+        return Err(stopped);
+    }
+    // Rewritten plain, its index first so it seeks; kept fragmented (it
+    // plays) where that fails. An MMS stream is Windows Media, kept as the
+    // server sent it.
+    let plain = part.with_extension("plain.mp4");
+    if !scheme.starts_with("mms")
+        && crate::mp4mux::join_async(vec![part.clone()], plain.clone())
+            .await
+            .is_ok()
+    {
+        fs::rename(&plain, &part).await?;
+    } else {
+        let _ = fs::remove_file(&plain).await;
+    }
+    placed(&name, &part, options).await
+}
+
+/// The stream's part file placed as any finished download is.
+async fn placed(name: &str, part: &std::path::Path, options: &Options) -> Result<Finished, Error> {
+    let (path, bytes, category) =
+        crate::download::finish(name, None, &[part.to_path_buf()], options).await?;
+    Ok(Finished {
+        path,
+        bytes,
+        connections: 1,
+        category,
+        verified: options.checksum.is_some(),
+        mirrors: 1,
+        left_behind: None,
+        disguised: None,
+    })
+}
+
+/// Ends the progress reporter, as the other routes do: told it is over,
+/// and waited for so its last word is sent.
+async fn stop_reporting(
+    reporter: Option<(
+        tokio::task::JoinHandle<()>,
+        tokio::sync::oneshot::Sender<()>,
+    )>,
+) {
+    if let Some((handle, finished)) = reporter {
+        let _ = finished.send(());
+        let _ = handle.await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stream_addresses_are_told_and_named() {
+        assert!(is_live("rtmp://media.example/live/show"));
+        assert!(is_live("RTSP://cam.example:554/stream1"));
+        assert!(is_live("mms://old.example/clip.wmv"));
+        assert!(!is_live("https://example.com/a.mp4"));
+        assert!(!is_live("ftp://example.com/a.mp4"));
+        assert_eq!(name_for("rtmp://media.example/live/show"), "show.mp4");
+        assert_eq!(
+            name_for("rtmp://media.example/live/show.flv?key=1"),
+            "show.mp4"
+        );
+        assert_eq!(name_for("mms://old.example/clip.asf"), "clip.wmv");
+        assert_eq!(name_for("rtsp://cam.example:554/"), "stream.mp4");
+        // A decoded "../" never makes a path of the name.
+        let sly = name_for("rtmp://media.example/live/%2E%2E%2Fescape");
+        assert!(!sly.contains('/') && !sly.contains('\\'), "{sly}");
+    }
+}

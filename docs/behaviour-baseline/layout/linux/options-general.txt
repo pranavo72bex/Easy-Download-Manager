@@ -1,7 +1,7 @@
-# dm's window, scene options-general (linux, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene options-general (linux, 1280x720, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "Tasks" 48 7 90 29.5
 "File" 106 7 140 29.5
 "Downloads" 156 7 232 29.5
@@ -23,7 +23,7 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add dm to your browser:" 236 99.5 430 122
+"Add EDM to your browser:" 236 99.5 430 122
 "Microsoft Edge" 453 99.5 571 122
 "Firefox" 609 99.5 668 122
 "Chrome and others" 706 99.5 849 122
@@ -65,7 +65,7 @@
 "200%" 417.5 280 446.5 299.5
 "100%" 452 252.5 486 275
 "Starting and updating" 220 326 860 348.5
-"Start dm when I sign in" 220 360 820 382.5
+"Start EDM when I sign in" 220 360 820 382.5
 "When I close the window" 220 404 748 426.5
 "Ask me" 770 404 821 426.5
 "When an address is already in the list" 220 448 748 470.5

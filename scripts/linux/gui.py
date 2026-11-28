@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Real mouse and keyboard on dm's window and tray, under X11.
+"""Real mouse and keyboard on EDM's window and tray, under X11.
 
 Runs inside the Linux container (scripts/linux-gui-check.sh), where X11
 input can be sent for real: a window manager (openbox), xdotool, and a
 StatusNotifierWatcher, the tray service GNOME, KDE and waybar speak. The
 tray is driven as their panels drive it, over D-Bus (dbusmenu "clicked"
-events), since dm's tray is a StatusNotifierItem and no window to click.
+events), since EDM's tray is a StatusNotifierItem and no window to click.
 What macOS will not let this shell do:
 
 - close the window into the tray, then bring it back from the tray menu;
@@ -42,13 +42,13 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-import drawn  # noqa: E402  (scripts/drawn.py: where dm says it drew words)
+import drawn  # noqa: E402  (scripts/drawn.py: where EDM says it drew words)
 
-BINARY = pathlib.Path(os.environ.get("DM_BINARY", "/target/debug/dm-gpui"))
-# The name dm's window gives itself on the accessibility bus: the binary's
-# (dm-gpui), or as DM_ATSPI_APPS lists them.
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY", "/target/debug/edm-gpui"))
+# The name EDM's window gives itself on the accessibility bus: the binary's
+# (edm-gpui), or as EDM_ATSPI_APPS lists them.
 # Read again by the AT-SPI scripts below, which run as processes of their own.
-os.environ.setdefault("DM_ATSPI_APPS", f"{BINARY.name},dm")
+os.environ.setdefault("EDM_ATSPI_APPS", f"{BINARY.name},EDM")
 RESULTS = []
 
 
@@ -56,15 +56,15 @@ ORACLE = None
 
 
 
-def dm_popen(argv, **kw):
-    """dm started in a process group of its own, so `end` stops all of it:
-    an AppImage runs dm as its wrapper's child, and a signal to the wrapper
-    alone left that dm running, which later launches then handed over to."""
+def edm_popen(argv, **kw):
+    """EDM started in a process group of its own, so `end` stops all of it:
+    an AppImage runs EDM as its wrapper's child, and a signal to the wrapper
+    alone left that EDM running, which later launches then handed over to."""
     return subprocess.Popen(argv, start_new_session=True, **kw)
 
 
 def end(app):
-    """Stops a dm and everything in its group, and waits for it."""
+    """Stops an EDM and everything in its group, and waits for it."""
     if app.poll() is not None:
         return
     import signal
@@ -86,19 +86,19 @@ def check(name, ok, detail=""):
         try:
             seen = ORACLE("ui.inspect")
             rows = [(r.get("name"), r.get("status")) for r in seen.get("rows", [])]
-            print(f"        dm says: dialogs {seen.get('dialogs')}, selected {seen.get('selected')}, rows {rows}", flush=True)
+            print(f"        EDM says: dialogs {seen.get('dialogs')}, selected {seen.get('selected')}, rows {rows}", flush=True)
         except Exception as e:  # diagnostics only
-            print(f"        (no word from dm: {e})", flush=True)
+            print(f"        (no word from EDM: {e})", flush=True)
 
 
 def oracle(home):
-    """dm's own account of its window (the control protocol), read on a
+    """EDM's own account of its window (the control protocol), read on a
     failure to say what the window held: diagnostics, never the check."""
     import socket
     port_file = home / "control.port"
     if not wait_for(lambda: port_file.exists() and port_file.read_text(encoding="utf-8").strip(), 20):
         return None
-    # The file outlives the dm that wrote it: after an exit, or a dm that
+    # The file outlives the EDM that wrote it: after an exit, or an EDM that
     # never opened, its port answers nobody. Diagnostics, so no oracle then.
     try:
         sock = socket.create_connection(("127.0.0.1", int(port_file.read_text(encoding="utf-8"))), timeout=10)
@@ -129,18 +129,18 @@ def wait_for(probe, seconds):
 
 
 def is_main_title(title):
-    """dm's main window by its title: "dm", or while downloads run how far and how fast before
-    " — dm", "37% · 4.1 MB/s — dm" (gaps row U16; `dm_desktop_base::taskbar::is_main_title`).
-    No dialog's title ends so: "About dm" has no dash."""
-    return title == "dm" or title.endswith(" — dm")
+    """EDM's main window by its title: "EDM", or while downloads run how far and how fast before
+    " — EDM", "37% · 4.1 MB/s — EDM" (gaps row U16; `edm_desktop_base::taskbar::is_main_title`).
+    No dialog's title ends so: "About EDM" has no dash."""
+    return title == "EDM" or title.endswith(" — EDM")
 
 
 # The same for xdotool's `--name`, an extended regular expression.
-MAIN_NAME = "^(dm|.* — dm)$"
+MAIN_NAME = "^(EDM|.* — EDM)$"
 
 
-def dm_windows():
-    """dm's main windows that are viewable, by their title (`is_main_title`)."""
+def edm_windows():
+    """EDM's main windows that are viewable, by their title (`is_main_title`)."""
     found = x("xdotool", "search", "--onlyvisible", "--name", MAIN_NAME).stdout.split()
     return found
 
@@ -162,7 +162,7 @@ desktop = pyatspi.Registry.getDesktop(0)
 found = None
 for i in range(desktop.childCount):
     app = desktop[i]
-    if not app or app.name not in os.environ["DM_ATSPI_APPS"].split(","):
+    if not app or app.name not in os.environ["EDM_ATSPI_APPS"].split(","):
         continue
     frames, buttons = [], []
     def walk(node, depth=0):
@@ -189,7 +189,7 @@ desktop = pyatspi.Registry.getDesktop(0)
 found, seen = [], set()
 for i in range(desktop.childCount):
     app = desktop[i]
-    if not app or app.name not in os.environ["DM_ATSPI_APPS"].split(","):
+    if not app or app.name not in os.environ["EDM_ATSPI_APPS"].split(","):
         continue
     def walk(node, depth=0):
         if node is None or depth > 60:
@@ -215,11 +215,11 @@ FIELD_ROLES = ("text", "entry", "spin button", "slider")
 
 
 def where(role, name, contains=False):
-    """Where on screen dm's control of this role and name is: its centre, or None. With
+    """Where on screen EDM's control of this role and name is: its centre, or None. With
     `contains`, a name that starts with `name` counts (menu items).
 
     With a dialog open (each a window of its own, B42) only the dialog counts, as the main
-    window behind it takes no clicks, and only where dm says it drew those words: AT-SPI
+    window behind it takes no clicks, and only where EDM says it drew those words: AT-SPI
     reaches a dialog too, but gives a control its whole rectangle even where the dialog has
     scrolled it out of view, which can be a point inside the window on top of another control
     (a click meant for a switch below the fold toggled nothing, 2026-11-08). A field in a
@@ -240,7 +240,7 @@ def dialog_point(call, words, contains=False):
 
 
 def dialog_value(label):
-    """What dm draws beside `label` in its open dialog, or None."""
+    """What EDM draws beside `label` in its open dialog, or None."""
     return drawn.value(drawn.dialog(ORACLE)[0], label)
 
 
@@ -250,7 +250,7 @@ def dialog_field_point(call, label):
 
 
 def scrolled_to(words, contains=False, field=False):
-    """Where `words` (or, with `field`, the field they label) are in dm's open dialog once it
+    """Where `words` (or, with `field`, the field they label) are in EDM's open dialog once it
     is scrolled to them, a few notches of the wheel at a time, down to the end of the page and
     then back up, as a person looks through a long tab; None when no dialog is open or they
     never show."""
@@ -291,11 +291,11 @@ def click(role, name, seconds=10, contains=False):
 
 
 def win_geo():
-    """Where dm's window really is on screen: its client area's absolute
+    """Where EDM's window really is on screen: its client area's absolute
     corner and size, from the X server. `xdotool getwindowgeometry` gives the
     frame's corner under some window managers, one title bar too high, which
     sent every click computed from a row's rectangle one row low."""
-    w = dm_windows()
+    w = edm_windows()
     if not w:
         return None
     out = x("xwininfo", "-id", w[0]).stdout
@@ -309,7 +309,7 @@ def win_geo():
 
 
 def row_point(match):
-    """The centre of a row on screen, from dm's own row rectangle (the
+    """The centre of a row on screen, from EDM's own row rectangle (the
     control protocol) plus the window's origin. egui's accessibility tree
     reports table-row cells at the wrong place, so a row is never clicked
     through `where`; the toolbar, menus and dialogs are. `match` is checked
@@ -344,14 +344,14 @@ def click_row(match, button="1", seconds=10):
 
 
 def spoken():
-    """What a screen reader finds of dm over AT-SPI: the window's name, and
+    """What a screen reader finds of EDM over AT-SPI: the window's name, and
     the names of its buttons."""
     out = x(sys.executable, "-c", SPOKEN).stdout.strip().splitlines()
     return json.loads(out[-1]) if out else None
 
 
 def tray_item():
-    """dm's tray item as a panel finds it: registered with the
+    """EDM's tray item as a panel finds it: registered with the
     StatusNotifierWatcher, its menu read over dbusmenu. (bus name, menu
     path, {label: id}, item path), or None while there is none."""
     out = gdbus("--dest", "org.kde.StatusNotifierWatcher", "--object-path", "/StatusNotifierWatcher",
@@ -389,12 +389,12 @@ def tray_item():
 
 
 def tray_icon():
-    """Whether dm's tray item is there, menu and all."""
+    """Whether EDM's tray item is there, menu and all."""
     return tray_item() is not None
 
 
 def tray_tooltip():
-    """dm's tray item's ToolTip property, as a panel reads it: (icon name,
+    """EDM's tray item's ToolTip property, as a panel reads it: (icon name,
     pixmaps, title, description)."""
     item = tray_item()
     if not item:
@@ -405,14 +405,14 @@ def tray_tooltip():
 
 
 def tray_tooltip_said():
-    """Its title is dm and its words say the downloads go on: a panel that
-    shows only the title shows dm, and one that shows more says why."""
+    """Its title is EDM and its words say the downloads go on: a panel that
+    shows only the title shows EDM, and one that shows more says why."""
     said = tray_tooltip()
-    return "'dm'" in said and "downloads keep running here" in said
+    return "'EDM'" in said and "downloads keep running here" in said
 
 
-# dm's tray menu, by label, as a panel shows it.
-SHOW, SPEED_LIMITER, SCHEDULER, QUIT = "Show dm", "Speed limiter", "Scheduler…", "Exit dm"
+# EDM's tray menu, by label, as a panel shows it.
+SHOW, SPEED_LIMITER, SCHEDULER, QUIT = "Show EDM", "Speed limiter", "Scheduler…", "Exit EDM"
 
 
 def tray_menu(pick):
@@ -443,7 +443,7 @@ class SlowFiles:
         import socketserver
         import threading
 
-        # Long enough, at the slow rate below and dm's default eight
+        # Long enough, at the slow rate below and EDM's default eight
         # connections, to still be running when the Stop and Delete scenes
         # reach the row: 24 MiB finished in about three seconds.
         self.body = bytes((i * 31 + 7) & 0xFF for i in range(48 * 1024 * 1024))
@@ -538,7 +538,7 @@ def click_field(name):
     """Clicks into the field labelled `name` and selects what it holds."""
     # In a dialog's own window (see `where`): the window names each field for a screen
     # reader, where it stands, so the field is reached by its name as Orca reaches it: an
-    # empty field draws only its hint, which dm does not say it drew, and an aim beside the
+    # empty field draws only its hint, which EDM does not say it drew, and an aim beside the
     # label missed it.
     def found():
         texts, inner = drawn.dialog(ORACLE)
@@ -571,7 +571,7 @@ def add_url_by_hand(url, then="Start now"):
             return missed("the Add URL button")
         if wait_for(lambda: dialog_open("Add URL"), 3):
             break
-        # Where dm says it drew the toolbar's words, as AT-SPI's place for them may be old.
+        # Where EDM says it drew the toolbar's words, as AT-SPI's place for them may be old.
         at = main_point("Add URL")
         if at:
             x("xdotool", "mousemove", "--sync", str(at[0]), str(at[1]))
@@ -587,13 +587,13 @@ def add_url_by_hand(url, then="Start now"):
 
 
 def main_point(words):
-    """Where dm says it drew `words` in its main window, on screen."""
+    """Where EDM says it drew `words` in its main window, on screen."""
     geo = win_geo()
     return drawn.main_point(ORACLE, geo and (geo["X"], geo["Y"]), words)
 
 
 def dialog_open_list():
-    """The titles of dm's open dialogs, as dm lists them."""
+    """The titles of EDM's open dialogs, as EDM lists them."""
     try:
         return (ORACLE("ui.inspect") or {}).get("dialogs") or [] if ORACLE else []
     except (OSError, RuntimeError, ValueError):
@@ -601,7 +601,7 @@ def dialog_open_list():
 
 
 def dialog_open(title):
-    """Whether dm has the dialog of that title open (a window of its own, B42, whose title is
+    """Whether EDM has the dialog of that title open (a window of its own, B42, whose title is
     the system's title bar, not words drawn in it)."""
     return title in dialog_open_list()
 
@@ -653,7 +653,7 @@ def settings_of(home):
 def finished_files_by_hand(home, base, site, good, evil):
     """What else a person does with finished downloads: the file's SHA-256 and
     a digest checked in Properties, several files named by a pattern, and a
-    folder dm watches for links."""
+    folder EDM watches for links."""
     import hashlib
 
     print("\nthe digest, a pattern, and a watched folder")
@@ -721,7 +721,7 @@ def finished_files_by_hand(home, base, site, good, evil):
     saved.write_text(f"[InternetShortcut]\nURL={link}\n", encoding="utf-8")
     old = time.time() - 60
     os.utime(saved, (old, old))
-    check("a link saved there appears in dm's list and downloads", wait_for(lambda: state_of(home, link) == "completed", 60),
+    check("a link saved there appears in EDM's list and downloads", wait_for(lambda: state_of(home, link) == "completed", 60),
           str(state_of(home, link)))
     check("and its file is put aside in done", (watched / "done" / "saved-link.url").exists() and not saved.exists())
     settle()
@@ -729,14 +729,14 @@ def finished_files_by_hand(home, base, site, good, evil):
 
 def extract_and_command_line(home, env):
     """Extract here, clicked on a real zip's row with the real pointer, and
-    the command line against this same dm: what a tester would do after
+    the command line against this same EDM: what a tester would do after
     downloading an archive."""
     import http.server
     import threading
     import zipfile
 
     print("\nextracting a downloaded zip, and the command line")
-    site = pathlib.Path(tempfile.mkdtemp(prefix="dm-zips-"))
+    site = pathlib.Path(tempfile.mkdtemp(prefix="edm-zips-"))
     with zipfile.ZipFile(site / "good.zip", "w") as z:
         z.writestr("readme.txt", "hello from the archive")
         z.writestr("docs/deep/note.txt", "nested")
@@ -788,11 +788,11 @@ def extract_and_command_line(home, env):
               not epath.with_suffix("").exists() and not list(home.rglob("escaped.txt"))
               and not list(pathlib.Path(tempfile.gettempdir()).glob("escaped.txt")))
 
-        # The command line, against this dm (started with --control 0).
+        # The command line, against this EDM (started with --control 0).
         def cli(*args):
             return subprocess.run([str(BINARY), *args], env=env, capture_output=True, text=True, timeout=30, encoding="utf-8", errors="replace")
         listed = cli("list")
-        check("`dm list` shows the downloads, one a line",
+        check("`EDM list` shows the downloads, one a line",
               listed.returncode == 0 and "good.zip" in listed.stdout and "completed" in listed.stdout,
               listed.stdout + listed.stderr)
         table = json.loads(cli("list", "--json").stdout or "[]")
@@ -823,7 +823,7 @@ def open_options_tab(label, expect):
 
 
 def scroll_dialog(notches=12, inner=None):
-    """The wheel over dm's open dialog window (or dm's window where none is open), as a person
+    """The wheel over EDM's open dialog window (or EDM's window where none is open), as a person
     scrolls a long tab: down for a positive number of notches, up for a negative one."""
     inner = inner or drawn.dialog(ORACLE)[1]
     geo = win_geo()
@@ -847,7 +847,7 @@ def options_by_hand(home):
     # The six tabs of contract row B43: the network's and the proxy's settings are parts of
     # Advanced's page, not tabs of their own.
     # Each tab is found by what is drawn at its top: the rest scrolls inside Options.
-    tabs = [("General", "Language"), ("Browser", "Add dm to your browser:"), ("Folders", "Download folder"),
+    tabs = [("General", "Language"), ("Browser", "Add EDM to your browser:"), ("Folders", "Download folder"),
             ("Downloads", "Connections per file"), ("Advanced", "Network"), ("Sign-ins", "Add a login")]
     key("ctrl+comma")
     check("Ctrl+, opens Options", bool(wait_for(lambda: where("*", "General"), 10)))
@@ -879,17 +879,17 @@ def human_session(home, env, app):
     global ORACLE
     """A tester's session, with the real pointer and keyboard: every control
     found by its name and clicked where it is on screen, every result read
-    from what dm wrote to disk. Returns the dm left running at the end."""
+    from what EDM wrote to disk. Returns the EDM left running at the end."""
     files = SlowFiles()
     try:
-        x("xdotool", "windowactivate", "--sync", dm_windows()[0])
+        x("xdotool", "windowactivate", "--sync", edm_windows()[0])
 
         print("\na download by hand: Add URL, type, OK, Start now, Stop, Resume")
         url = files.url("by-hand.bin")
         check("the Add URL button, clicked, opens New download",
               click("push button", "Add URL") and click_field("Address"))
         # Read as a screen reader reads it (Orca reads AT-SPI): the dialog is a window of its
-        # own, given its own AccessKit adapter by dm's eframe (gaps row 160), so its buttons are
+        # own, given its own AccessKit adapter by EDM's eframe (gaps row 160), so its buttons are
         # there, not only the main window's.
         def read_in_dialog():
             inner = drawn.dialog(ORACLE)[1]
@@ -1006,7 +1006,7 @@ def human_session(home, env, app):
         key("Escape")
         time.sleep(0.5)
         # A running download cannot be deleted until it is stopped: Delete,
-        # clicked on it, does nothing (dm keeps an active download safe).
+        # clicked on it, does nothing (EDM keeps an active download safe).
         click_row(slow, seconds=5)
         click("push button", "Delete")
         time.sleep(1)
@@ -1092,13 +1092,13 @@ def human_session(home, env, app):
         key("Escape")
 
         print("\nthe window, and leaving")
-        window = dm_windows()[0]
+        window = edm_windows()[0]
         x("xdotool", "windowsize", "--sync", window, "1000", "700")
         time.sleep(1.5)
-        check("Program › Exit, clicked, quits dm",
+        check("Program › Exit, clicked, quits EDM",
               click("*", "Tasks") and click("*", "Exit", contains=True) and wait_for(lambda: app.poll() is not None, 15))
-        app = dm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        window = wait_for(dm_windows, 30)
+        app = edm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        window = wait_for(edm_windows, 30)
         ORACLE = oracle(home)
         size = x("xdotool", "getwindowgeometry", "--shell", window[0]).stdout if window else ""
         w = h = 0
@@ -1111,8 +1111,8 @@ def human_session(home, env, app):
         x("xdotool", "windowactivate", "--sync", window[0]) if window else None
         key("ctrl+q")
         check("Ctrl+Q quits", wait_for(lambda: app.poll() is not None, 15))
-        app = dm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        wait_for(dm_windows, 30)
+        app = edm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        wait_for(edm_windows, 30)
         ORACLE = oracle(home)
         return app
     finally:
@@ -1145,7 +1145,7 @@ desktop = pyatspi.Registry.getDesktop(0)
 out = {"frames": [], "tables": [], "rows": 0, "headers": [], "cells": [], "buttons": [], "bars": [],
        "status": []}
 def main_title(name):
-    return name == "dm" or name.endswith(" — dm")
+    return name == "EDM" or name.endswith(" — EDM")
 def walk(node, inside, depth=0):
     if node is None or depth > 60:
         return
@@ -1174,7 +1174,7 @@ def walk(node, inside, depth=0):
         walk(node[i], inside, depth + 1)
 for i in range(desktop.childCount):
     app = desktop[i]
-    if app and app.name in os.environ["DM_ATSPI_APPS"].split(","):
+    if app and app.name in os.environ["EDM_ATSPI_APPS"].split(","):
         walk(app, False)
 print(json.dumps(out))
 """
@@ -1190,25 +1190,25 @@ def told():
 
 
 def table_as_read():
-    """Gaps row U23, read over AT-SPI as Orca reads it, on a dm and a home of their own: the
+    """Gaps row U23, read over AT-SPI as Orca reads it, on an EDM and a home of their own: the
     list a table named Downloads, a row for each download under the headings' row, its headings
     and cells named; a greyed button told off (Delete with nothing chosen); a running download's
     bar valued from 0 to 100; "X finished." and "X failed: reason" said in the status region.
     Not read here: a heading's place and sort and Connections' open or shut state, which
-    AccessKit's AT-SPI adapter does not give. Returns the dm, still running."""
+    AccessKit's AT-SPI adapter does not give. Returns the EDM, still running."""
     global ORACLE
     print("\nwhat a screen reader is told of the list (gaps row U23), over AT-SPI")
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-told-"))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-told-"))
     (home / "downloads").mkdir()
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "show_progress": False, "show_complete": False,
         "popups_version": 2}), encoding="utf-8")
     files = SlowFiles()
-    app = dm_popen([str(BINARY), "--control", "0"], env=dict(os.environ, DM_HOME=str(home)),
+    app = edm_popen([str(BINARY), "--control", "0"], env=dict(os.environ, EDM_HOME=str(home)),
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        if not wait_for(dm_windows, 30):
-            check("dm opens its window for the list's reading", False)
+        if not wait_for(edm_windows, 30):
+            check("EDM opens its window for the list's reading", False)
             return app
         ORACLE = oracle(home)
         slow, done, gone = files.url("slow-told.bin"), files.url("small-told.bin"), files.url("missing-told.bin")
@@ -1251,7 +1251,7 @@ def table_as_read():
 
 
 def tray_host_timing(env):
-    """A tray host that is not there, or comes after dm: at login dm can
+    """A tray host that is not there, or comes after EDM: at login EDM can
     start before the panel, and GNOME without its extension has none."""
     print("\na tray host that is missing, or late")
     # Anchored: the shell that started the watcher has its name in its own
@@ -1262,96 +1262,96 @@ def tray_host_timing(env):
     x("pkill", "-f", "^[^ ]*python3?[^ ]* [^ ]*tray_host\\.py")
     wait_for(lambda: not x("pgrep", "-f", "^status-notifier-watcher").stdout.strip(), 10)
 
-    app = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    check("with no tray host dm still opens", wait_for(dm_windows, 30))
-    x("wmctrl", "-i", "-c", dm_windows()[0])
+    app = edm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    check("with no tray host EDM still opens", wait_for(edm_windows, 30))
+    x("wmctrl", "-i", "-c", edm_windows()[0])
     check("and closing the window quits, having no tray to hide into",
           wait_for(lambda: app.poll() is not None, 15))
 
-    app = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    wait_for(dm_windows, 30)
+    app = edm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    wait_for(edm_windows, 30)
     time.sleep(2)
     watcher = panel()
-    check("a tray host that comes later gets dm's item", wait_for(tray_icon, 20), "nothing registered")
-    check("and its tooltip names dm and says the downloads go on", tray_tooltip_said(),
+    check("a tray host that comes later gets EDM's item", wait_for(tray_icon, 20), "nothing registered")
+    check("and its tooltip names EDM and says the downloads go on", tray_tooltip_said(),
           tray_tooltip())
-    x("wmctrl", "-i", "-c", dm_windows()[0])
+    x("wmctrl", "-i", "-c", edm_windows()[0])
     check("and closing then hides it into that tray",
-          wait_for(lambda: not dm_windows(), 10) and app.poll() is None)
+          wait_for(lambda: not edm_windows(), 10) and app.poll() is None)
     # The panel restarts (waybar is often reloaded): its new watcher can
     # drop the registration that arrives as it starts.
     end_panel(watcher)
     watcher = panel()
-    check("a tray host that restarts gets dm's item back", wait_for(tray_icon, 20), "nothing registered")
+    check("a tray host that restarts gets EDM's item back", wait_for(tray_icon, 20), "nothing registered")
     tray_menu(QUIT)
     wait_for(lambda: app.poll() is not None, 15)
 
     end_panel(watcher)
-    hidden = dm_popen([str(BINARY), "--hidden"], env=env, stdout=subprocess.DEVNULL,
+    hidden = edm_popen([str(BINARY), "--hidden"], env=env, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
     time.sleep(3)
-    check("a login launch with no tray host waits hidden at first", not dm_windows())
-    check("then opens its window rather than run unseen", wait_for(dm_windows, 20))
+    check("a login launch with no tray host waits hidden at first", not edm_windows())
+    check("then opens its window rather than run unseen", wait_for(edm_windows, 20))
     # Left running with a host again, for whatever runs next.
     panel()
     return hidden
 
 
 def start_on_login(home, env):
-    """Start on login, as a desktop session does it: dm writes its XDG
+    """Start on login, as a desktop session does it: EDM writes its XDG
     autostart entry, and `dex` starts what is in the autostart folder the
-    way GNOME, KDE, Xfce and the rest do at login. Returns the dm it
+    way GNOME, KDE, Xfce and the rest do at login. Returns the EDM it
     started, for the caller to end."""
     print("\nstart on login")
     config = home / "config"
-    # Without DM_HOME: a dm on a home of its own (a test's, a script's) leaves
+    # Without EDM_HOME: an EDM on a home of its own (a test's, a script's) leaves
     # the login item alone by design, so that every test's fresh home does not
     # register one on the computer running it. A real login launch has no
-    # DM_HOME, and keeps its home under XDG_DATA_HOME.
+    # EDM_HOME, and keeps its home under XDG_DATA_HOME.
     saved = json.loads((home / "settings.json").read_text(encoding="utf-8"))
-    env = {k: v for k, v in env.items() if k != "DM_HOME"}
+    env = {k: v for k, v in env.items() if k != "EDM_HOME"}
     env = dict(env, XDG_CONFIG_HOME=str(config), XDG_CONFIG_DIRS=str(home / "no-system-autostart"),
                XDG_DATA_HOME=str(home / "xdg-data"))
-    own = home / "xdg-data" / "dm-engine"
+    own = home / "xdg-data" / "edm-engine"
     own.mkdir(parents=True, exist_ok=True)
     settings = own / "settings.json"
     settings.write_text(json.dumps(dict(saved, start_on_login=True)), encoding="utf-8")
-    entry = config / "autostart" / "dm.desktop"
+    entry = config / "autostart" / "EDM.desktop"
 
-    # Turned on: the next launch writes the entry, aimed at this dm.
-    first = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Turned on: the next launch writes the entry, aimed at this EDM.
+    first = edm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     written = wait_for(entry.exists, 15)
     text = entry.read_text(encoding="utf-8") if written else ""
     check("turning it on writes an autostart entry", written)
-    check("which starts this dm into the tray", f"Exec={BINARY} --hidden\n" in text, text)
+    check("which starts this EDM into the tray", f"Exec={BINARY} --hidden\n" in text, text)
     end(first)
 
     # The login: the session starts the entry.
-    # Not captured: dm inherits whatever dex is given, and a pipe it holds
+    # Not captured: EDM inherits whatever dex is given, and a pipe it holds
     # open would never reach its end.
     started = subprocess.run(["dex", "--autostart", "--environment", "Openbox"], env=env,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20)
     pid = lambda: x("pgrep", "-f", f"^{BINARY} --hidden").stdout.split()
     running = wait_for(pid, 15)
-    check("at login the session starts dm", running and started.returncode == 0,
+    check("at login the session starts EDM", running and started.returncode == 0,
           f"dex exited {started.returncode}")
     time.sleep(3)
-    check("and it opens no window", not dm_windows())
+    check("and it opens no window", not edm_windows())
     check("but waits in the tray", wait_for(tray_icon, 20), "nothing registered")
     tray_menu(SHOW)
-    check("whose Show dm opens the window", wait_for(dm_windows, 10))
+    check("whose Show EDM opens the window", wait_for(edm_windows, 10))
     tray_menu(QUIT)
     wait_for(lambda: not pid(), 15)
 
     # Turned off: the next launch removes it.
     settings.write_text(json.dumps(dict(saved, start_on_login=False)), encoding="utf-8")
-    last = dm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    last = edm_popen([str(BINARY)], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     check("turning it off removes the entry", wait_for(lambda: not entry.exists(), 15))
     return last
 
 
 def main():
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-gui-"))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-gui-"))
     (home / "downloads").mkdir()
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "speed_limit": 0, "watch_clipboard": True,
@@ -1363,22 +1363,22 @@ def main():
         # would otherwise sit through minutes of half-minute retries.
         "attempts": 3,
     }), encoding="utf-8")
-    env = dict(os.environ, DM_HOME=str(home))
+    env = dict(os.environ, EDM_HOME=str(home))
     screen_reader_on()
-    app = dm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    app = edm_popen([str(BINARY), "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
         print("the window and the tray, with real input")
-        check("dm opens its window", wait_for(dm_windows, 30))
+        check("EDM opens its window", wait_for(edm_windows, 30))
         global ORACLE
         ORACLE = oracle(home)
 
-        orca_log = os.environ.get("DM_ORCA_LOG")
+        orca_log = os.environ.get("EDM_ORCA_LOG")
         if not orca_log:
             # Read the way a screen reader reads; with Orca running, Orca
             # itself is the reader, below.
             heard = wait_for(spoken, 20)
             frames, buttons = heard or ([], [])
-            check("a screen reader finds the window, named dm", any(is_main_title(f or "") for f in frames),
+            check("a screen reader finds the window, named EDM", any(is_main_title(f or "") for f in frames),
                   str(frames))
             check("and every button in it has a name", buttons and all(b.strip() for b in buttons),
                   f"{len([b for b in buttons if not b.strip()])} of {len(buttons)} unnamed")
@@ -1386,7 +1386,7 @@ def main():
         else:
             # Orca, the screen reader itself, is running: Tab through the
             # window and hear what it says.
-            window = dm_windows()[0]
+            window = edm_windows()[0]
             x("xdotool", "windowactivate", "--sync", window)
             for _ in range(2):
                 time.sleep(1)
@@ -1397,19 +1397,19 @@ def main():
                 return [line.split("SPEECH OUTPUT: ", 1)[1].split("{")[0].strip()
                         for line in text.splitlines() if "SPEECH OUTPUT: " in line]
             heard = wait_for(lambda: [s for s in said() if "push button" in s], 15) and said()
-            check("Orca names the window: dm frame", any("dm frame" in s for s in heard or []), str(heard))
+            check("Orca names the window: EDM frame", any("EDM frame" in s for s in heard or []), str(heard))
             check("and says each button as Tab reaches it",
                   any(s.endswith("push button.'") for s in heard or []), str(heard))
         check("and puts its item in the tray, with its menu", wait_for(tray_icon, 20), "nothing registered")
 
         # Closed through the window manager, as a person closes it.
-        window = dm_windows()[0]
+        window = edm_windows()[0]
         # Asked of openbox the way its close button asks (_NET_CLOSE_WINDOW),
         # not with a synthetic Alt+F4: after that chord openbox now and then
         # kept the keyboard grabbed, and a tray menu cannot open under
         # another client's grab.
         closed = x("wmctrl", "-i", "-c", window)
-        # The first close asks whether dm keeps running in the tray (asked once, the
+        # The first close asks whether EDM keeps running in the tray (asked once, the
         # answer kept in Options): a person answers Keep running.
         keep = wait_for(lambda: dialog_point(ORACLE, "Keep running"), 10)
         if keep:
@@ -1417,25 +1417,25 @@ def main():
             time.sleep(0.2)
             x("xdotool", "click", "1")
         asked = bool(keep)
-        gone = closed.returncode == 0 and wait_for(lambda: not dm_windows(), 10)
+        gone = closed.returncode == 0 and wait_for(lambda: not edm_windows(), 10)
         check("the first close asks whether to keep running in the tray, and Keep running is clicked",
               asked, "no question, or no Keep running button")
-        check("closing the window hides it into the tray, and dm keeps running",
+        check("closing the window hides it into the tray, and EDM keeps running",
               gone and app.poll() is None, closed.stderr.strip())
         check("and the answer is kept: closing next time does not ask",
               settings_of(home).get("on_close") == "tray", str(settings_of(home).get("on_close")))
 
         tray_menu(SHOW)
-        check("the tray menu's Show dm brings the window back", wait_for(dm_windows, 10))
+        check("the tray menu's Show EDM brings the window back", wait_for(edm_windows, 10))
 
         # A left click on the icon: the panel calls Activate on the item.
-        x("wmctrl", "-i", "-c", dm_windows()[0])
-        wait_for(lambda: not dm_windows(), 10)
+        x("wmctrl", "-i", "-c", edm_windows()[0])
+        wait_for(lambda: not edm_windows(), 10)
         item = tray_item()
         if item:
             gdbus("--dest", item[0], "--object-path", item[3], "--method",
                   "org.kde.StatusNotifierItem.Activate", "0", "0")
-        check("a left click on the tray icon brings the window back", wait_for(dm_windows, 10))
+        check("a left click on the tray icon brings the window back", wait_for(edm_windows, 10))
 
         tray_menu(SPEED_LIMITER)
         settings = lambda: json.loads((home / "settings.json").read_text(encoding="utf-8"))
@@ -1453,7 +1453,7 @@ def main():
         source = subprocess.Popen([sys.executable, str(pathlib.Path(__file__).with_name("drag_source.py")),
                                    str(links)])
         src = wait_for(lambda: x("xdotool", "search", "--name", "^drag me$").stdout.split(), 15)
-        target = dm_windows()
+        target = edm_windows()
         if src and target:
             geo = lambda w: {k: int(v) for k, v in (
                 line.split("=") for line in x("xdotool", "getwindowgeometry", "--shell", w).stdout.split()
@@ -1478,7 +1478,7 @@ def main():
 
         tray_menu(QUIT)
         quit_ = wait_for(lambda: app.poll() is not None, 15)
-        check("the tray menu's Quit dm ends dm", quit_ is not None and quit_ is not False)
+        check("the tray menu's Quit EDM ends EDM", quit_ is not None and quit_ is not False)
 
         app = start_on_login(home, env)
         end(app)

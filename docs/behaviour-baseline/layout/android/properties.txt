@@ -1,7 +1,7 @@
-# dm's window, scene properties (android, 412x915, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene properties (android, 412x915, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 412x915]
+[main "EDM" 412x915]
 "All downloads" 24 4.5 308 37
 "3 downloads" 24 37 308 58
 "Filter" 324 19.5 348 43.5
@@ -34,7 +34,7 @@
 "Category" 16 252.5 544 273.5
 "Documents" 16 275.5 544 300
 "Will be saved to" 16 314 544 335
-"/tmp/dm-golden/Downloads/report.pdf" 16 337 544 351
+"/tmp/edm-golden/Downloads/report.pdf" 16 337 544 351
 "?" 343 375 353 401
 "Cancel" 399 375.5 453 400
 "Save" 494 375.5 530 400

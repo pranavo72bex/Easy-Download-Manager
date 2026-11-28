@@ -1,6 +1,6 @@
 # Speed limiter
 
-The speed limiter keeps dm from using all of your connection. This page
+The speed limiter keeps EDM from using all of your connection. This page
 covers every place you set a limit: the **Speed limiter** window, the
 **Downloads › Speed limiter** menu, the status bar, the tray icon's
 **Speed** menu, **Options › Advanced**, a site rule's own limit, and one
@@ -8,15 +8,15 @@ download's own limit.
 
 ## The limit every download shares
 
-There is one speed limit for all of dm, in KB/s. It holds every connection
+There is one speed limit for all of EDM, in KB/s. It holds every connection
 of every running download together under that speed; it is not a speed for
 each download. Torrents are held under it too: while some run, the limit is
-shared between them and dm's other downloads. 0 means no limit.
+shared between them and EDM's other downloads. 0 means no limit.
 
 You can set this one limit in four places, and each shows the same number:
 
 - **Speed limit (KB/s, 0 for none)** in the Speed limiter window;
-- **Options › Advanced › Speed limit (KB/s, 0 for none)** ("Keeps dm from
+- **Options › Advanced › Speed limit (KB/s, 0 for none)** ("Keeps EDM from
   using all of your connection.");
 - the presets in **Downloads › Speed limiter**, the status bar and the
   tray;
@@ -39,7 +39,7 @@ The menu, from top to bottom:
 
 After a choice the status bar says "Speed limiter on: … KB/s." or "Speed
 limiter off." A limit you turn off or replace with a preset is remembered,
-so **Limit speed** can bring it back, also after dm restarts.
+so **Limit speed** can bring it back, also after EDM restarts.
 
 ## The status bar
 
@@ -55,7 +55,7 @@ The tray icon's menu has:
   limit off or back on, as **Limit speed** does.
 - **Speed:** **Low speed (256 KB/s)**, **Medium speed (1 MB/s)**, **High
   speed (4 MB/s)** and **Full speed**, the one in force ticked, and
-  **Speed limiter settings…**, which brings dm's window forward and opens
+  **Speed limiter settings…**, which brings EDM's window forward and opens
   the Speed limiter window.
 
 ## The Speed limiter window
@@ -68,13 +68,13 @@ tray icon. Asked for again while it is open, it comes to the front.
   above. The most it takes is 1,048,576 KB/s.
 - **Data allowance (MB, 0 for none)** and **Allowance period (hours):** a
   download limit, for a connection with a
-  fair-use allowance. dm counts what every download brings in, torrents and
+  fair-use allowance. EDM counts what every download brings in, torrents and
   videos included. The period begins with the first byte counted after the
   last period ended, and runs for the hours given (1 to 744). Once the
-  allowance is used up, dm holds its downloads until the period is over,
+  allowance is used up, EDM holds its downloads until the period is over,
   then they go on by themselves. While it holds them the status bar says
   "download limit of … MB reached, held for …". What has been used is kept
-  when dm restarts.
+  when EDM restarts.
 - **Slower between set hours:** a lower limit for part of every day. Tick
   it, then choose **Start at** and **Stop at** (hours and minutes) and give
   **Speed limit in those hours (KB/s)**. A time span that ends before it
@@ -112,6 +112,6 @@ from a site rule shows here too, ticked.
 ## Held downloads
 
 When the download limit or the Scheduler holds downloads, **Start now** or
-**Resume** on them asks **Start outside the schedule?** (see [Questions dm
+**Resume** on them asks **Start outside the schedule?** (see [Questions EDM
 asks](questions.md)), and says which is holding them: "Held by the download
 limit; it goes on by itself in …".

@@ -1,6 +1,6 @@
 ## What this changes
 
-<!-- What dm does differently after this, and why. Link the issue if there is one. -->
+<!-- What EDM does differently after this, and why. Link the issue if there is one. -->
 
 ## How it was tested
 

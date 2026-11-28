@@ -1,6 +1,6 @@
 name: Audit
 
-# Known vulnerabilities in what dm depends on, from the RustSec database.
+# Known vulnerabilities in what EDM depends on, from the RustSec database.
 # Weekly as well as on a change, because an advisory can be published
 # against a lockfile nobody has touched. Advisories looked at and found
 # unreachable are listed, each with its reason, in .cargo/audit.toml.

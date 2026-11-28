@@ -1,16 +1,16 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""dm against real sites, signed in nowhere, and everything it made removed.
+"""EDM against real sites, signed in nowhere, and everything it made removed.
 
     python3 scripts/real-sites.py                   # every site
     SITES=youtube,wikimedia python3 scripts/real-sites.py
 
 Starts the real binary headless on a throwaway home, download folder and
 cache, hands it one link per site through the control
-protocol, waits for each row to settle, checks what landed, then stops dm
+protocol, waits for each row to settle, checks what landed, then stops EDM
 and deletes all of it. A file served directly is compared byte for byte
 with curl's copy, a video's structure is read by media_check.py (its
 tracks, length, and that nothing is cut short), and a site that needs a
@@ -19,7 +19,7 @@ than saved as a "completed" page.
 
 Not in CI: it fetches about 220 MB from real sites, which change. Run by
 hand before a release (needs curl). First run, 2026-10-13,
-found Wikimedia refusing dm's user agent and then serving several ranges at
+found Wikimedia refusing EDM's user agent and then serving several ranges at
 once as the whole file; both are fixed and pinned by tests.
 """
 import hashlib, json, os, pathlib, shutil, socket, subprocess, sys, tempfile, time
@@ -35,9 +35,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import media_check  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-# dm's agent, as dm-core says it (USER_AGENT), for curl's second opinion.
-AGENT = "dm/0.1.0 (+https://github.com/pranavo72bex/Easy-Download-Manager)"
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
+# EDM's agent, as edm-core says it (USER_AGENT), for curl's second opinion.
+AGENT = "EDM/0.1.0 (+https://github.com/pranavo72bex/Easy-Download-Manager)"
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug/edm-gpui")
 
 # (site, url, what should happen, how the result is checked)
 CASES = [
@@ -66,8 +66,8 @@ if os.environ.get("SITES"):
 
 def main():
     if not BINARY.exists():
-        sys.exit(f"no dm binary at {BINARY} — cargo build -p dm-gpui")
-    root = pathlib.Path(tempfile.mkdtemp(prefix="dm-real-"))
+        sys.exit(f"no EDM binary at {BINARY} — cargo build -p edm-gpui")
+    root = pathlib.Path(tempfile.mkdtemp(prefix="edm-real-"))
     home, downloads, cache = root / "home", root / "downloads", root / "cache"
     for d in (home, downloads, cache):
         d.mkdir()
@@ -76,7 +76,7 @@ def main():
         "stream_quality": "360", "ask_panel_downloads": False,
         "show_progress": False, "show_complete": False,
     }), encoding="utf-8")
-    env = dict(os.environ, DM_HOME=str(home), XDG_CACHE_HOME=str(cache))
+    env = dict(os.environ, EDM_HOME=str(home), XDG_CACHE_HOME=str(cache))
     app = subprocess.Popen([str(BINARY), "--headless", "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     try:
@@ -108,7 +108,7 @@ def main():
             time.sleep(2)
         took = time.time() - started
 
-        print(f"\n{'site':<40} {'dm says':<12} {'result'}")
+        print(f"\n{'site':<40} {'EDM says':<12} {'result'}")
         failures = 0
         for site, url, expect, how in CASES:
             r = rows().get(url)
@@ -119,7 +119,7 @@ def main():
             verdict = verify(expect, how, url, kind, path, downloads, root)
             ok = verdict.startswith("ok")
             failures += not ok
-            print(f"{site:<40} {kind:<12} {'ok  ' if ok else 'FAIL'} {verdict}" + (f" — dm: {reason[:140]}" if reason else ""))
+            print(f"{site:<40} {kind:<12} {'ok  ' if ok else 'FAIL'} {verdict}" + (f" — EDM: {reason[:140]}" if reason else ""))
         print(f"\n{len(CASES) - failures} of {len(CASES)} sites as expected, in {took:.0f}s")
         conn.close()
     finally:
@@ -152,8 +152,8 @@ def verify(expect, how, url, kind, path, downloads, root):
         # only a copy curl finished is compared (OVH reset curl once).
         ref = root / "curl.ref"
         fetched = False
-        # Asked as dm asks: its full agent, then its name alone, which is
-        # what dm falls back to where a site refuses the first (and curl's
+        # Asked as EDM asks: its full agent, then its name alone, which is
+        # what EDM falls back to where a site refuses the first (and curl's
         # own agent is refused by some of the same sites).
         for agent in [AGENT, AGENT.split(" ")[0], AGENT.split(" ")[0]]:
             ref.unlink(missing_ok=True)

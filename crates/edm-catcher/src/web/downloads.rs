@@ -1,0 +1,486 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! A download the browser started: deciding whether the app takes it.
+
+use super::*;
+
+#[wasm_bindgen(start)]
+pub fn started() {
+    std::panic::set_hook(Box::new(|panic| log("error", &panic.to_string())));
+}
+
+/// A download the browser has begun. Taken when the app wants it and takes
+/// it; otherwise left exactly as it was.
+#[wasm_bindgen]
+pub async fn on_download_created(item: JsValue) {
+    let item: DownloadItem = serde_json::from_value(from_js(&item)).unwrap_or_default();
+    // However this ends, Chrome's question about the file's name is
+    // answered, or dropped with the download EDM took.
+    let mut decided = Decided {
+        id: item.id.map(|n| n as i64),
+        taken: false,
+    };
+    let Some((found, forced)) = first_checks(&item).await else {
+        return;
+    };
+
+    // Held while the app is asked, so the browser does not finish it in the
+    // meantime and leave the file in two places. When the rules the app last
+    // sent would catch it, it is held before the app is asked at all:
+    // starting the host takes long enough for a small download to finish.
+    let id = JsValue::from_f64(found.id as f64);
+    let Some((paused, port)) = verdict_on(&found, forced, &id).await else {
+        return;
+    };
+
+    let start = start_for(&found).await;
+    match handed(port, start, &found).await {
+        Ok(shown) => taken_from_browser(shown, &found, &id, &mut decided).await,
+        Err(why) => {
+            log(
+                "warn",
+                &format!(
+                    "the EDM app did not take {}, so the browser keeps it: {why}",
+                    found.url
+                ),
+            );
+            notify("The browser is downloading it", &why);
+            if paused {
+                give_back(&id, &found.url).await;
+            }
+        }
+    }
+}
+
+/// Pauses the browser's download `id`; whether it is held.
+async fn pause(id: &JsValue) -> bool {
+    call("downloads", "pause", std::slice::from_ref(id))
+        .await
+        .is_ok()
+}
+
+/// What a download the browser began is, where EDM may look further at it: not with catching
+/// switched off, given back a moment ago, nobody's (an advert, a beacon) or from a paused
+/// site. With whether it is the app's whatever the types and size floor say. `None` where it
+/// is left with the browser.
+async fn first_checks(item: &DownloadItem) -> Option<(Catchable, bool)> {
+    // The toolbar popup's switch: off, the browser keeps every download.
+    if !catching().await {
+        log("debug", "left with the browser: catching is switched off");
+        return None;
+    }
+    let found = match first_look(item, &own_id()) {
+        Ok(found) => found,
+        Err(why) => {
+            log("debug", &format!("left with the browser: {why}"));
+            return None;
+        }
+    };
+    let asked_for = item.url.clone().unwrap_or_default();
+    if RELEASED.with(|r| {
+        let mut released = r.borrow_mut();
+        released.take(&found.url, now()) || released.take(&asked_for, now())
+    }) {
+        log(
+            "debug",
+            "left with the browser: given back to it a moment ago",
+        );
+        return None;
+    }
+    // With nothing remembered yet (before the app has ever answered), every
+    // candidate is held; one the app turns out not to want is given back.
+    // A site the popup takes everything from is held whatever the rules say
+    // about type and size; the app's own switch and skip list still hold.
+    let clicked = TAKEN.with(|t| {
+        let mut taken = t.borrow_mut();
+        taken.take(&found.url, now()) || taken.take(&asked_for, now())
+    });
+    // An advert, a beacon, a page's own sound or furniture is never taken,
+    // whatever the settings: nobody came for it. A click with the take key
+    // held is a person asking for this one.
+    if !clicked {
+        ensure_served().await;
+        if let Some(why) = decide::excluded::address(&found.url) {
+            log("debug", &format!("left with the browser: {}", why.reason()));
+            return None;
+        }
+    }
+    // A site the popup has paused is the browser's, unless a click with the
+    // take key held asked for this one.
+    if !clicked && decide::paused_download(&paused_sites().await, &found) {
+        log(
+            "debug",
+            "left with the browser: capturing is paused for its site",
+        );
+        return None;
+    }
+    let forced = clicked || forced_for(&found).await;
+    Some((found, forced))
+}
+
+/// Whether the app takes the download `found` (the browser's `id`), held first where the rules
+/// the app last sent would catch it. `None` where it is left with the browser, given back
+/// where it was held; otherwise whether the browser holds it, and the port asking left open.
+async fn verdict_on(found: &Catchable, forced: bool, id: &JsValue) -> Option<(bool, Option<Port>)> {
+    // A browser unticked in EDM's Options is taken from no more, as reference A's list of the
+    // browsers it captures from (gaps row 86); its menus still hand things over.
+    let browser = this_browser();
+    let early = remembered_rules().await.is_none_or(|rules| {
+        rules.takes_from(browser) && rules.takes(&found.candidate(), forced).is_ok()
+    });
+    let mut paused = early && pause(id).await;
+
+    let (app, mut port) = app().await;
+    // An app that judges by its own rules as they are now is asked (gaps row A22 b): a rule
+    // added to it works with this extension as released. One that does not answer in time is
+    // judged by the rules it last sent, with this extension's own reading of them.
+    let asked = match &app {
+        App::Present { hello, .. } if hello.has(edm_protocol::feature::JUDGES_CATCH) => {
+            let judge = decide::judge_of(found, &hand_id("j", found.id, now()), browser, forced);
+            let (verdict, open) = judged_by_app(port.take(), judge).await;
+            port = open;
+            verdict
+        }
+        _ => None,
+    };
+    let verdict = match &app {
+        App::Present { hello, .. } if asked.is_some() => {
+            asked.clone().unwrap_or(Ok(())).and_then(|()| {
+                decide::takes_caught(hello).map_err(|old| {
+                    if !TOLD_OLD.with(|t| t.replace(true)) {
+                        notify("Update the EDM app", old);
+                    }
+                    old.to_string()
+                })
+            })
+        }
+        App::Present { rules, .. } if !rules.takes_from(browser) => Err(format!(
+            "EDM takes no downloads from {browser} (Options › Browser)"
+        )),
+        App::Present { rules, hello } => rules
+            .takes(&found.candidate(), forced)
+            .map_err(|left| left.reason().to_string())
+            .and_then(|()| {
+                // An app too old to tell a sign-in page from the file would
+                // take the page, and the browser's copy would be erased.
+                decide::takes_caught(hello).map_err(|old| {
+                    if !TOLD_OLD.with(|t| t.replace(true)) {
+                        notify("Update the EDM app", old);
+                    }
+                    old.to_string()
+                })
+            }),
+        App::Absent { .. } => Err("no app to hand it to".to_string()),
+    };
+    if let Err(why) = verdict {
+        if paused {
+            give_back(id, &found.url).await;
+        }
+        // Said when the browser keeps a download that EDM would have taken
+        // had it been reachable; a type EDM does not catch is not news.
+        if matches!(app, App::Absent { .. }) {
+            notify("The browser is downloading it", "EDM could not be reached");
+        }
+        log("debug", &format!("left with the browser: {why}"));
+        return None;
+    }
+
+    if !paused {
+        paused = pause(id).await;
+    }
+    // Not held: it may have finished already (a small file served fast, a
+    // PDF in Chromium above all); that still goes, by its address.
+    if !paused {
+        if let Err(why) = decide::unheld(state_of(found.id).await.as_deref()) {
+            log("debug", &format!("left with the browser: {why}"));
+            return None;
+        }
+    }
+    Some((paused, port))
+}
+
+/// What the app is handed for the caught download `found`.
+async fn start_for(found: &Catchable) -> Start {
+    // The site's sign-in, where the popup has that on for the site, or
+    // the app's Options for every site.
+    let (cookies, cookies_once) = sign_in_for(&found.url, found.store.as_deref(), false).await;
+    let start = Start {
+        id: hand_id("b", found.id, now()),
+        url: found.url.clone(),
+        referrer: found.referrer.clone(),
+        // The browser holds it: EDM checks it can fetch it before taking it,
+        // and only an app that judges what it is served may take it.
+        caught: true,
+        held: true,
+        cookies,
+        cookies_once,
+        // The headers the browser's own request carried (a token a site
+        // checks), kept when the request went out.
+        headers: sent_to(&found.url).await,
+        // What the browser is being sent, so the app can tell a sign-in
+        // page served to it in the file's place, and refuse.
+        mime: found.mime.clone(),
+        // The page's title, so the app can name a file whose own name says
+        // nothing (a hash, `video`); the app keeps a real name.
+        title: tab_title(&found.referrer).await.unwrap_or_default(),
+        // A form's answer: the form, for EDM to send again. Its type goes
+        // with the browser's own request headers above.
+        post: FORMS.with(|f| f.borrow_mut().take(&found.asked_url, &found.url, now())),
+        // From a private window: the app keeps no record of it once whole (gaps row W17).
+        private_window: found.private,
+        ..Start::default()
+    };
+    // The form's type, as the browser's request named it.
+    let mut start = start;
+    if let Some(post) = start.post.as_mut() {
+        if post.content_type.is_empty() {
+            post.content_type = start
+                .headers
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case("content-type"))
+                .map(|(_, value)| value.clone())
+                .unwrap_or_default();
+        }
+    }
+    start
+}
+
+/// Hands `start` to the app. EDM refused for want of the browser's session (a link only a
+/// signed-in browser can fetch): handed over again with that session, for this one download,
+/// rather than left to download in the browser.
+async fn handed(port: Option<Port>, start: Start, found: &Catchable) -> Result<bool, String> {
+    let mut outcome = hand(port, start.clone(), None).await;
+    if outcome
+        .as_ref()
+        .is_err_and(|why| why.contains("EDM cannot fetch this without the browser"))
+        && start.cookies.is_empty()
+    {
+        let (cookies, _) = listed_sign_in(&found.url, found.store.as_deref(), true, true).await;
+        if !cookies.is_empty() {
+            outcome = hand(
+                None,
+                Start {
+                    id: hand_id("b", found.id, now()),
+                    cookies,
+                    cookies_once: true,
+                    ..start
+                },
+                None,
+            )
+            .await;
+        }
+    }
+    outcome
+}
+
+/// The app has the download `found` (the browser's `id`; `shown` where its own window came
+/// forward to ask about it): the browser's copy is cancelled or removed and its entry erased.
+async fn taken_from_browser(shown: bool, found: &Catchable, id: &JsValue, decided: &mut Decided) {
+    log("info", &format!("handed {} to the EDM app", found.url));
+    // Said in the browser, where the download just vanished; EDM's own window may be
+    // behind it. Not where that window comes forward to ask about it (gaps row U11).
+    if !shown {
+        toast_sent(decide::taken_name(&found.filename, &found.url));
+    }
+    // Held or not, it can have finished in the browser meanwhile:
+    // a pause does not stop what Chromium has already received.
+    let (verb, what) = match decide::after_taken(state_of(found.id).await.as_deref()) {
+        decide::BrowserCopy::Cancel => ("cancelled", "cancel"),
+        decide::BrowserCopy::Remove => ("removed", "removeFile"),
+    };
+    let mut done = call("downloads", what, std::slice::from_ref(id)).await;
+    // Finished between the look and the cancel: a fast file (a
+    // 300 KB PDF) stayed whole in the browser's folder beside EDM's,
+    // its list entry erased below. Chromium's
+    // cancel of a finished download succeeds and does nothing, so
+    // the state is looked at after every cancel, and a finished copy
+    // removed.
+    if what == "cancel" {
+        for _ in 0..20 {
+            match state_of(found.id).await.as_deref() {
+                Some("complete") => {
+                    done = call("downloads", "removeFile", std::slice::from_ref(id)).await;
+                    break;
+                }
+                Some("in_progress") => sleep(100.0).await,
+                // Interrupted, as a cancel that took leaves it, or gone.
+                _ => break,
+            }
+        }
+    }
+    match done {
+        // Gone from the browser before it named the file: its Save
+        // dialog, where it would have asked, never opens.
+        Ok(_) => decided.taken = true,
+        Err(why) => log(
+            "warn",
+            &format!("the browser's copy could not be {verb}: {why}"),
+        ),
+    }
+    let query = to_js(&serde_json::json!({ "id": found.id }));
+    let _ = call("downloads", "erase", &[query]).await;
+}
+
+/// Asks the app whether it takes a download the browser started (`catch.judge`), on the port
+/// the handshake left open where it did, and hands the port back for the hand-off that follows.
+/// `None` where the app did not answer in time, or the port went.
+async fn judged_by_app(
+    port: Option<Port>,
+    judge: edm_protocol::Judge,
+) -> (Option<Result<(), String>>, Option<Port>) {
+    let mut port = match port {
+        Some(port) => port,
+        None => match Port::open() {
+            Ok(port) => port,
+            Err(_) => return (None, None),
+        },
+    };
+    let id = judge.id.clone();
+    if port.send(&Request::Judge(judge)).is_err() {
+        return (None, None);
+    }
+    let deadline = now() + decide::JUDGED_WITHIN_MS;
+    loop {
+        match port.next(deadline).await {
+            Heard::Frame(frame) => {
+                if let Some(verdict) = decide::judged(&frame, &id) {
+                    return (Some(verdict), Some(port));
+                }
+            }
+            Heard::Gone(why) => {
+                log("debug", &format!("the app did not judge a download: {why}"));
+                return (None, None);
+            }
+        }
+    }
+}
+
+/// Chrome asking what to name a download (Chrome only; Firefox has no such
+/// event). Held until `on_download_created` has decided, so a download EDM
+/// takes is gone before Chrome would open its Save dialog for it: it asks
+/// when the name is too long for the disk, or when "Ask where to save each
+/// file" is on, and a dialog opened before the cancel stayed open.
+/// The loader returns `true` for it, which tells Chrome the answer comes later.
+#[wasm_bindgen]
+pub fn on_determining_filename(item: JsValue, suggest: JsValue) {
+    let Ok(suggest) = suggest.dyn_into::<Function>() else {
+        return;
+    };
+    let Some(id) = get(&item, "id").as_f64().map(|n| n as i64) else {
+        return name_as_the_browser_would(&suggest);
+    };
+    if let Some(now) = HOLDS.with(|h| h.borrow_mut().ask(id, suggest)) {
+        return name_as_the_browser_would(&now);
+    }
+    // Whatever happens to the decision, the browser is not held for ever.
+    wasm_bindgen_futures::spawn_local(async move {
+        sleep(decide::DETERMINE_WITHIN_MS).await;
+        if let Some(late) = HOLDS.with(|h| h.borrow_mut().expire(id)) {
+            log(
+                "warn",
+                "a download's name was held too long; the browser names it",
+            );
+            name_as_the_browser_would(&late);
+        }
+    });
+}
+
+/// Answers Chrome's question with no suggestion: the name it chose stands.
+pub(super) fn name_as_the_browser_would(suggest: &Function) {
+    if let Err(why) = suggest.call0(&JsValue::UNDEFINED) {
+        log(
+            "debug",
+            &format!("the browser's name question: {}", say(&why)),
+        );
+    }
+}
+
+/// Settles Chrome's file name question for a download once its `onCreated`
+/// has run its course, on every way out of it.
+pub(super) struct Decided {
+    id: Option<i64>,
+    /// Taken by EDM and cancelled or removed in the browser.
+    taken: bool,
+}
+
+impl Drop for Decided {
+    fn drop(&mut self) {
+        let Some(id) = self.id else { return };
+        if self.taken {
+            HOLDS.with(|h| h.borrow_mut().drop_taken(id));
+        } else if let Some(suggest) = HOLDS.with(|h| h.borrow_mut().decide(id)) {
+            name_as_the_browser_would(&suggest);
+        }
+    }
+}
+
+/// The state the browser reports for a download now: `in_progress`,
+/// `interrupted` or `complete`; `None` once it is gone from the list.
+pub(super) async fn state_of(id: i64) -> Option<String> {
+    let query = to_js(&serde_json::json!({ "id": id }));
+    let found = call("downloads", "search", &[query])
+        .await
+        .unwrap_or_default();
+    get(&found, "0.state").as_string()
+}
+
+/// Lets the browser carry on with a download it was holding. Where it cannot
+/// be resumed — Firefox cannot resume what the server will not range — it is
+/// started again, marked so it is not caught a second time.
+pub(super) async fn give_back(id: &JsValue, url: &str) {
+    if call("downloads", "resume", std::slice::from_ref(id))
+        .await
+        .is_ok()
+    {
+        return;
+    }
+    // Finished while it was held (Chromium completes a fast PDF despite the
+    // pause): the browser has the file, and starting it again would make two.
+    if let Some(n) = id.as_f64() {
+        if state_of(n as i64).await.as_deref() == Some("complete") {
+            return;
+        }
+    }
+    RELEASED.with(|r| r.borrow_mut().remember(url, now()));
+    let options = to_js(&serde_json::json!({ "url": url }));
+    if let Err(why) = call("downloads", "download", &[options]).await {
+        log(
+            "error",
+            &format!("{url} could not be given back to the browser: {why}"),
+        );
+        notify(
+            "A download could not be kept",
+            &format!("Neither EDM nor the browser could carry on with {url}: {why}"),
+        );
+    }
+}
+
+/// The title of the open tab at `referrer`, the page a caught download was
+/// started from. A browser's `DownloadItem` names no tab, so the tabs are
+/// matched by address; reading a tab's title needs the host permission the
+/// extension already has for every page.
+async fn tab_title(referrer: &str) -> Option<String> {
+    if referrer.trim().is_empty() {
+        return None;
+    }
+    let found = call("tabs", "query", &[js_sys::Object::new().into()])
+        .await
+        .ok()?;
+    let tabs: Vec<(String, String)> = from_js(&found)
+        .as_array()?
+        .iter()
+        .map(|tab| {
+            let field = |k: &str| {
+                tab.get(k)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string()
+            };
+            (field("url"), field("title"))
+        })
+        .collect();
+    decide::referrer_title(&tabs, referrer).map(|title| decide::clean_title(&title, referrer))
+}

@@ -1,11 +1,11 @@
-# Questions dm asks
+# Questions EDM asks
 
-Some things dm does first ask you. This page lists every question, when it
+Some things EDM does first ask you. This page lists every question, when it
 comes, and what each answer does.
 
 ## How a question works
 
-- A question opens in front of dm's main window and holds it until you
+- A question opens in front of EDM's main window and holds it until you
   answer. On Windows it is a small window of its own; on macOS it slides
   down from the top of the main window. If the main window is in the tray,
   it comes back for the question.
@@ -81,12 +81,12 @@ deleted is said in the status bar: "Couldn't delete …".
 ## Open a program?
 
 Asked when you open a finished file that would run as a program (an `.exe`,
-`.msi`, `.dmg`, `.pkg`, `.apk`, a script and the like), or one dm found is a
+`.msi`, `.dmg`, `.pkg`, `.apk`, a script and the like), or one EDM found is a
 program under another name: "… is a program: it runs with everything you can
 do on this computer. Open it only if you trust the site it came from."
 
 - **Cancel** (the default): it stays unopened.
-- **Open:** dm opens it, and does not ask again for that file while dm runs.
+- **Open:** EDM opens it, and does not ask again for that file while EDM runs.
 
 ## Start outside the schedule?
 
@@ -163,8 +163,8 @@ assistant: the file is downloaded as before.
 ## Some are already in the list
 
 From **Tasks › Import…**, when some addresses in the list you open are
-already downloads in dm: "… of the … addresses in this list are already in
-dm's list."
+already downloads in EDM: "… of the … addresses in this list are already in
+EDM's list."
 
 - **Skip them:** adds only the new ones.
 - **Add them again:** adds every address.
@@ -187,39 +187,39 @@ Return: **Leave them to the browser**. Escape: **Keep handing them over**.
 
 ## Keep running in the tray?
 
-The first time you close dm's main window while **Options › General ›
-When I close the window** is **Ask me**: "Keep dm in the tray and your
-downloads carry on, and your browser can still send it links. Or exit dm
+The first time you close EDM's main window while **Options › General ›
+When I close the window** is **Ask me**: "Keep EDM in the tray and your
+downloads carry on, and your browser can still send it links. Or exit EDM
 now. You can change this later in Options."
 
-- **Exit:** exits dm (asking **Exit dm?** first while downloads run).
+- **Exit:** exits EDM (asking **Exit EDM?** first while downloads run).
 - **Keep running:** puts the window away in the tray; downloads go on.
 
 The answer is kept in **When I close the window**, so it is not asked
 again. Return and Escape: **Keep running**. Where there is no tray to keep
-dm in, closing the window exits dm, asking **Exit dm?** first while
+EDM in, closing the window exits EDM, asking **Exit EDM?** first while
 downloads run.
 
-## Exit dm?
+## Exit EDM?
 
-When you exit dm (**Tasks › Exit**, Ctrl+Q or ⌘Q, the tray's **Exit dm**)
-while downloads run or wait to start. With nothing running or waiting, dm
+When you exit EDM (**Tasks › Exit**, Ctrl+Q or ⌘Q, the tray's **Exit EDM**)
+while downloads run or wait to start. With nothing running or waiting, EDM
 exits without asking. It says how many downloads are running and how many
 are waiting, and "Exiting pauses them. They pick up where they left off
-the next time you open dm."
+the next time you open EDM."
 
-- **Keep downloading:** dm stays open.
+- **Keep downloading:** EDM stays open.
 - **Exit:** pauses the downloads and exits.
 
 Return and Escape: **Keep downloading**. If every download finishes while
-the question is open, it says "Nothing is downloading any more. Exit dm?",
+the question is open, it says "Nothing is downloading any more. Exit EDM?",
 **Keep downloading** becomes **Stay**, and Return picks **Exit**.
 
 ## Downloads are done
 
 When **Downloads › When done** (or the Scheduler's, or a download's own
 **When this download is done**) is set to exit, sleep, hibernate or turn
-off, and its time has come. It counts down: "dm will put the computer to
+off, and its time has come. It counts down: "EDM will put the computer to
 sleep in 30 seconds." (or "quit", "hibernate the computer", "shut the
 computer down").
 

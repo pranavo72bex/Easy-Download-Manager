@@ -1,7 +1,7 @@
 # BUGLOG — the Docker QA loop
 
 Bugs found by `qa/` (the Docker test stack), how each was reproduced, its
-root cause and its fix; and the places where a test, not dm, was wrong.
+root cause and its fix; and the places where a test, not EDM, was wrong.
 
 ## Summary
 
@@ -25,7 +25,7 @@ with no flaky result in those three.
   is still to come. Its Firefox live-page panel check was never compared with
   the build before the fix.
 - **Tests that were wrong: 15** (T-001 to T-014, two of them T-011), each explained below before
-  it was changed. Most were the test expecting a failure where dm, by design,
+  it was changed. Most were the test expecting a failure where EDM, by design,
   pauses with a reason, or a test environment that was not what it claimed.
 - **Flaky: none** in the last three runs. Run 1's network and folder
   failures were the stack running two suites at once (T-006), not flakiness.
@@ -36,40 +36,40 @@ with no flaky result in those three.
 ## Architecture (read before changing anything)
 
 - **`desktop/`** is the product: a Cargo workspace.
-  - `dm-core`: the download engine, no window. Probes a URL, plans ranges, runs
+  - `edm-core`: the download engine, no window. Probes a URL, plans ranges, runs
     up to 32 connections into one staged file (`parts/<id>/staged`) with a
     ledger per range (`done-NNNN`, written every second or 4 MB), verifies a
     resumed range's tail against the server before trusting it, retries what
     waiting can fix (`retry.rs`: 10 tries by default, backoff to 30 s), and
     moves the file into the download folder at the end. Also HLS/DASH, FTP,
-    Metalink, torrents, and YouTube's pages, read by dm itself (`youtube.rs`).
-  - `dm-shell`: settings, the queue file, the browser host and `--register`,
-    the one-instance lock, and the application layer (`dm_shell::app`).
-  - `dm-desktop-base`: what the program does that is not drawing:
+    Metalink, torrents, and YouTube's pages, read by EDM itself (`youtube.rs`).
+  - `edm-shell`: settings, the queue file, the browser host and `--register`,
+    the one-instance lock, and the application layer (`edm_shell::app`).
+  - `edm-desktop-base`: what the program does that is not drawing:
     `--headless` with no window; a local **control port** (JSON lines on
-    127.0.0.1, token in `DM_HOME/control.token`: `downloads.add`,
+    127.0.0.1, token in `EDM_HOME/control.token`: `downloads.add`,
     `queue.list`, `downloads.pause`, `.resume`, `.cancel`, ...), the command
     line and an MCP server on it.
-  - `dm-gpui`: the program people install, its window drawn with GPUI.
-    `dm-desktop` is the older egui window, still built and tested until gaps
+  - `edm-gpui`: the program people install, its window drawn with GPUI.
+    `edm-desktop` is the older egui window, still built and tested until gaps
     row G9 removes it; the QA stack here still builds it (`qa/app/Dockerfile`).
-  - `dm-protocol`: the messages between extension and app.
+  - `edm-protocol`: the messages between extension and app.
 - **`browser/`** is the extension's logic in Rust, compiled to WebAssembly;
   **`extension/`** the manifests and three small JavaScript loaders.
-- **Extension → app is native messaging.** The browser starts `dm-desktop`
+- **Extension → app is native messaging.** The browser starts `edm-desktop`
   with its extension origin as the first argument; that process (the host)
   answers `engine.hello` / `settings.get` / `download.start`, writes the
-  request into `DM_HOME/inbox`, rings the running app's doorbell (or starts
+  request into `EDM_HOME/inbox`, rings the running app's doorbell (or starts
   it) and exits. A download the browser held is resumed in the browser if
   the app does not take it.
-- **There is no server of dm's own**; nothing leaves the computer but the
+- **There is no server of EDM's own**; nothing leaves the computer but the
   downloads themselves.
 
 ## How the QA stack runs
 
 `sh qa/run.sh` (README, "How to run the test suite"): `origin` (every HTTP
 condition, `qa/origin/origin.py`), `toxiproxy`, `mockvideo` (pages and HLS made
-by ffmpeg at build time), `app` (dm built from this checkout, headless, the
+by ffmpeg at build time), `app` (EDM built from this checkout, headless, the
 scenarios in `qa/tests/scenarios.py`, downloads on a 200 MB tmpfs, as a
 non-root user) and `browser` (Chromium with the unpacked extension,
 `scripts/chrome-check.py`), on a Docker network with no way out.
@@ -77,12 +77,12 @@ non-root user) and `browser` (Chromium with the unpacked extension,
 Deviations from the brief, and why:
 
 - The extension check is `scripts/chrome-check.py`, the repository's own,
-  driven over DevTools, not Playwright: it already covers the click-to-dm
-  hand-off, dm not running (the browser keeps the download), and the catch
+  driven over DevTools, not Playwright: it already covers the click-to-EDM
+  hand-off, EDM not running (the browser keeps the download), and the catch
   rules (types and sizes), and a second copy in Playwright would drift from it.
 - Chromium is Debian's package, not Chrome for Testing, which has no Linux
   arm64 build.
-- No HTTPS case can succeed: dm uses rustls with the built-in webpki roots, so
+- No HTTPS case can succeed: EDM uses rustls with the built-in webpki roots, so
   no certificate the stack can make is trusted. Every HTTPS case (private CA,
   expired, wrong host, self-signed) must be refused, with a reason.
 
@@ -102,7 +102,7 @@ Deviations from the brief, and why:
 - **Fix**: a body error once the range has all its bytes ends the range
   (`Err(_) if written >= span_now => break`). An unknown length plans
   `u64::MAX`, so a short stream still fails.
-- **Regression test**: `dm-core/tests/errors.rs`
+- **Regression test**: `edm-core/tests/errors.rs`
   `a_range_that_came_whole_under_a_longer_stated_length_is_finished` (failed
   before: `Network(... IncompleteBody)`; passes after).
 
@@ -116,7 +116,7 @@ Deviations from the brief, and why:
   on a certificate that cannot change.
 - **Fix**: `retry::untrusted_certificate` — an error whose chain mentions the
   certificate is not transient. The reason shown already names it.
-- **Regression test**: `dm-core/tests/errors.rs`
+- **Regression test**: `edm-core/tests/errors.rs`
   `an_untrusted_certificate_is_said_at_once_not_retried` (before: still trying
   after 60 s; after: refused in milliseconds, one connection).
 
@@ -124,7 +124,7 @@ Deviations from the brief, and why:
 
 - **Scenario**: `scripts/linux/cachyos-brave/stress.sh` (real YouTube; not part
   of the offline suite, which must not reach real sites).
-- **Symptom**: "Unsafe attempt to load URL chrome-extension://…/pkg/dm_catcher.js
+- **Symptom**: "Unsafe attempt to load URL chrome-extension://…/pkg/edm_catcher.js
   … Domains, protocols and ports must match" in the extension's errors.
 - **Root cause**: `content.js` imported the panel's module from the page's
   frame; the fetch was checked against the page's origin.
@@ -152,7 +152,7 @@ Deviations from the brief, and why:
   first (as long as a reading may take; its environment switch sets it for tests),
   or for ten minutes once it has spoken, ends the external video tool's process tree and says
   "the external video tool stopped answering".
-- **Regression test**: `dm-core/tests/videopage_quiet.rs`
+- **Regression test**: `edm-core/tests/videopage_quiet.rs`
   `a_helper_that_says_nothing_is_ended` (before: still waiting after 60 s;
   after: ended in 2 s).
 
@@ -217,18 +217,18 @@ Deviations from the brief, and why:
 ### BUG-008 — FTP and torrents refused on a computer with no proxy
 
 - **Scenario**: `scripts/linux-stress.sh` (2026-11-06, the Debian container,
-  no network): every FTP download failed with "dm cannot send FTP through
+  no network): every FTP download failed with "EDM cannot send FTP through
   the computer's proxy settings, and does not go around them". The same on
   macOS with no proxy set.
 - **Root cause**: a new install follows the computer's proxy settings (gaps
-  row 80, decided 2026-11-06). For dm's own connections (FTP, a torrent's
+  row 80, decided 2026-11-06). For EDM's own connections (FTP, a torrent's
   swarm, RTMP/RTSP) the address was looked for in the environment only; with
   none, `Options::no_route_through_system_proxy` refused, as if a proxy were
   in force and unreadable. A computer with no proxy at all was the usual case.
 - **Fix**: `proxy::system_proxy_in_force` says whether the computer has a
   proxy at all (an environment variable; on macOS the network settings,
   read with `scutil --proxy`, whose SOCKS, HTTPS or HTTP proxy is now also
-  the address used). With none, dm's own connections go direct; with a
+  the address used). With none, EDM's own connections go direct; with a
   proxy in force and no address they could use (a configuration script
   alone), they are still refused, never sent around it.
 - **Regression test**: `tests/ftp.rs`
@@ -252,7 +252,7 @@ Deviations from the brief, and why:
   plaintext handshake is read at once, so it rarely showed; an encrypted one
   takes several round trips.
 - **Fix**: every finished check is taken, a failed one dropped inside the
-  branch (dm's patched librqbit, `desktop/vendor/README.md`).
+  branch (EDM's patched librqbit, `desktop/vendor/README.md`).
 - **Regression test**: `tests/torrent_features.rs`
   `a_seeder_that_takes_only_encrypted_connections_is_reached` (it runs a
   refused plaintext connection beside the encrypted one; it timed out before).
@@ -266,19 +266,19 @@ Deviations from the brief, and why:
   came whole.
 - **Root cause**: Wikimedia's media servers answer a browser's name from a
   program with 429 and `Retry-After: 600` ("please contact noc@wikimedia.org
-  to discuss a less disruptive approach") and serve dm's own name at once
-  (measured: Internet Explorer's and Firefox's names 429, `dm/0.8.7 (+…)` 206,
-  with and without a `Referer`; eight ranges at once by dm's name all 206). dm
+  to discuss a less disruptive approach") and serve EDM's own name at once
+  (measured: Internet Explorer's and Firefox's names 429, `EDM/0.8.7 (+…)` 206,
+  with and without a `Referer`; eight ranges at once by EDM's name all 206). EDM
   sends Internet Explorer's name first, as reference A does, and moved to its
   own only when a server answered 403; a 429 was waited out under the same
   name. The limit came now on the first request and now only on the ranges
   after it.
-- **Fix**: a 429 to the browser's name asks once more by dm's own at the
+- **Fix**: a 429 to the browser's name asks once more by EDM's own at the
   first request (`probe.rs`), and on any later request moves that server to
-  dm's name for the rest of the run (`agents::limited`, from
+  EDM's name for the rest of the run (`agents::limited`, from
   `Error::from_response`). A server that limits every name gets one request
-  more than before and is waited out as before; with Identify as dm only on,
-  a limit never moves dm to another name.
+  more than before and is waited out as before; with Identify as EDM only on,
+  a limit never moves EDM to another name.
 - **Regression test**: `tests/browser_agent_limited.rs`
   `a_browsers_name_told_too_many_requests_is_asked_again_by_dms_own_once`
   (four cases: ranges limited in the browser's name, the first request
@@ -289,7 +289,7 @@ Deviations from the brief, and why:
 ### BUG-011 — a large download on Windows took twice reference A's time
 
 - **Scenario**: `D:\compare\plan_side.py large` (the video test plan's 4.5 GiB case, both
-  apps against one server on loopback), 2026-11-07, release build: dm 194 s, reference A
+  apps against one server on loopback), 2026-11-07, release build: EDM 194 s, reference A
   101 s, both byte for byte.
 - **Root cause**: the staged file is made as long as the download before any range writes
   (`ranged::preallocate`), on the understanding that "the room is only taken as bytes land".
@@ -297,7 +297,7 @@ Deviations from the brief, and why:
   over everything before it first. Measured on this disk: 64 KB written at the end of a 4.5
   GiB file took 94.5 s; the same write into a sparse file, 0.00 s.
 - **Fix**: on Windows the staged file is made sparse before its length is set
-  (`download/files.rs` `sparse`, `FSCTL_SET_SPARSE`). The same case: dm 73 s, reference A
+  (`download/files.rs` `sparse`, `FSCTL_SET_SPARSE`). The same case: EDM 73 s, reference A
   96 s.
 - **Regression test**: `download::files::tests::a_staged_file_takes_its_room_only_as_bytes_land`
   (a GiB staged file with 64 KB written at its end takes under 16 MB on disk); without the
@@ -310,7 +310,7 @@ Deviations from the brief, and why:
   by kind of kernel object on 2026-11-07: about two semaphores and one event a download, kept
   after 20 s idle; one download at a time, 100 files left +184 semaphores and +92 events.
 - **Not the cause**, though the row first suspected them: the add-and-start path (files
-  added for later and started by Start queue kept as many), the engine (`dm-core`
+  added for later and started by Start queue kept as many), the engine (`edm-core`
   `tests/handles.rs`: one range or four, +4 handles over forty downloads), the proxy lookup
   and the quiet-hours question (50 asked, +0).
 - **Root cause**: a finished download's toast. On Windows notify-rust registers a click
@@ -319,12 +319,12 @@ Deviations from the brief, and why:
   Action Center cleared or not: 30 toasts with the two handlers kept +90 handles, 30 without
   +0, from one thread or a thread each. A batch finishing in one pass is one toast, which is
   why 256 KB files (finishing together) kept fewer than 2 MB ones.
-- **Fix**: on Windows dm posts its toasts itself (`dm-desktop` `toast.rs`, WinRT through the
+- **Fix**: on Windows EDM posts its toasts itself (`edm-desktop` `toast.rs`, WinRT through the
   `windows` crate it already had): the same toast (title, an empty line, the body, short,
   silent, PowerShell's id); none with nothing to open has a handler, and one with a file has
   its click heard until it is clicked or leaves the screen, then both handlers are taken off;
   at most eight are heard at once. notify-rust is no longer built for Windows.
-- **Regression test**: `dm-desktop` `tests/handles.rs`
+- **Regression test**: `edm-desktop` `tests/handles.rs`
   `toasts_give_their_handles_back` (toasts into the Action Center without a banner, then
   taken out: 30 plain and 30 with a click keep at most 10 handles each; +0 and +0 on this
   computer). The same toasts with their handlers left on, as notify-rust left them, kept +89.
@@ -341,18 +341,18 @@ Deviations from the brief, and why:
   a torrent whose file is named `D:x` passes librqbit's name check (no `..`, no separator).
 - **Root cause**: the vendored storage joins each name onto the download folder with
   `PathBuf::push`, which on Windows starts again at a name with a drive (`D:x` is `x` in drive
-  D:'s current folder), and creates every file before dm's own check refuses the torrent. No
+  D:'s current folder), and creates every file before EDM's own check refuses the torrent. No
   content was written, but empty files were made where the torrent chose.
 - **Fix**: the vendored `init` checks every file's name before it makes any: plain parts only,
   no root, no `..`, no drive, no `:` (`plain_relative`, `desktop/vendor/README.md`).
-- **Regression tests**: `dm_tests::a_torrents_file_name_must_stay_in_its_folder` in the
-  vendored `fs.rs`, and dm-core `tests/torrent_names.rs`
+- **Regression tests**: `edm_tests::a_torrents_file_name_must_stay_in_its_folder` in the
+  vendored `fs.rs`, and edm-core `tests/torrent_names.rs`
   `a_torrent_naming_a_drive_makes_no_file_on_it`, which without the fix found the file made in
   the test's own folder, outside the download folder.
 
 ### BUG-014 — saved engine-wide settings were not in force until Options' OK
 
-- **Scenario**: dm started with "Identify as dm only" saved on (contract row B51: "the change
+- **Scenario**: EDM started with "Identify as EDM only" saved on (contract row B51: "the change
   applies at once and is kept"), a second network chosen, or a dial-up connection to wait for
   (gaps row 93, G84). Found 2026-11-08 beside reference A: a download started at once, with
   the dial-up connection set and down, where reference A dialled first.
@@ -361,15 +361,15 @@ Deviations from the brief, and why:
   settings and left the engine as it began, so the switch read on and was not in force.
 - **Fix**: one `engine_wide` in `shell.rs`, called at the start and at every change (at the
   maintainer's standing word of 2026-11-07, "if found bug or improvement just implement it").
-- **Regression test**: `dm-shell/tests/start_in_force.rs`
-  `saved_settings_are_in_force_from_the_start`, which failed before the fix (dm's own name was
+- **Regression test**: `edm-shell/tests/start_in_force.rs`
+  `saved_settings_are_in_force_from_the_start`, which failed before the fix (EDM's own name was
   not the first sent).
 
 ## Open, not fixed
 
 None. Closed 2026-10-29: the "(1)" in "QA clip (1) [watch？v=ok-1].mp4" came
-from the video helper dm used then, which numbered every video on a plain page,
-even the only one; dm dropped the number for a page's only video. The helper,
+from the video helper EDM used then, which numbered every video on a plain page,
+even the only one; EDM dropped the number for a page's only video. The helper,
 and the plain-page reading with it, are gone since 2026-10-31.
 
 ## Tests that were wrong
@@ -378,18 +378,18 @@ and the plain-page reading with it, are gone since 2026-10-31.
   `Content-Disposition` header is not valid HTTP and the client rightly
   refuses the response. A hostile server's real form is percent-encoded in
   `filename*`, which the test now sends.
-- **T-002** `http_errors`: waited 120 s for a lasting 500 to fail; dm's
+- **T-002** `http_errors`: waited 120 s for a lasting 500 to fail; EDM's
   default is ten tries with backoff to 30 s (about 135 s), by design. The
   scenario now allows three tries.
-- **T-003** `resume_after_restart` / `_kill9`: stopped dm 0.75 s in, before
-  dm's first once-a-second record of how far each range got, so starting
+- **T-003** `resume_after_restart` / `_kill9`: stopped EDM 0.75 s in, before
+  EDM's first once-a-second record of how far each range got, so starting
   again was right. The file now arrives slowly enough that the stop comes
   seconds in.
 - **T-004** `cookie_from_browser`: looked for a `Cookie` header; hyper sends
   header names in lower case.
 
 - **T-005** `disk_full`, `five_gigabytes_on_small_disk`: expected "failed".
-  dm, by design, pauses a download that will not fit before fetching a byte
+  EDM, by design, pauses a download that will not fit before fetching a byte
   and says why in the row's `stalled` ("not enough room: the file needs
   250.0 MB, and … has 200.0 MB free"); the window offers another folder or
   Resume. The tests now expect that pause and its reason. A new scenario,
@@ -412,12 +412,12 @@ and the plain-page reading with it, are gone since 2026-10-31.
 
 - **T-008** the suite: each scenario left its files on the shared 200 MB
   download disk; by `disk_full` 2.9 MB was free and every later download was
-  (rightly) paused for want of room. Each dm's folder and home are now removed
+  (rightly) paused for want of room. Each EDM's folder and home are now removed
   when it closes.
 - **T-009** `scripts/chrome-check.py`, a plain click on a PDF link: the link
   was measured without scrolling, and in Brave's and Edge's shorter windows
   under Xvfb it was below the fold (y 410), so the click landed on nothing
-  (`elementFromPoint` empty) and dm was never asked. Now scrolled into view
+  (`elementFromPoint` empty) and EDM was never asked. Now scrolled into view
   first, as `human_click` already did. Brave and Edge then pass it.
 - **T-011** `scripts/stress-check.py` `flaky/lieover`: a server whose
   `Content-Length` is 1000 over the truth while `Content-Range` tells it,
@@ -431,33 +431,33 @@ and the plain-page reading with it, are gone since 2026-10-31.
   nothing reported success. Now exits 1.
 
 - **T-011** `scripts/stress-check.py` and `stress-protocols.py` set
-  `"retries"`, a key dm's settings never had, so every phase ran with the
+  `"retries"`, a key EDM's settings never had, so every phase ran with the
   default 15 attempts. `flaky`'s 429 and 503 servers then outlasted its
   240 s wait ("still running"): with `Retry-After` the wait grows to 60 s,
   so 15 attempts take about nine minutes. The scripts now set `"attempts"`;
   `flaky` waits 420 s for ten. Found 2026-11-06 on Linux, the same on macOS.
 
 - **T-012** The torrent tests' own sessions had the DHT and local discovery
-  on, as dm's downloads do: a test's torrent was announced to the public
+  on, as EDM's downloads do: a test's torrent was announced to the public
   network and peers on the internet were connected to (seen 2026-11-06 while
   building row 150: five addresses outside this computer, one of which
   answered a handshake). `TorrentOptions::no_public_discovery` keeps a
   session to its trackers; the tests' options set it, and a run of the
   torrent tests watched with `lsof` saw no address but loopback.
 
-- **T-013** dm-shell's `dms_home_is_this_accounts_alone_on_windows_too` failed on the CI's
-  Windows runner before it reached dm (2026-11-07): it opened its parent with `icacls` and read
+- **T-013** edm-shell's `dms_home_is_this_accounts_alone_on_windows_too` failed on the CI's
+  Windows runner before it reached EDM (2026-11-07): it opened its parent with `icacls` and read
   the access list back through PowerShell's `Get-Acl`, which did not show the entry just added.
-  It now sets and reads the lists through the calls dm itself makes (`owner_only::by_hand`), and
-  every assertion prints the list it saw; with dm's change of the home switched off it fails
+  It now sets and reads the lists through the calls EDM itself makes (`owner_only::by_hand`), and
+  every assertion prints the list it saw; with EDM's change of the home switched off it fails
   naming the inherited users entry.
 
-- **T-014** dm-desktop's `toasts_give_their_handles_back` failed once in two full runs here and
+- **T-014** edm-desktop's `toasts_give_their_handles_back` failed once in two full runs here and
   once on the CI ("30 toasts with a file to open kept 15 handles", the limit 10): Windows' own
   worker threads and late releases come and go. A kept handle a toast grows round after round,
   so the toasts now go in three rounds of thirty, the count is the fewest over a second once
   settled (`GetProcessHandleCount`, not a PowerShell started for each reading), and the limit is
-  half a handle a toast over the ninety: 201 to 205 as dm is, 272 kept with the handlers left on
+  half a handle a toast over the ninety: 201 to 205 as EDM is, 272 kept with the handlers left on
   as notify-rust left them.
 
 ## Static checks and fuzzing (Step 3)
@@ -494,7 +494,7 @@ linux/arm64 from this branch.
 ### CachyOS, four browsers (2026-10-29)
 
 `sh scripts/linux/cachyos-browsers/run.sh`: CachyOS (x86-64, emulated on
-Apple silicon), dm and the extension built from this checkout, the hand-off
+Apple silicon), EDM and the extension built from this checkout, the hand-off
 checks in each browser.
 
 | Browser | Version | Result |
@@ -506,13 +506,13 @@ checks in each browser.
 
 - The one failure in Brave and Edge is the latency check (first request
   within 700 ms of the click): 1.12 to 1.27 s here, 0.10 to 0.26 s in the
-  native arm64 runs. Each click starts the 160 MB debug dm as the browser's
-  host, an x86 program under emulation; not a dm defect.
+  native arm64 runs. Each click starts the 160 MB debug EDM as the browser's
+  host, an x86 program under emulation; not an EDM defect.
 - Google Chrome ignores `--load-extension` since 137. The check now loads the
   extension over `--remote-debugging-pipe` (`Extensions.loadUnpacked`, with
   Developer mode on): Chrome accepts it with the right id, but then blocks its
   pages (`ERR_BLOCKED_BY_CLIENT`, no disable reason in the profile) and never
-  starts its worker. Open: the harness, not dm, until shown otherwise.
+  starts its worker. Open: the harness, not EDM, until shown otherwise.
 
 The engine's path was searched for `unwrap`, `expect`, `panic!` and unchecked
 indexing: the first three are already denied outside tests in every crate

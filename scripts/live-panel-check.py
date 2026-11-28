@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The "Download video" panel on a real site's HTML5 player, by hand only.
@@ -12,7 +12,7 @@ Like youtube-check.py, it runs chrome-check.py's setup and its local
 checks, then replaces the panel step with a live page: by default
 W3Schools' HTML5 video example, a plain `<video>` with an MP4 source. It
 plays the video, hovers it, checks the panel is there, clicks it, and waits
-for the file in dm's folder; on a page whose player the app reads, it picks
+for the file in EDM's folder; on a page whose player the app reads, it picks
 the smallest quality listed. Not in CI: it goes to a real site.
 """
 import importlib.util
@@ -55,7 +55,7 @@ def live(base, origin, engine_dl, engine_home, worker):
         (lambda: tab.evaluate("location.href !== 'about:blank' && document.readyState === 'complete'"))()
         if True else None), 40)
     cc.check(f"{URL}: the page script loads",
-             cc.wait_for(lambda: tab.evaluate("!!document.querySelector('dm-panel')"), 20))
+             cc.wait_for(lambda: tab.evaluate("!!document.querySelector('edm-panel')"), 20))
     rect = cc.wait_for(lambda: tab.evaluate(RECT), 20)
     # Where the site actually put the tab: a consent page or a bot check is
     # said as such, rather than as a missing player.
@@ -79,7 +79,7 @@ def live(base, origin, engine_dl, engine_home, worker):
     cc.click_panel(tab)
     # A player page lists its qualities (the app reads them); the
     # smallest is picked, to keep the download short.
-    listed = cc.wait_for(lambda: ((cc.panel(tab) or {}).get("lines") or (cc.panel(tab) or {}).get("title") == "Sent to dm")
+    listed = cc.wait_for(lambda: ((cc.panel(tab) or {}).get("lines") or (cc.panel(tab) or {}).get("title") == "Sent to EDM")
                          and cc.panel(tab), 60) or {}
     if listed.get("lines") and listed.get("at"):
         print("  listed:", listed["lines"])
@@ -94,23 +94,23 @@ def live(base, origin, engine_dl, engine_home, worker):
         cc.check("its click lists the video's qualities with their sizes", True, str(listed["lines"]))
         # The list's Part line takes a start and an end; left empty for this run, so
         # the whole video is fetched and checked below.
-        part = tab.evaluate("(() => { const r = document.querySelector('dm-panel')?.shadowRoot;"
+        part = tab.evaluate("(() => { const r = document.querySelector('edm-panel')?.shadowRoot;"
                             " const a = r?.querySelector('.part .from'), b = r?.querySelector('.part .to');"
                             " if (!a || !b) return 'none'; a.value = '0:02'; b.value = '0:06';"
                             " const typed = a.value + '-' + b.value; a.value = ''; b.value = ''; return typed; })()")
         cc.check("its list has a Part line that takes a start and an end", part == "0:02-0:06", str(part))
         cc.click_at(tab, *listed["at"][pick])
-    said = cc.wait_for(lambda: (cc.panel(tab) or {}).get("title") == "Sent to dm" and cc.panel(tab), 30)
+    said = cc.wait_for(lambda: (cc.panel(tab) or {}).get("title") == "Sent to EDM" and cc.panel(tab), 30)
     cc.check("its click is taken by the app", bool(said), str(cc.panel(tab)))
     name = rect.get("src", "").split("?")[0].rsplit("/", 1)[-1]
     got = cc.wait_for(lambda: [p for p in engine_dl.rglob("*")
                                if p.is_file() and p.name not in before and p.stat().st_size > 0], 120)
     rows = [r for r in cc.queue_rows(engine_home) if (name and name in r.get("url", "")) or r.get("url") == URL]
-    cc.check("the video lands in dm's folder", bool(got),
+    cc.check("the video lands in EDM's folder", bool(got),
              f"{[p.name for p in got] if got else 'nothing'} (the player's source: {name}; "
-             f"dm's row: {[(r.get('state'), r.get('filename')) for r in rows][-1:]})")
-    # dm's own errors: its page script logs as "dm:" and runs from its module.
-    # The finished file, once dm has moved it into place, opens as a video.
+             f"EDM's row: {[(r.get('state'), r.get('filename')) for r in rows][-1:]})")
+    # EDM's own errors: its page script logs as "EDM:" and runs from its module.
+    # The finished file, once EDM has moved it into place, opens as a video.
     finished = cc.wait_for(lambda: next((r for r in cc.queue_rows(engine_home)
                                          if r.get("state", {}).get("kind") == "completed" and r.get("path")
                                          and (name and name in r.get("url", "") or r.get("url") == URL)), None), 180)
@@ -118,8 +118,8 @@ def live(base, origin, engine_dl, engine_home, worker):
     cc.check("the downloaded video is whole (media_check)", bool(played and played[0] > 0),
              f"{pathlib.Path(finished['path']).name}: {played[0]}s, {played[1]}p" if played and finished
              else f"not finished or not playable: {finished and finished.get('state')}")
-    errors = [e for e in tab.logged("error") if e.startswith("dm:") or "dm_catcher" in e]
-    cc.check("no errors from dm on the page", not errors, "; ".join(errors)[:300])
+    errors = [e for e in tab.logged("error") if e.startswith("EDM:") or "edm_catcher" in e]
+    cc.check("no errors from EDM on the page", not errors, "; ".join(errors)[:300])
 
 
 cc.panel_checks = live

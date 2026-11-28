@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Line coverage of what the extension and the app say to each other, held to a floor.
@@ -14,16 +14,16 @@ never stop an extension a store has not yet updated, and the other way round. Wh
 that promise is three parts, each measured with its own tests and each held, file by file,
 to the floor in docs/contract-coverage-floor.txt (95% of lines, the maintainer's, 2026-11-15):
 
-  * dm-protocol, the frames both sides read and write, the catch rule and the panel's list
-    (crates/dm-protocol, its unit tests and tests/wire.rs against every released
+  * edm-protocol, the frames both sides read and write, the catch rule and the panel's list
+    (crates/edm-protocol, its unit tests and tests/wire.rs against every released
     extension's frozen frames);
-  * the extension's deciding parts (crates/dm-catcher/, everything compiled for the host; the browser
+  * the extension's deciding parts (crates/edm-catcher/, everything compiled for the host; the browser
     side is WebAssembly and is driven by scripts/chrome-check.py instead);
-  * the native host that answers the extension (crates/dm-shell/src/host*).
+  * the native host that answers the extension (crates/edm-shell/src/host*).
 
 A file under the floor fails the run, naming the file and its lines not run, so code added
 untested to the contract shows before a merge. Test helpers shared between crates
-(crates/dm-test-support) are not the contract and are not counted. Needs cargo-llvm-cov.
+(crates/edm-test-support) are not the contract and are not counted. Needs cargo-llvm-cov.
 Standard library only.
 """
 import json, os, pathlib, subprocess, sys
@@ -40,11 +40,11 @@ FLOOR_FILE = ROOT / "docs" / "contract-coverage-floor.txt"
 
 # (what it is, the directory cargo runs in, its arguments, which files count)
 PARTS = [
-    ("dm-protocol", ROOT, ["-p", "dm-protocol"], "/crates/dm-protocol/src/"),
-    ("extension", ROOT, ["-p", "dm-catcher"], "/crates/dm-catcher/src/"),
-    ("native host", ROOT, ["-p", "dm-shell"], "/crates/dm-shell/src/host"),
+    ("edm-protocol", ROOT, ["-p", "edm-protocol"], "/crates/edm-protocol/src/"),
+    ("extension", ROOT, ["-p", "edm-catcher"], "/crates/edm-catcher/src/"),
+    ("native host", ROOT, ["-p", "edm-shell"], "/crates/edm-shell/src/host"),
 ]
-NOT_COUNTED = ("/dm-test-support/", "/tests/", "tests.rs", "_tests.rs")
+NOT_COUNTED = ("/edm-test-support/", "/tests/", "tests.rs", "_tests.rs")
 
 
 def floor():
@@ -56,7 +56,7 @@ def floor():
 
 def cleared(cwd):
     """What `cargo llvm-cov` kept from earlier runs in `cwd`'s workspace, cleared: a first run
-    after a change once read dm-protocol's lib.rs at 49.87% on an earlier build's data and
+    after a change once read edm-protocol's lib.rs at 49.87% on an earlier build's data and
     99.74% when run again (gaps row 207)."""
     subprocess.run(["cargo", "llvm-cov", "clean", "--workspace"], cwd=cwd,
                    capture_output=True, text=True, check=False, encoding="utf-8", errors="replace")

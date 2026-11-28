@@ -1,0 +1,422 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! RTSP streams (`rtsp://`), recorded by EDM itself.
+//!
+//! RTSP is what IP cameras and media servers speak. The session — DESCRIBE,
+//! SETUP over the RTSP connection itself (RTP interleaved on TCP, which
+//! passes NAT and firewalls), PLAY — and the depacketizing of H.264, H.265
+//! and AAC are the `retina` crate's. Its frames, already in the form an MP4
+//! keeps them, go into the same fragmented MP4 as RTMP's (`fmp4`), which
+//! plays however far it got. A camera's other tracks (G.711 sound, ONVIF
+//! metadata) are left out rather than failing the recording.
+
+use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+
+use futures_util::StreamExt;
+use retina::client::{
+    Credentials, Demuxed, InitialTimestampPolicy, PlayOptions, Session, SessionOptions,
+    SetupOptions, Stream, TcpTransportOptions, Transport,
+};
+use retina::codec::{CodecItem, FrameFormat, ParametersRef};
+
+use crate::control::Control;
+use crate::fmp4;
+use crate::Error;
+
+/// How long the server is given to take the TCP connection of an `rtsps://` address.
+const CONNECT_WITHIN: Duration = Duration::from_secs(15);
+
+/// How long the server is given to describe its streams.
+const DESCRIBE_WITHIN: Duration = Duration::from_secs(20);
+
+/// How long one wait for the stream's next frame is given before it counts as the stream gone
+/// quiet ("sent nothing for 30 seconds"); the stop check's looks meanwhile do not start it again.
+const SILENT_FOR: Duration = Duration::from_secs(30);
+
+/// How long frames are held for the streams that have not yet said what they are, before the
+/// file is begun with those that have.
+const PARAMETERS_WITHIN: Duration = Duration::from_secs(3);
+
+/// How long a stream may go without saying what its picture or sound is before it fails.
+const NEVER_SAID_AFTER: Duration = Duration::from_secs(10);
+
+/// A frame waiting for the file to start: its stream (0 picture, 1 sound),
+/// data, time in its clock, whether it is a key frame, and its length where
+/// the source says.
+type Frame = (usize, Vec<u8>, i64, bool, Option<u32>);
+
+/// The most bytes of frames held before the file starts, as RTMP's (gaps row H34c).
+const MOST_HELD_BYTES: usize = 64 << 20;
+
+/// The longest jump forward a stream's timestamps may make (gaps row H34d): a server whose RTP
+/// times leap hours ahead ends the recording with retina's error instead of a file hours long.
+const MOST_JUMP_SECS: u32 = 10;
+
+/// Frames held for the streams that have not yet said what they are, bounded by bytes as well
+/// as by `NEVER_SAID_AFTER`'s time (gaps row H34c).
+#[derive(Default)]
+struct HeldFrames {
+    frames: Vec<Frame>,
+    bytes: usize,
+}
+
+impl HeldFrames {
+    /// `frame` kept: false, and nothing kept, past [`MOST_HELD_BYTES`].
+    fn push(&mut self, frame: Frame) -> bool {
+        let bytes = self.bytes.saturating_add(frame.1.len());
+        if bytes > MOST_HELD_BYTES {
+            return false;
+        }
+        self.bytes = bytes;
+        self.frames.push(frame);
+        true
+    }
+
+    /// Every frame held, in the order they came; none held after.
+    fn take(&mut self) -> Vec<Frame> {
+        self.bytes = 0;
+        std::mem::take(&mut self.frames)
+    }
+}
+
+fn failed(e: impl std::fmt::Display) -> Error {
+    Error::Internal(format!("the RTSP server: {e}"))
+}
+
+/// The address without its sign-in, and the sign-in: retina takes them
+/// apart, and refuses an address that carries one.
+fn split_credentials(url: &str) -> Result<(url::Url, Option<Credentials>), Error> {
+    let mut parsed = url::Url::parse(url.trim()).map_err(|e| Error::Internal(e.to_string()))?;
+    let creds = (!parsed.username().is_empty()).then(|| Credentials {
+        username: crate::probe::decode(parsed.username()),
+        password: crate::probe::decode(parsed.password().unwrap_or("")),
+    });
+    let _ = parsed.set_username("");
+    let _ = parsed.set_password(None);
+    Ok((parsed, creds))
+}
+
+/// A task that ends with the recording that needed it.
+struct Aborted(tokio::task::JoinHandle<()>);
+
+impl Drop for Aborted {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// The address retina is to use for an `rtsps://` one, and the task that
+/// carries it: one connection taken on a loopback port, relayed over TLS
+/// (checked against `config`) to the server, by default on port 322. The
+/// server is asked for the loopback address; servers go by its path. The connection out is
+/// EDM's own (`only_through::connect_tcp`), so under "Only through" it is bound to the network
+/// chosen, and retina reaches nothing but the loopback (gaps row H23b).
+pub(crate) async fn bridge(
+    address: &url::Url,
+    config: std::sync::Arc<tokio_rustls::rustls::ClientConfig>,
+) -> Result<(url::Url, tokio::task::JoinHandle<()>), Error> {
+    let host = address
+        .host_str()
+        .ok_or_else(|| Error::Internal("the address names no server".into()))?
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_string();
+    let port = address.port().unwrap_or(322);
+    let tcp = tokio::time::timeout(
+        CONNECT_WITHIN,
+        crate::only_through::connect_tcp(&host, port),
+    )
+    .await
+    .map_err(|_| Error::Internal(format!("{host} did not answer")))??;
+    let name = tokio_rustls::rustls::pki_types::ServerName::try_from(host.clone())
+        .map_err(|e| Error::Internal(format!("{host}: {e}")))?;
+    let mut tls = tokio_rustls::TlsConnector::from(config)
+        .connect(name, tcp)
+        .await?;
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await?;
+    let local_port = listener.local_addr()?.port();
+    let task = tokio::spawn(async move {
+        if let Ok((mut local, _)) = listener.accept().await {
+            let _ = tokio::io::copy_bidirectional(&mut local, &mut tls).await;
+        }
+    });
+    let mut local = address.clone();
+    let rewritten = local.set_scheme("rtsp").is_ok()
+        && local.set_host(Some("127.0.0.1")).is_ok()
+        && local.set_port(Some(local_port)).is_ok();
+    if !rewritten {
+        task.abort();
+        return Err(Error::Internal(
+            "the rtsps:// address could not be read".into(),
+        ));
+    }
+    Ok((local, task))
+}
+
+/// How EDM asks retina to play a stream: timestamps taken as they come at first, then held to
+/// jumps of [`MOST_JUMP_SECS`] at most (gaps row H34d).
+fn play_options() -> PlayOptions {
+    let most = std::num::NonZeroU32::new(MOST_JUMP_SECS).unwrap_or(std::num::NonZeroU32::MIN);
+    PlayOptions::default()
+        .initial_timestamp(InitialTimestampPolicy::Permissive)
+        .enforce_timestamps_with_max_jump_secs(most)
+}
+
+/// Records the stream at `url` into `part` until its server ends it, the
+/// connection closes, or `control` stops it. Returns the bytes written; a
+/// stop is returned after the file is closed, so what arrived plays.
+pub async fn record(
+    url: &str,
+    part: &Path,
+    control: &Control,
+    downloaded: &Arc<AtomicU64>,
+) -> Result<u64, Error> {
+    record_within(url, part, control, downloaded, SILENT_FOR).await
+}
+
+/// [`record`], with the stream counted as gone quiet after `silent_for` without a frame (a
+/// test's stand-in server is given less than [`SILENT_FOR`]).
+async fn record_within(
+    url: &str,
+    part: &Path,
+    control: &Control,
+    downloaded: &Arc<AtomicU64>,
+    silent_for: Duration,
+) -> Result<u64, Error> {
+    let (mut address, creds) = split_credentials(url)?;
+    // rtsps://: retina speaks plain RTSP only, so it is given a loopback
+    // address that EDM carries over TLS to the server. Held for the run.
+    let _bridge = if address.scheme().eq_ignore_ascii_case("rtsps") {
+        let (local, task) = bridge(&address, crate::rtmp::tls_config()?).await?;
+        address = local;
+        Some(Aborted(task))
+    } else {
+        None
+    };
+    let (mut frames, video, audio) = play(address, creds).await?;
+
+    let mut writer: Option<fmp4::Writer> = None;
+    let mut tracks: [Option<usize>; 2] = [None, None];
+    let mut held = HeldFrames::default();
+    let started = std::time::Instant::now();
+    let mut stop = None;
+    'stream: loop {
+        // One wait for the next frame, kept across the stop check's looks so that they do not
+        // start its `silent_for` again.
+        let next = {
+            let wait = tokio::time::timeout(silent_for, frames.next());
+            tokio::pin!(wait);
+            loop {
+                tokio::select! {
+                    item = &mut wait => break item,
+                    _ = tokio::time::sleep(crate::control::STOP_LOOK) => {
+                        if let Err(e) = control.check() {
+                            stop = Some(e);
+                            break 'stream;
+                        }
+                    }
+                }
+            }
+        };
+        let item = match next {
+            Ok(Some(Ok(item))) => item,
+            Ok(Some(Err(e))) => {
+                if writer.is_none() {
+                    stop = Some(failed(e));
+                }
+                break;
+            }
+            Ok(None) => break,
+            Err(_) => {
+                if writer.is_none() {
+                    stop = Some(Error::Internal(
+                        "the RTSP server sent nothing for 30 seconds".into(),
+                    ));
+                }
+                break;
+            }
+        };
+        let frame: Frame = match item {
+            CodecItem::VideoFrame(f) if Some(f.stream_id()) == video => {
+                let key = f.is_random_access_point();
+                let at = f.timestamp().elapsed();
+                (0usize, f.into_data(), at, key, None)
+            }
+            CodecItem::AudioFrame(f) if Some(f.stream_id()) == audio => {
+                let at = f.timestamp().elapsed();
+                let length = f.frame_length().get();
+                (1usize, f.data().to_vec(), at, true, Some(length))
+            }
+            _ => continue,
+        };
+        if writer.is_none() {
+            if !held.push(frame) {
+                stop = Some(Error::Internal(
+                    "the RTSP stream sent too much before saying what it is".into(),
+                ));
+                break;
+            }
+            // Started once each stream's shape is known, or after three
+            // seconds with those that are.
+            let known = |i: Option<usize>| {
+                i.is_none_or(|i| {
+                    frames
+                        .streams()
+                        .get(i)
+                        .and_then(|s| s.parameters())
+                        .is_some()
+                })
+            };
+            if !(known(video) && known(audio)) && started.elapsed() < PARAMETERS_WITHIN {
+                continue;
+            }
+            let specs = track_specs(frames.streams(), video, audio, &mut tracks);
+            if specs.is_empty() {
+                if started.elapsed() > NEVER_SAID_AFTER {
+                    stop = Some(Error::Internal(
+                        "the RTSP stream never said what its picture or sound is".into(),
+                    ));
+                    break;
+                }
+                continue;
+            }
+            writer = Some(fmp4::Writer::create(part, specs)?);
+            for (slot, data, at, key, length) in held.take() {
+                if let (Some(w), Some(Some(track))) = (writer.as_mut(), tracks.get(slot)) {
+                    w.push(*track, data, at, 0, key, length)?;
+                }
+            }
+        } else if let (Some(w), Some(Some(track))) = (writer.as_mut(), tracks.get(frame.0)) {
+            w.push(*track, frame.1, frame.2, 0, frame.3, frame.4)?;
+        }
+        if let Some(w) = &writer {
+            downloaded.store(w.written, Ordering::Relaxed);
+        }
+    }
+    let written = match writer {
+        Some(w) => Some(w.finish()?),
+        None => None,
+    };
+    match (stop, written) {
+        (Some(stop), _) => Err(stop),
+        (None, Some(bytes)) => Ok(bytes),
+        (None, None) => Err(Error::Internal(
+            "the RTSP server ended the stream before sending any of it".into(),
+        )),
+    }
+}
+
+/// `address`'s server looked up and judged as every socket of EDM's own is, before retina opens
+/// its own to it (gaps row H38): a plain `rtsp://` went through the system's resolver unjudged,
+/// so a name a public page led to that resolves inside was reached. (An `rtsps://` stream comes
+/// here as its tunnel's own loopback address, judged where the tunnel was opened.)
+async fn judged(address: &url::Url) -> Result<(), Error> {
+    let Some(host) = address.host_str() else {
+        return Err(Error::Internal("the address names no server".into()));
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    let port = address.port().unwrap_or(554);
+    edm_net::dns::addresses(host, port)
+        .await
+        .map(|_| ())
+        .map_err(|e| Error::Internal(format!("the RTSP server: {e}")))
+}
+
+/// Describes the stream at `address`, sets up the first picture and the first sound EDM can put
+/// into an MP4 and plays them: the frames, and the picture's and the sound's stream.
+async fn play(
+    address: url::Url,
+    creds: Option<Credentials>,
+) -> Result<(Demuxed, Option<usize>, Option<usize>), Error> {
+    judged(&address).await?;
+    let options = SessionOptions::default()
+        .creds(creds)
+        .user_agent("EDM".into());
+    let mut session = tokio::time::timeout(DESCRIBE_WITHIN, Session::describe(address, options))
+        .await
+        .map_err(|_| Error::Internal("the RTSP server did not answer".into()))?
+        .map_err(failed)?;
+
+    // The first picture and the first sound EDM can put into an MP4.
+    let wanted = |media: &str, names: &[&str]| {
+        session
+            .streams()
+            .iter()
+            .position(|s| s.media() == media && names.contains(&s.encoding_name()))
+    };
+    let video = wanted("video", &["h264", "h265"]);
+    let audio = wanted("audio", &["mpeg4-generic"]);
+    if video.is_none() && audio.is_none() {
+        return Err(Error::Internal(
+            "the RTSP stream has no H.264, H.265 or AAC EDM can record".into(),
+        ));
+    }
+    for i in [video, audio].into_iter().flatten() {
+        session
+            .setup(
+                i,
+                SetupOptions::default()
+                    .transport(Transport::Tcp(TcpTransportOptions::default()))
+                    .frame_format(FrameFormat::MP4),
+            )
+            .await
+            .map_err(failed)?;
+    }
+    // Permissive about the PLAY reply's timing: servers (mediamtx among
+    // them) leave `rtptime` out, and the first packet's time serves.
+    let playing = session.play(play_options()).await.map_err(failed)?;
+    let frames = playing.demuxed().map_err(failed)?;
+    Ok((frames, video, audio))
+}
+
+/// The file's tracks: the picture's and the sound's streams that have said what they are, each
+/// one's track in the file noted in `tracks` (0 picture, 1 sound).
+fn track_specs(
+    streams: &[Stream],
+    video: Option<usize>,
+    audio: Option<usize>,
+    tracks: &mut [Option<usize>; 2],
+) -> Vec<fmp4::Spec> {
+    let mut specs = Vec::new();
+    for (slot, index) in [video, audio].into_iter().enumerate() {
+        let Some(stream) = index.and_then(|i| streams.get(i)) else {
+            continue;
+        };
+        let spec = match stream.parameters() {
+            Some(ParametersRef::Video(v)) => {
+                let (width, height) = v.pixel_dimensions();
+                v.mp4_sample_entry().build().ok().map(|entry| fmp4::Spec {
+                    entry,
+                    timescale: stream.clock_rate_hz(),
+                    video: true,
+                    width,
+                    height,
+                })
+            }
+            Some(ParametersRef::Audio(a)) => {
+                a.mp4_sample_entry().build().ok().map(|entry| fmp4::Spec {
+                    entry,
+                    timescale: a.clock_rate(),
+                    video: false,
+                    width: 0,
+                    height: 0,
+                })
+            }
+            _ => None,
+        };
+        if let (Some(spec), Some(t)) = (spec, tracks.get_mut(slot)) {
+            *t = Some(specs.len());
+            specs.push(spec);
+        }
+    }
+    specs
+}
+
+#[cfg(test)]
+mod tests;

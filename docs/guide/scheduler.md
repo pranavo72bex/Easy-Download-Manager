@@ -1,6 +1,6 @@
 # Scheduler
 
-The Scheduler sets the hours when a queue's downloads may run, and what dm
+The Scheduler sets the hours when a queue's downloads may run, and what EDM
 does once the scheduled downloads are done. Open it with **Downloads ›
 Scheduler…**, the toolbar's **Scheduler** button, or **Scheduler…** on the
 tray icon's menu. It opens with the queue the list shows chosen. Asked for
@@ -40,26 +40,26 @@ These two act straight away; they do not wait for **OK**.
 - **Once, on this date:** one run on the day, month and year you pick,
   starting at **Start at** and ending at **Stop at** (the next morning when
   **Stop at** is not later than **Start at**).
-- **Wake the computer from sleep to start:** on Windows only. dm wakes a
+- **Wake the computer from sleep to start:** on Windows only. EDM wakes a
   sleeping computer when the hours begin.
 
 ## When the downloads are done
 
-- **When the scheduled downloads are done:** **Do nothing**, **Exit dm**,
+- **When the scheduled downloads are done:** **Do nothing**, **Exit EDM**,
   **Sleep**, **Hibernate** or **Turn off computer**. A choice this computer
-  gives dm no way to do is greyed (macOS cannot hibernate), and the window
+  gives EDM no way to do is greyed (macOS cannot hibernate), and the window
   says so under them: "A greyed choice is one this computer doesn't allow
-  dm." When the hours
-  begin with downloads waiting, dm sets this choice as **Downloads › When
-  done**, unless you chose one there yourself since dm started. Once the
-  queue has nothing left to run, dm counts down 30 seconds ("Downloads are
-  done" in [Questions dm asks](questions.md)) and then does it. If the hours
+  EDM." When the hours
+  begin with downloads waiting, EDM sets this choice as **Downloads › When
+  done**, unless you chose one there yourself since EDM started. Once the
+  queue has nothing left to run, EDM counts down 30 seconds ("Downloads are
+  done" in [Questions EDM asks](questions.md)) and then does it. If the hours
   end first, the choice is put away again.
 - **Try a failed download again this many times (0 for none):** once
-  nothing is left to run, dm tries the downloads that failed again, up to
+  nothing is left to run, EDM tries the downloads that failed again, up to
   this many rounds (at most 5) while the hours last.
 - **Run this program when they are done (optional):** a program, with any
-  arguments, that dm runs once the downloads are done, after the tries
+  arguments, that EDM runs once the downloads are done, after the tries
   again.
 - **Hang up modem when done:** on Windows only. Hangs up the dial-up or VPN
   connection set in **Options › Advanced** once the downloads are done.

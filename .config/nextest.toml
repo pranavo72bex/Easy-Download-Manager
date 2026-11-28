@@ -23,5 +23,5 @@ path = "junit.xml"
 # The outage's turns, timed to the tenth of a second on a starved runtime
 # (docs/gaps.md row 195, open until ten whole runs in a row pass).
 [[profile.ci.overrides]]
-filter = "package(dm-core) & test(connections_that_lose_the_server_take_turns_and_come_back_together)"
+filter = "package(edm-core) & test(connections_that_lose_the_server_take_turns_and_come_back_together)"
 retries = 2

@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask hardening-check <file>…`: a built program has the system's protections
@@ -17,7 +17,7 @@
 //!   segment both writable and runnable, and where it is signed by an identity (not ad hoc, as
 //!   Rust's linker signs every build), the hardened runtime.
 //!
-//! dm's own readers of the three formats' headers, a few fields each; no third-party code.
+//! EDM's own readers of the three formats' headers, a few fields each; no third-party code.
 
 use std::path::Path;
 

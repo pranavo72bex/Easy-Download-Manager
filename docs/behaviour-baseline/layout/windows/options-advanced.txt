@@ -1,7 +1,7 @@
-# dm's window, scene options-advanced (windows, 1280x720, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene options-advanced (windows, 1280x720, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 1280x720]
+[main "EDM" 1280x720]
 "Tasks" 48 7 90 29.5
 "File" 106 7 140 29.5
 "Downloads" 156 7 232 29.5
@@ -23,7 +23,7 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add dm to your browser:" 236 98.5 430 121
+"Add EDM to your browser:" 236 98.5 430 121
 "Microsoft Edge" 453 98.5 571 121
 "Firefox" 609 98.5 668 121
 "Chrome and others" 706 98.5 849 121
@@ -54,16 +54,16 @@
 "Network" 220 85 800 107.5
 "Speed limit (KB/s, 0 for none)" 220 116 698 138.5
 "0" 710 111.5 800 143.5
-"Keeps dm from using all of your connection." 220 145.5 700 165
+"Keeps EDM from using all of your connection." 220 145.5 700 165
 "Attempts per connection (0 to keep trying)" 220 181.5 698 204
 "15" 710 177 800 209
-"How many times dm tries again after a connection fails." 220 211 700 230.5
+"How many times EDM tries again after a connection fails." 220 211 700 230.5
 "Wait between attempts (seconds, 0 for automatic)" 220 247 698 269.5
 "0" 710 242.5 800 274.5
-"How long dm waits before it tries again." 220 276.5 700 296
+"How long EDM waits before it tries again." 220 276.5 700 296
 "Time out a silent connection after (seconds)" 220 312.5 698 335
 "30" 710 308 800 340
-"How long a connection may say nothing before dm gives up on it." 220 342 700 361.5
+"How long a connection may say nothing before EDM gives up on it." 220 342 700 361.5
 "Only through" 220 378 659 400.5
 "Any network" 681 378 774 400.5
 "Every download goes out over this network alone, such as your VPN’s. While it is not connected, downloads wait and say so, and go on by themselves when it is back. rtsp:// streams do not start while one is chosen (on Windows, torrents too), and the second network is not used." 220 407.5 700 435

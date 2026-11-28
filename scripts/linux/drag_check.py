@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Drag and drop between Firefox and dm's window, with real X11 input.
+"""Drag and drop between Firefox and EDM's window, with real X11 input.
 
 Run by scripts/linux-drag-check.sh inside its container (Xvfb, openbox,
-xdotool). Firefox and dm sit side by side, and xdotool presses, moves and
+xdotool). Firefox and EDM sit side by side, and xdotool presses, moves and
 lets go as a hand does:
 
-- a link dragged from a page onto dm is queued;
-- a finished file dragged out of dm's list onto Firefox is opened there,
-  and dm's list still takes clicks afterwards (the button is not left held).
+- a link dragged from a page onto EDM is queued;
+- a finished file dragged out of EDM's list onto Firefox is opened there,
+  and EDM's list still takes clicks afterwards (the button is not left held).
 """
 
 import socket
@@ -34,7 +34,7 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-CACHE = pathlib.Path.home() / ".cache/dm-firefox"
+CACHE = pathlib.Path.home() / ".cache/edm-firefox"
 
 
 def fetch_firefox():
@@ -50,7 +50,7 @@ def fetch_firefox():
 
 def profile():
     """A new profile with no first-run pages over the one under test."""
-    d = pathlib.Path(tempfile.mkdtemp(prefix="dm-ffprofile-"))
+    d = pathlib.Path(tempfile.mkdtemp(prefix="edm-ffprofile-"))
     (d / "user.js").write_text("".join(f'user_pref("{k}", {v});\n' for k, v in [
         ("browser.shell.checkDefaultBrowser", "false"),
         ("datareporting.policy.dataSubmissionEnabled", "false"),
@@ -64,13 +64,13 @@ def profile():
     ]), encoding="utf-8")
     return d
 
-BINARY = os.environ.get("DM_BINARY", "/target/debug/dm-gpui")
+BINARY = os.environ.get("EDM_BINARY", "/target/debug/edm-gpui")
 LINK = "https://downloads.example.com/files/dragged.zip"
 NOTES = "notes-for-the-drag.txt"
 PAGE = f"""<!doctype html><title>links</title>
 <style>body{{margin:0}} a{{display:block;width:560px;height:420px;font:40px sans-serif;
 background:#cde;color:#036}}</style>
-<a id=l href="{LINK}">Drag this link onto dm</a>"""
+<a id=l href="{LINK}">Drag this link onto EDM</a>"""
 
 
 def xdo(*args):
@@ -95,7 +95,7 @@ def rows(home):
 
 
 def control(home):
-    """A call on dm's control protocol."""
+    """A call on EDM's control protocol."""
     end = time.time() + 30
     port_file = home / "control.port"
     while time.time() < end and not (port_file.exists() and port_file.read_text(encoding="utf-8").strip()):
@@ -111,8 +111,8 @@ def control(home):
     return call
 
 
-def drag_out(home, dm_window, ff_window, url):
-    """A finished file dragged from dm's list onto Firefox."""
+def drag_out(home, edm_window, ff_window, url):
+    """A finished file dragged from EDM's list onto Firefox."""
     call = control(home)
     call("downloads.add", urls=[url])
     end = time.time() + 30
@@ -125,14 +125,14 @@ def drag_out(home, dm_window, ff_window, url):
     if not row:
         print("FAIL  the finished file's row was not found", inspected.get("rows"))
         return False
-    geometry = dict(line.split("=", 1) for line in xdo("getwindowgeometry", "--shell", dm_window).splitlines())
+    geometry = dict(line.split("=", 1) for line in xdo("getwindowgeometry", "--shell", edm_window).splitlines())
     left, top = int(geometry["X"]), int(geometry["Y"])
     x0, y0, x1, y1 = row["rect"]
     start = (left + int(x0) + 60, top + int((y0 + y1) / 2))
     target = (320, 520)
     ok = False
     for attempt in range(3):
-        xdo("windowactivate", "--sync", dm_window)
+        xdo("windowactivate", "--sync", edm_window)
         xdo("mousemove", str(start[0]), str(start[1]))
         time.sleep(0.4)
         xdo("mousedown", "1")
@@ -155,8 +155,8 @@ def drag_out(home, dm_window, ff_window, url):
             ok = True
             break
         print(f"  attempt {attempt + 1}: Firefox shows {xdo('getwindowname', ff_window)!r}")
-    print(("ok    " if ok else "FAIL  ") + "a finished file dragged out of dm is opened by Firefox")
-    # The list still takes a click: the release went to the drag, and dm
+    print(("ok    " if ok else "FAIL  ") + "a finished file dragged out of EDM is opened by Firefox")
+    # The list still takes a click: the release went to the drag, and EDM
     # was told of it.
     call("ui.select", ids=[])
     xdo("mousemove", str(start[0]), str(start[1]))
@@ -164,56 +164,56 @@ def drag_out(home, dm_window, ff_window, url):
     time.sleep(1)
     selected = call("ui.inspect").get("result", {}).get("selected", [])
     clicks = row["id"] in selected
-    print(("ok    " if clicks else "FAIL  ") + "and dm's list still takes a click after it", selected)
+    print(("ok    " if clicks else "FAIL  ") + "and EDM's list still takes a click after it", selected)
     return ok and clicks
 
 
 def main():
-    served = tempfile.mkdtemp(prefix="dm-drag-page-")
+    served = tempfile.mkdtemp(prefix="edm-drag-page-")
     pathlib.Path(served, "index.html").write_text(PAGE, encoding="utf-8")
-    pathlib.Path(served, NOTES).write_text("dragged out of dm\n", encoding="utf-8")
+    pathlib.Path(served, NOTES).write_text("dragged out of EDM\n", encoding="utf-8")
     handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=served, **k)
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     page = f"http://127.0.0.1:{server.server_address[1]}/index.html"
 
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-drag-home-"))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-drag-home-"))
     # No progress or done windows over the list the drags start from.
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "out"),
         "show_progress": False,
         "show_complete": False,
     }), encoding="utf-8")
-    env = {**os.environ, "DM_HOME": str(home)}
-    dm = subprocess.Popen([BINARY, "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=open("/shots/dm.log", "w", encoding="utf-8"))
+    env = {**os.environ, "EDM_HOME": str(home)}
+    edm = subprocess.Popen([BINARY, "--control", "0"], env=env, stdout=subprocess.DEVNULL, stderr=open("/shots/EDM.log", "w", encoding="utf-8"))
     firefox = subprocess.Popen(
         [fetch_firefox(), "--no-remote", "--width", "640", "--height", "760", "--profile", str(profile()), page],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     ok = False
     try:
-        # Titled "dm", or while downloads run how far and how fast before " — dm" (gaps row U16).
-        dm_window = window("^(dm|.* — dm)$")
+        # Titled "EDM", or while downloads run how far and how fast before " — EDM" (gaps row U16).
+        edm_window = window("^(EDM|.* — EDM)$")
         ff_window = window("links")
-        if not dm_window or not ff_window:
-            print("FAIL  the windows never appeared", dm_window, ff_window)
+        if not edm_window or not ff_window:
+            print("FAIL  the windows never appeared", edm_window, ff_window)
             return 1
         # Side by side, overlapping nowhere: a press on Firefox raises it,
-        # and over dm it would take the drop itself.
-        for found in (ff_window, dm_window):
+        # and over EDM it would take the drop itself.
+        for found in (ff_window, edm_window):
             subprocess.run(["wmctrl", "-i", "-r", found, "-b", "remove,maximized_vert,maximized_horz"])
         xdo("windowmove", ff_window, "0", "0")
         xdo("windowsize", ff_window, "640", "780")
-        xdo("windowmove", dm_window, "660", "0")
-        xdo("windowsize", dm_window, "620", "780")
+        xdo("windowmove", edm_window, "660", "0")
+        xdo("windowsize", edm_window, "620", "780")
         time.sleep(3)
         # Firefox's own toolbars sit over the page's top; the link fills
         # the 420 points below them.
         start = (200, 320)
-        print(f"  windows: dm {dm_window}, Firefox {ff_window}")
+        print(f"  windows: EDM {edm_window}, Firefox {ff_window}")
         for attempt in range(3):
             xdo("windowactivate", "--sync", ff_window)
-            xdo("windowmove", dm_window, "660", "0")
+            xdo("windowmove", edm_window, "660", "0")
             time.sleep(0.5)
             xdo("mousemove", str(start[0]), str(start[1]))
             time.sleep(0.4)
@@ -236,12 +236,12 @@ def main():
                 ok = True
                 break
             print(f"  attempt {attempt + 1}: nothing queued yet")
-        print(("ok    " if ok else "FAIL  ") + "a link dragged from Firefox onto dm's window is queued")
-        out_ok = drag_out(home, dm_window, ff_window, page.rsplit("/", 1)[0] + "/" + NOTES)
+        print(("ok    " if ok else "FAIL  ") + "a link dragged from Firefox onto EDM's window is queued")
+        out_ok = drag_out(home, edm_window, ff_window, page.rsplit("/", 1)[0] + "/" + NOTES)
         return 0 if ok and out_ok else 1
     finally:
         firefox.terminate()
-        dm.terminate()
+        edm.terminate()
         server.shutdown()
 
 

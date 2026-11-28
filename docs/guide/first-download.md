@@ -3,7 +3,7 @@
 How to download a file from its link, step by step.
 
 1. Copy the file's link in your browser or anywhere else.
-2. In dm, click the toolbar's **Add URL** button (or **Tasks › Add URL…**,
+2. In EDM, click the toolbar's **Add URL** button (or **Tasks › Add URL…**,
    or Ctrl+N; ⌘N on macOS). A link you copied is already in **Address**.
    If it is not, paste it there.
 3. Click **OK**. [Download details](download-details.md) opens.
@@ -17,4 +17,4 @@ How to download a file from its link, step by step.
 
 If a download stops before it finishes, its row's **Resume** goes on from
 where it was. If it fails, its row says why and offers **Retry**; see
-[What dm's messages mean](failures.md).
+[What EDM's messages mean](failures.md).

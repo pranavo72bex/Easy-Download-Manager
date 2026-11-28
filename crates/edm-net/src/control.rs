@@ -1,0 +1,176 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! Stopping a download that is already running.
+//!
+//! Pausing is not a special mode the engine has to hold open — it is stopping,
+//! and resuming is starting again. What each range has fetched is recorded
+//! on disk as it arrives, so a paused download costs nothing to hold and a
+//! resumed one asks again only for what it does not have. That is why
+//! there is no state here beyond a single flag: everything else is already
+//! on disk.
+
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::Arc;
+
+const RUN: u8 = 0;
+const PAUSE: u8 = 1;
+const CANCEL: u8 = 2;
+
+/// How often work that waits on a server looks at its [`Control`] besides: a pause or a
+/// cancel ends the wait within a quarter of a second rather than when the server next speaks.
+pub const STOP_LOOK: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// What a running download has been asked to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Wanted {
+    /// Keep going.
+    Run,
+    /// Stop for now and keep what is done.
+    Pause,
+    /// Stop for good.
+    Cancel,
+}
+
+/// A handle for stopping one download, shared with whoever is running it.
+///
+/// Cheap to clone and safe to hold after the download has finished — asking a
+/// download that has already ended to pause is a no-op rather than an error,
+/// because the alternative is every caller racing to check first.
+#[derive(Debug, Clone, Default)]
+pub struct Control(Arc<Shared>);
+
+/// What a [`Control`]'s handles share: what the download was asked to do, and whether its
+/// pieces are fetched in file order from now on ([`Control::fetch_in_file_order`]).
+#[derive(Debug, Default)]
+struct Shared {
+    wanted: AtomicU8,
+    in_file_order: AtomicBool,
+}
+
+impl Control {
+    /// A handle that asks for nothing yet.
+    #[must_use]
+    pub fn new() -> Self {
+        Control::default()
+    }
+
+    /// Asks the download to pause; a cancelled download stays cancelled.
+    pub fn pause(&self) {
+        // Never over a cancellation: a download being torn down should not be
+        // talked back into merely pausing.
+        let _ = self
+            .0
+            .wanted
+            .compare_exchange(RUN, PAUSE, Ordering::SeqCst, Ordering::SeqCst);
+    }
+
+    /// Asks a paused download to run again.
+    pub fn resume(&self) {
+        let _ = self
+            .0
+            .wanted
+            .compare_exchange(PAUSE, RUN, Ordering::SeqCst, Ordering::SeqCst);
+    }
+
+    /// Cancelling is final. A cancelled download is not resumed, it is added
+    /// again — which is a different thing, with a different id.
+    pub fn cancel(&self) {
+        self.0.wanted.store(CANCEL, Ordering::SeqCst);
+    }
+
+    /// Whether two handles speak for the same download run.
+    ///
+    /// A row that was stopped and put back in line gets a fresh control;
+    /// the task that was stopped still holds the old one, and what it has
+    /// to say when it finally returns is about a run the row has moved on
+    /// from.
+    #[must_use]
+    pub fn is(&self, other: &Control) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+
+    /// What the download has been asked to do now.
+    #[must_use]
+    pub fn wanted(&self) -> Wanted {
+        match self.0.wanted.load(Ordering::Relaxed) {
+            PAUSE => Wanted::Pause,
+            CANCEL => Wanted::Cancel,
+            _ => Wanted::Run,
+        }
+    }
+
+    /// Asks the download to fetch what is left of it from its start onwards, in file order
+    /// (gaps row W13): Preview asked for a video or sound file a player is about to read from
+    /// its start. Pieces are otherwise taken from the file's end backwards after the first,
+    /// which suits a server that limits connections and leaves the file's middle to the last.
+    pub fn fetch_in_file_order(&self) {
+        self.0.in_file_order.store(true, Ordering::Relaxed);
+    }
+
+    /// Whether [`Control::fetch_in_file_order`] was asked.
+    #[must_use]
+    pub fn in_file_order(&self) -> bool {
+        self.0.in_file_order.load(Ordering::Relaxed)
+    }
+
+    /// Stops here if stopping is what was asked for.
+    ///
+    /// The three-armed match this replaces was written out at every point a
+    /// download can be interrupted — the chunk loop, the segment loop, the
+    /// playlist loop — so a new reason to stop had to be found by grep.
+    pub fn check(&self) -> Result<(), crate::Error> {
+        match self.wanted() {
+            Wanted::Run => Ok(()),
+            Wanted::Pause => Err(crate::Error::Paused),
+            Wanted::Cancel => Err(crate::Error::Cancelled),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fresh_control_is_running() {
+        assert_eq!(Control::new().wanted(), Wanted::Run);
+    }
+
+    #[test]
+    fn pausing_and_resuming_go_back_and_forth() {
+        let c = Control::new();
+        c.pause();
+        assert_eq!(c.wanted(), Wanted::Pause);
+        c.resume();
+        assert_eq!(c.wanted(), Wanted::Run);
+    }
+
+    #[test]
+    fn cancelling_is_final() {
+        // A download being torn down must not be talked back into running by
+        // a resume that was already in flight when it was cancelled.
+        let c = Control::new();
+        c.cancel();
+        c.resume();
+        c.pause();
+        assert_eq!(c.wanted(), Wanted::Cancel);
+    }
+
+    #[test]
+    fn a_clone_speaks_for_the_same_download() {
+        let c = Control::new();
+        let held_elsewhere = c.clone();
+        held_elsewhere.pause();
+        assert_eq!(c.wanted(), Wanted::Pause);
+    }
+
+    #[test]
+    fn resuming_something_that_was_never_paused_changes_nothing() {
+        let c = Control::new();
+        c.resume();
+        assert_eq!(c.wanted(), Wanted::Run);
+    }
+}

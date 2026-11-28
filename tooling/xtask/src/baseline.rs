@@ -1,10 +1,10 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! Reference A's benchmark baseline (`bench/reference-a-baseline.json`) is
-//! the bottom line dm's speed, memory and CPU are judged by on every system
+//! the bottom line EDM's speed, memory and CPU are judged by on every system
 //! (`bench/README.md`). It was frozen on 2026-11-11 and never changes: a new
 //! measurement goes into a file of its own. These tests hold it to its
 //! SHA-256, and `bench/compare.mjs`, which refuses to judge against a changed

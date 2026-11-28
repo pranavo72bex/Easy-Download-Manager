@@ -1,7 +1,7 @@
 # Options › Sign-ins
 
 **Sites that need a sign-in:** "A user and password used for every download from a host." See
-[Sign-ins](sign-ins.md) for every way dm signs in, and [Options](options.md)
+[Sign-ins](sign-ins.md) for every way EDM signs in, and [Options](options.md)
 for how the window works.
 
 - **Add a sign-in** adds a line with **Host**, **User** and **Password**.
@@ -14,8 +14,8 @@ for how the window works.
   computer itself), so the password never goes out unencrypted. An address
   with a user and password of its own keeps them.
 - The [Grabber](grabber.md) uses a login kept here for its site, and says so.
-- "Kept in dm’s settings file on this computer, readable by your account."
-  On the phone: "Kept in dm's settings file on this phone, where only dm can
+- "Kept in EDM’s settings file on this computer, readable by your account."
+  On the phone: "Kept in EDM's settings file on this phone, where only EDM can
   read it."
   Where the system's password store works, the passwords go there and the
   settings file keeps none. **Save settings to a file…** (Options › General)

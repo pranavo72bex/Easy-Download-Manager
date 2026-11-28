@@ -1,7 +1,7 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # Builds the extension and the store zip for each browser.
@@ -10,10 +10,10 @@
 #   sh scripts/package.sh --build    build extension/pkg only, for loading
 #                                    extension/ unpacked
 #
-# The extension is Rust (crates/dm-catcher/), compiled to WebAssembly, plus the page
+# The extension is Rust (crates/edm-catcher/), compiled to WebAssembly, plus the page
 # scripts and manifests in extension/. wasm-bindgen turns the build into the
 # module the background and the popup import, and its CLI must be exactly the version of the
-# wasm-bindgen crate in Cargo.lock (one workspace, crates/dm-catcher/ in it) — a mismatch is refused at load
+# wasm-bindgen crate in Cargo.lock (one workspace, crates/edm-catcher/ in it) — a mismatch is refused at load
 # time, in the browser, with an error nobody sees — so it is checked here and
 # installed if it is missing or different.
 
@@ -71,13 +71,13 @@ fi
 
 # ----------------------------------------------------------------- build
 
-echo "building the extension (dm-catcher, wasm32)"
+echo "building the extension (edm-catcher, wasm32)"
 # Without the building computer's paths in the WebAssembly the stores publish
 # (scripts/release-flags.sh). The workspace's `extension` profile: built for size, and a
 # panic stops it (Cargo.toml).
-(cd "$root/crates/dm-catcher" && CARGO_BUILD_RUSTFLAGS="$(sh "$root/scripts/release-flags.sh")" \
+(cd "$root/crates/edm-catcher" && CARGO_BUILD_RUSTFLAGS="$(sh "$root/scripts/release-flags.sh")" \
   cargo build --profile extension --target wasm32-unknown-unknown --locked)
-wasm="${CARGO_TARGET_DIR:-$root/target}/wasm32-unknown-unknown/extension/dm_catcher.wasm"
+wasm="${CARGO_TARGET_DIR:-$root/target}/wasm32-unknown-unknown/extension/edm_catcher.wasm"
 rm -rf "$pkg"
 wasm-bindgen --target web --no-typescript --out-dir "$pkg" "$wasm"
 # The panel's copy, which the background puts into a page's frame with
@@ -88,8 +88,8 @@ wasm-bindgen --target no-modules --no-typescript --out-dir "$panel" "$wasm"
 "$py" - "$panel" "$pkg/panel.js" <<'PY'
 import base64, pathlib, sys
 src = pathlib.Path(sys.argv[1])
-glue = (src / "dm_catcher.js").read_text()
-data = base64.b64encode((src / "dm_catcher_bg.wasm").read_bytes()).decode()
+glue = (src / "edm_catcher.js").read_text()
+data = base64.b64encode((src / "edm_catcher_bg.wasm").read_bytes()).decode()
 pathlib.Path(sys.argv[2]).write_text(
     "// Built by scripts/package.sh: wasm-bindgen's glue and the WebAssembly it loads.\n"
     + "var __dmPanelCode;\n(() => {\n" + glue + "\n"
@@ -108,24 +108,24 @@ rm -rf "$panel"
 "$py" - "$pkg" <<'PY'
 import base64, pathlib, sys
 pkg = pathlib.Path(sys.argv[1])
-data = base64.b64encode((pkg / "dm_catcher_bg.wasm").read_bytes()).decode()
+data = base64.b64encode((pkg / "edm_catcher_bg.wasm").read_bytes()).decode()
 (pkg / "background.js").write_text(
-    "// Built by scripts/package.sh: starts the extension's background, which is Rust (crates/dm-catcher/src)\n"
+    "// Built by scripts/package.sh: starts the extension's background, which is Rust (crates/edm-catcher/src)\n"
     + "// compiled to WebAssembly, with the WebAssembly written in here.\n"
-    + "import * as dm from './dm_catcher.js';\n"
+    + "import * as EDM from './edm_catcher.js';\n"
     + "const text = atob('" + data + "');\n"
     + "const bytes = new Uint8Array(text.length);\n"
     + "for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);\n"
-    + "dm.initSync({ module: bytes });\n"
-    + "dm.background_start();\n"
+    + "EDM.initSync({ module: bytes });\n"
+    + "EDM.background_start();\n"
     + "// For a test harness attached to the worker; nothing in the extension uses it.\n"
-    + "globalThis.dmReady = Promise.resolve(dm);\n")
+    + "globalThis.dmReady = Promise.resolve(EDM);\n")
 (pkg / "popup.js").write_text(
-    "// Built by scripts/package.sh: starts the toolbar popup, which is Rust (crates/dm-catcher/src/popup.rs).\n"
-    + "import init, { popup_start } from './dm_catcher.js';\n"
-    + "init().then(() => popup_start()).catch((e) => console.error('dm:', e));\n")
+    "// Built by scripts/package.sh: starts the toolbar popup, which is Rust (crates/edm-catcher/src/popup.rs).\n"
+    + "import init, { popup_start } from './edm_catcher.js';\n"
+    + "init().then(() => popup_start()).catch((e) => console.error('EDM:', e));\n")
 PY
-echo "  extension/pkg: $(du -k "$pkg/dm_catcher_bg.wasm" | cut -f1) KB of WebAssembly"
+echo "  extension/pkg: $(du -k "$pkg/edm_catcher_bg.wasm" | cut -f1) KB of WebAssembly"
 
 [ "${1:-}" = "--build" ] && exit 0
 
@@ -161,19 +161,19 @@ pack() {
   # Every file a manifest names must be in what ships, and so must the
   # module the loader imports and the WebAssembly that module fetches.
   for named in $(sed -n 's/.*"\(icons\/[^"]*\)".*/\1/p; s/.*"\(pkg\/background\.js\)".*/\1/p; s/.*"\(content\.js\)".*/\1/p; s/.*"\(document\.js\)".*/\1/p; s/.*"\(popup\.html\)".*/\1/p' "$stage/manifest.json") \
-               pkg/popup.js pkg/dm_catcher.js pkg/dm_catcher_bg.wasm pkg/panel.js pkg/background.js \
+               pkg/popup.js pkg/edm_catcher.js pkg/edm_catcher_bg.wasm pkg/panel.js pkg/background.js \
                _locales/en/messages.json; do
     if [ ! -f "$stage/$named" ]; then
       echo "the $browser build is missing $named" >&2
       exit 1
     fi
   done
-  if find "$stage" -name '*.js' | grep -v -e '/content.js$' -e '/document.js$' -e '/pkg/background.js$' -e '/pkg/popup.js$' -e '/pkg/dm_catcher.js$' -e '/pkg/panel.js$' >/dev/null; then
+  if find "$stage" -name '*.js' | grep -v -e '/content.js$' -e '/document.js$' -e '/pkg/background.js$' -e '/pkg/popup.js$' -e '/pkg/edm_catcher.js$' -e '/pkg/panel.js$' >/dev/null; then
     echo "the $browser build carries JavaScript that is neither the loader nor wasm-bindgen's" >&2
     exit 1
   fi
 
-  # Safari takes no zip: its folder goes into dm.app, inside dm's own Safari extension
+  # Safari takes no zip: its folder goes into EDM.app, inside EDM's own Safari extension
   # (scripts/safari-extension.sh).
   if [ "${3:-}" = "--no-zip" ]; then
     echo "  dist/$browser (unpacked)"
@@ -182,7 +182,7 @@ pack() {
 
   # Git Bash on Windows has no `zip`: there the store zips came out empty
   # (0 bytes) and nothing said so. Python's zipfile does the same job.
-  out="$dist/dm-$browser-$version.zip"
+  out="$dist/edm-$browser-$version.zip"
   rm -f "$out"
   if command -v zip >/dev/null 2>&1; then
     (cd "$stage" && zip -qr "$out" .)
@@ -199,10 +199,10 @@ PY
     echo "the $browser zip ($out) is empty or has no manifest.json" >&2
     exit 1
   fi
-  echo "  dist/$browser (unpacked)  dist/dm-$browser-$version.zip"
+  echo "  dist/$browser (unpacked)  dist/edm-$browser-$version.zip"
 }
 
-echo "packaging dm $version"
+echo "packaging EDM $version"
 pack chrome manifest.json
 pack firefox manifest.firefox.json
 pack safari manifest.safari.json --no-zip

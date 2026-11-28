@@ -7,7 +7,7 @@
   "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
   "host": "aarch64-apple-darwin",
   "build": {
-   "path": "target/release/dm-gpui",
+   "path": "target/release/edm-gpui",
    "bytes": 19952080,
    "modified": 1794415870,
    "profile": "release",

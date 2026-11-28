@@ -2,15 +2,15 @@ name: Sites, daily
 
 # The site watch (gaps row W6). Video sites change their pages and players without notice, and
 # until this ran a break was found by a user (rows 204, 205 and 209 were found late). Every day,
-# and by hand, a release dm and its extension are put in a new browser profile, signed in
+# and by hand, a release EDM and its extension are put in a new browser profile, signed in
 # nowhere, under a virtual display, and the real sites are checked as a person uses them: a
-# video played, the Download video panel clicked, the file landing whole in dm's folder.
-# youtube-check.py does YouTube (dm's own reader); sites-check.py --public the sites
+# video played, the Download video panel clicked, the file landing whole in EDM's folder.
+# youtube-check.py does YouTube (EDM's own reader); sites-check.py --public the sites
 # docs/site-list.md says need no sign-in. Both write JSON, which scripts/site-table.py turns
 # into the README's site table (an artifact and the run's summary; CI does not commit it) and,
 # when a site is broken, an issue: one, labelled site-watch and found by that label, added to
 # each day the watch still fails and closed by the first run that passes. A login wall or a bot
-# check is written down as not judged, not as dm failing. A schedule runs only from the default
+# check is written down as not judged, not as EDM failing. A schedule runs only from the default
 # branch (main).
 on:
   schedule:
@@ -48,7 +48,7 @@ jobs:
           shared-key: site-watch-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Linux libraries dm links and the browser needs
+      - name: Linux libraries EDM links and the browser needs
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb \
@@ -60,11 +60,11 @@ jobs:
           sudo apt-get install -y --no-install-recommends libfontconfig-dev libfreetype-dev \
             libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libx11-xcb-dev libvulkan-dev
 
-      - name: Build dm (release) and the extension
+      - name: Build EDM (release) and the extension
         id: build
         run: |
           echo "WATCH=$RUNNER_TEMP/site-watch" >> "$GITHUB_ENV"
-          cargo build --release -p dm-gpui --locked
+          cargo build --release -p edm-gpui --locked
           sh scripts/package.sh
 
       - name: The table's own workings
@@ -72,15 +72,15 @@ jobs:
         run: python3 scripts/site-table.py --self-test
 
       # Neither check ends the job: what they found is judged below, from their JSON.
-      - name: YouTube, through dm's own reader
+      - name: YouTube, through EDM's own reader
         timeout-minutes: 30
         env:
-          DM_SKIP_LOCAL: "1"
+          EDM_SKIP_LOCAL: "1"
           PYTHONUNBUFFERED: "1"
         run: |
           set +e
           mkdir -p "$WATCH"
-          DM_BINARY="$PWD/target/release/dm-gpui" \
+          EDM_BINARY="$PWD/target/release/edm-gpui" \
             xvfb-run -a -s '-screen 0 1280x800x24' \
             python3 scripts/youtube-check.py --json "$WATCH/youtube.json" 2>&1 | tee "$WATCH/youtube.log"
           echo "youtube-check.py ended with ${PIPESTATUS[0]}"
@@ -91,13 +91,13 @@ jobs:
         if: always() && steps.selftest.outcome == 'success'
         timeout-minutes: 100
         env:
-          DM_SKIP_LOCAL: "1"
+          EDM_SKIP_LOCAL: "1"
           PYTHONUNBUFFERED: "1"
           SITES_PROBE: ${{ inputs.probe && '1' || '' }}
         run: |
           set +e
           mkdir -p "$WATCH"
-          DM_BINARY="$PWD/target/release/dm-gpui" \
+          EDM_BINARY="$PWD/target/release/edm-gpui" \
             xvfb-run -a -s '-screen 0 1280x800x24' \
             python3 scripts/sites-check.py --public --json "$WATCH/sites.json" 2>&1 | tee "$WATCH/sites.log"
           echo "sites-check.py ended with ${PIPESTATUS[0]}"
@@ -132,7 +132,7 @@ jobs:
           if [ -n "$open" ]; then
             gh issue comment "$open" --body-file "$WATCH/issue.md"
           else
-            gh issue create --title "Site watch: a video site does not work in dm" \
+            gh issue create --title "Site watch: a video site does not work in EDM" \
               --label site-watch --body-file "$WATCH/issue.md"
           fi
 
@@ -155,12 +155,12 @@ jobs:
           FAILING: ${{ steps.judge.outputs.failing }}
         run: |
           if [ "$FAILED" != "0" ]; then
-            echo "::error::the site watch found sites not working in dm: $FAILING"
+            echo "::error::the site watch found sites not working in EDM: $FAILING"
             exit 1
           fi
           if [ "$PASSED" = "0" ]; then
             # Every site met a login wall or a bot check: the watch was blind today, which is
-            # worth a red run but not an issue about dm.
-            echo "::warning::every site met a login wall or bot check; nothing of dm was judged"
+            # worth a red run but not an issue about EDM.
+            echo "::warning::every site met a login wall or bot check; nothing of EDM was judged"
             exit 1
           fi

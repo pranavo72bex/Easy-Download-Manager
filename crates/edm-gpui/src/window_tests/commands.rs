@@ -1,0 +1,797 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! The commands, as the menus, the toolbar, a row's menu, the keys and the control port reach
+//! them: each does what it says. Not checked here: that every control has a name (the
+//! window's names are `a11y.rs`'s and the accessibility checks', gaps row U23), and that each
+//! dialog keeps its title and buttons in view at a large text size (a GPUI dialog is a window
+//! of its own, sized to what it holds, and the text size is one for the whole process, so a
+//! test of it would scale every test's window beside it).
+
+use edm_core::State;
+use edm_shell::app::commands::Command;
+
+use crate::harness::world::{payload, world, World};
+use crate::harness::Harness;
+
+fn finished(h: &mut Harness) -> bool {
+    h.rows().iter().any(|r| r.state == State::Completed)
+}
+
+/// The row called `name` is in `state`.
+fn is(h: &mut Harness, name: &str, state: State) -> bool {
+    h.rows()
+        .iter()
+        .any(|r| edm_shell::app::names::name_of(r) == name && r.state == state)
+}
+
+/// Walks the menus by their words, as a person clicks a menu's title and then its items.
+fn press(h: &mut Harness, path: &[&str]) {
+    for words in path {
+        h.click(words);
+    }
+}
+
+/// Whether the command is greyed in the menus and the toolbar.
+fn greyed(h: &mut Harness, command: Command) -> bool {
+    let listed = h.call("commands.list", serde_json::Value::Null).unwrap();
+    listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == command.id())
+        .is_some_and(|c| c["enabled"] == false)
+}
+
+/// The column the list is sorted by, and whether up.
+fn sort(h: &mut Harness) -> Option<(String, bool)> {
+    let seen = h.call("ui.inspect", serde_json::Value::Null).unwrap();
+    let sort = &seen["sort"];
+    sort["column"]
+        .as_str()
+        .map(|c| (c.to_string(), sort["ascending"].as_bool().unwrap_or(false)))
+}
+
+/// What a person's choice of `command` in the menu bar does: the menu's action in the main
+/// window. Open, Open with… and Preview are a person's alone, so a script's click on them is
+/// refused (`probe::is_run_a_file`); a person chooses them a moment after the script last
+/// acted.
+fn persons_choice(h: &mut Harness, command: Command) {
+    h.until_a_persons_moment();
+    h.act(|view, cx| view.run(command, cx));
+}
+
+/// The window walked in each language: the empty list, the menus, every dialog and every
+/// Options tab. Whatever it asks to translate and a catalog lacks is reported, which a scan of
+/// the source (`i18n_check.rs`) cannot see for words chosen at run time (a tab's name, a choice
+/// in a list).
+#[test]
+fn every_dialog_in_every_language_is_translated() {
+    let mut untranslated = std::collections::BTreeSet::new();
+    for (code, _) in edm_desktop_base::i18n::LANGUAGES
+        .iter()
+        .filter(|(c, _)| *c != "en")
+    {
+        let world = world();
+        let mut settings = world.settings();
+        settings.general.language = (*code).into();
+        let mut h = world.harness_with(settings);
+        edm_desktop_base::i18n::set(code);
+        edm_desktop_base::i18n::record_missing();
+        for menu in crate::window::menus::WINDOW_MENUS {
+            h.click(edm_desktop_base::i18n::t(menu));
+            h.texts();
+            h.key("escape", &[]);
+        }
+        h.view(|view| {
+            view.backend.add_with(
+                &world.url("stalled.bin"),
+                edm_core::AddOptions {
+                    later: true,
+                    queue: edm_core::MAIN_QUEUE.into(),
+                    ..Default::default()
+                },
+            )
+        })
+        .unwrap();
+        h.until("the row", |h| !h.rows().is_empty());
+        let id = h.rows()[0].id;
+        let name = edm_shell::app::names::name_of(&h.rows()[0]);
+        h.select_by_port(&name);
+        // Download details, the progress window, Download complete, Delete's question and
+        // Properties, each looked at and closed.
+        let url = world.url("x.bin");
+        h.act(|_, cx| crate::dialogs::details::open(cx.entity().downgrade(), vec![url], cx));
+        h.until("Download details", |h| h.dialogs().len() == 1);
+        h.close_dialogs();
+        h.act(|view, cx| view.show_progress(id, cx));
+        h.until("the progress window", |h| h.dialogs().len() == 1);
+        h.close_dialogs();
+        h.act(|view, cx| view.finished(&[id], cx));
+        h.texts();
+        h.close_dialogs();
+        for command in [
+            Command::Remove,
+            Command::Properties,
+            Command::AddUrl,
+            Command::AddSeries,
+            Command::AddFromClipboard,
+            Command::SiteFiles,
+            Command::Scheduler,
+            Command::SpeedLimiterSettings,
+            Command::MoveToQueue,
+            Command::MoveRename,
+            Command::UpdateLink,
+            Command::About,
+        ] {
+            h.act(|view, cx| view.run(command, cx));
+            h.texts();
+            h.close_dialogs();
+        }
+        h.act(|view, cx| view.run(Command::Options, cx));
+        h.until("Options", |h| h.dialogs().len() == 1);
+        for tab in [
+            "General",
+            "File types",
+            "Folders",
+            "Downloads",
+            "Connection",
+            "Sites",
+            "Sounds",
+            "Advanced",
+        ] {
+            let tab = edm_desktop_base::i18n::t(tab);
+            if h.shows(tab) {
+                h.click(tab);
+                h.texts();
+            }
+        }
+        h.close_dialogs();
+        for missing in edm_desktop_base::i18n::take_missing() {
+            untranslated.insert(format!("{code}: {missing:?}"));
+        }
+        edm_desktop_base::i18n::set("en");
+    }
+    assert!(untranslated.is_empty(), "untranslated: {untranslated:#?}");
+}
+
+/// Every command in the registry runs without falling over, with every row selected in each
+/// state: the menus, toolbar, keyboard and control port all end here. Check for updates is
+/// left out: it asks GitHub, and a test makes no request off this computer.
+#[test]
+fn every_command_runs_against_rows_in_every_state() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("file.zip"), "Start now");
+    h.add_url(&world.url("stalled.bin"), "Add for later");
+    h.until("one to finish", finished);
+    *world.fake.clipboard.lock().unwrap() = Some(world.url("clip.bin"));
+    for command in Command::ALL {
+        if matches!(
+            command,
+            Command::Quit
+                | Command::Remove
+                | Command::Import
+                | Command::Export
+                | Command::Restore
+                | Command::CheckForUpdates
+        ) {
+            continue;
+        }
+        h.act(|view, cx| {
+            view.select_all(cx);
+            view.run(*command, cx);
+        });
+        h.close_dialogs();
+    }
+    // With something downloading, Exit asks first.
+    h.act(|view, cx| view.run(Command::DownloadNow, cx));
+    h.until("a download to run", |h| {
+        h.rows().iter().any(|r| r.state == State::Running)
+    });
+    h.act(|view, cx| view.run(Command::Quit, cx));
+    h.until("Exit to ask", |h| h.shows_part("still running"));
+}
+
+/// Every menu item, clicked by its name, does what it says: a dialog opens, a row changes
+/// state, a file opens, a setting changes. "Check for updates" is found and enabled but not
+/// clicked: it asks GitHub, and a test makes no request off this computer.
+#[test]
+fn every_menu_item_clicked_does_what_it_says() {
+    let world = world();
+    // The stalled connection given the longest wait allowed: at the default 30 s, a whole suite
+    // run reached the running row's checks after it had timed out and was retrying ("No answer
+    // (retry 2 of 15)"), where Update download link is rightly offered.
+    let mut h = world.harness_with(world.settings_with(|s| s.advanced.read_timeout = 600));
+    h.add_url(&world.url("file.zip"), "Start now");
+    h.add_url(&world.url("stalled.bin"), "Start now");
+    h.add_url(&world.url("other.pdf"), "Add for later");
+    h.until("file.zip to finish", finished);
+    let done = h.row("file.zip");
+
+    view_and_help_items(&mut h);
+    let list = tasks_items(&mut h, &world);
+    file_items(&mut h, &done);
+    downloads_items(&mut h, &done);
+    last_items(&mut h, &done, &list);
+}
+
+/// View's items and Help's (`every_menu_item_clicked_does_what_it_says`).
+fn view_and_help_items(h: &mut Harness) {
+    // View
+    press(h, &["View", "Categories"]);
+    assert!(
+        !h.view(|v| v.layout.show_sidebar),
+        "View › Categories did not hide the side panel"
+    );
+    press(h, &["View", "Categories"]);
+    assert!(h.view(|v| v.layout.show_sidebar));
+    press(h, &["View", "Toolbar"]);
+    assert!(
+        !h.view(|v| v.layout.show_toolbar),
+        "View › Toolbar did not hide it"
+    );
+    press(h, &["View", "Toolbar"]);
+    assert!(h.view(|v| v.layout.show_toolbar));
+    for (item, column) in [
+        ("Sort by name", Command::SortByName),
+        ("Sort by size", Command::SortBySize),
+        ("Sort by status", Command::SortByStatus),
+        ("Sort by time left", Command::SortByTimeLeft),
+        ("Sort by speed", Command::SortByRate),
+        ("Sort by date", Command::SortByDate),
+        ("Sort by note", Command::SortByDescription),
+    ] {
+        h.view(|v| v.list.sort = None);
+        press(h, &["View", "Sort by", item]);
+        let sorted = sort(h);
+        assert!(
+            sorted.as_ref().is_some_and(|(_, up)| *up),
+            "{item} ({column:?}): {sorted:?}"
+        );
+    }
+
+    // Help
+    press(h, &["Help", "Help"]);
+    h.until("the help page", |h| {
+        h.fake
+            .opened
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|o| o == edm_desktop_base::project::HELP)
+    });
+    press(h, &["Help", "About EDM"]);
+    h.until("About EDM", |h| h.dialog_open("About EDM"));
+    h.close_dialogs();
+    assert!(
+        !greyed(h, Command::CheckForUpdates),
+        "Check for updates is greyed out"
+    );
+}
+
+/// Tasks' items, Export last: the list it wrote.
+fn tasks_items(h: &mut Harness, world: &World) -> std::path::PathBuf {
+    // Tasks
+    press(h, &["Tasks", "Add URL"]);
+    h.until("Add URL", |h| h.dialog_open("Add URL"));
+    h.close_dialogs();
+    press(h, &["Tasks", "Add numbered series"]);
+    h.until("Add numbered series", |h| {
+        h.dialog_open("Add numbered series")
+    });
+    h.close_dialogs();
+    *h.fake.clipboard.lock().unwrap() = Some(world.url("clip.bin"));
+    press(h, &["Tasks", "Add links from clipboard"]);
+    h.until("Links on the clipboard", |h| {
+        h.dialog_open("Links on the clipboard")
+    });
+    h.close_dialogs();
+    press(h, &["Tasks", "Grabber"]);
+    h.until("the Grabber", |h| h.dialog_open("Grabber"));
+    h.close_dialogs();
+    let list = world.dir.path().join("list.dmlist");
+    h.choose_ahead(&list);
+    press(h, &["Tasks", "Export"]);
+    h.until("the list to be written", |_| list.is_file());
+    let exported = std::fs::read_to_string(&list).unwrap();
+    assert!(
+        ["file.zip", "stalled.bin", "other.pdf"]
+            .iter()
+            .all(|n| exported.contains(n)),
+        "Tasks › Export: {exported}"
+    );
+    list
+}
+
+/// File's items, on the finished row (`done`), one waiting in the main queue and the running
+/// one.
+fn file_items(h: &mut Harness, done: &edm_core::Entry) {
+    // File, on the finished row
+    h.select_by_port("file.zip");
+    persons_choice(h, Command::OpenFile);
+    h.until("File › Open", |h| {
+        h.fake.opened.lock().unwrap().contains(&done.path)
+    });
+    press(h, &["File", "Open folder"]);
+    h.until("File › Open folder", |h| {
+        h.fake
+            .opened
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|o| o.starts_with("reveal "))
+    });
+    press(h, &["File", "Properties"]);
+    h.until("File › Properties", |h| h.dialog_open("File properties"));
+    h.close_dialogs();
+    assert!(
+        greyed(h, Command::ShowProgress),
+        "a finished download has no progress"
+    );
+    assert!(greyed(h, Command::UpdateLink), "nor an address to refresh");
+    press(h, &["File", "Move/Rename"]);
+    h.until("File › Move/Rename", |h| h.dialog_open("Move/Rename"));
+    h.close_dialogs();
+    press(h, &["File", "Move to queue"]);
+    h.until("File › Move to queue", |h| h.dialog_open("Move to queue"));
+    h.close_dialogs();
+
+    // File, on the row waiting in the main queue
+    h.select_by_port("other.pdf");
+    let place = |h: &mut Harness| {
+        h.rows()
+            .iter()
+            .position(|r| edm_shell::app::names::name_of(r) == "other.pdf")
+    };
+    let before = place(h);
+    press(h, &["File", "Move up"]);
+    h.until("File › Move up", |h| place(h) < before);
+    press(h, &["File", "Move down"]);
+    h.until("File › Move down", |h| place(h) == before);
+    press(h, &["File", "Take out of queue"]);
+    h.until("File › Take out of queue", |h| {
+        h.row("other.pdf").queue.is_empty()
+    });
+
+    // File, on the running row
+    h.select_by_port("stalled.bin");
+    press(h, &["File", "Show progress"]);
+    h.until("File › Show progress", |h| {
+        h.dialog_names().iter().any(|d| d == "Download progress")
+    });
+    h.close_dialogs();
+    // Waited for, not read once: under the whole suite's load the running row's state can
+    // reach the command list a moment after its progress window opens.
+    h.until("Update download link greyed while downloading", |h| {
+        greyed(h, Command::UpdateLink)
+    });
+    press(h, &["File", "Stop download"]);
+    h.until("Stop download", |h| is(h, "stalled.bin", State::Paused));
+    press(h, &["File", "Update download link"]);
+    h.until("File › Update download link", |h| {
+        h.dialog_open("Update download link")
+    });
+    h.close_dialogs();
+    press(h, &["File", "Resume"]);
+    h.until("Resume", |h| !is(h, "stalled.bin", State::Paused));
+}
+
+/// Downloads' items.
+fn downloads_items(h: &mut Harness, done: &edm_core::Entry) {
+    // Downloads
+    press(h, &["Downloads", "Stop all"]);
+    h.until("Stop all", |h| {
+        h.rows().iter().all(|r| r.state != State::Running)
+    });
+    press(h, &["Downloads", "Resume all"]);
+    h.until("Resume all", |h| !is(h, "stalled.bin", State::Paused));
+    press(h, &["File", "Select all"]);
+    let shown: std::collections::BTreeSet<_> =
+        h.view(|v| v.list.shown.iter().map(|&i| v.rows[i].id).collect());
+    assert_eq!(
+        h.view(|v| v.list.selected.clone()),
+        shown,
+        "File › Select all"
+    );
+    // Find puts the keys in the top bar's search box; Find next steps to the next row whose
+    // name holds its words.
+    press(h, &["Downloads", "Find"]);
+    h.type_text("file.zip");
+    h.view(|v| v.list.selected.clear());
+    press(h, &["Downloads", "Find next"]);
+    h.until("Downloads › Find next", |h| {
+        h.view(|v| v.list.selected.contains(&done.id))
+    });
+    // The box emptied by its ✕, and every row shown again.
+    h.click("Clear");
+    h.until("the search box emptied", |h| {
+        h.view(|v| v.list.shown.len()) == 3
+    });
+    press(h, &["Downloads", "Scheduler"]);
+    h.until("Downloads › Scheduler", |h| h.dialog_open("Scheduler"));
+    h.close_dialogs();
+    press(h, &["Downloads", "Speed limiter", "Speed limiter settings"]);
+    h.until("Downloads › Speed limiter settings", |h| {
+        h.dialog_open("Speed limiter")
+    });
+    h.close_dialogs();
+    let limit = h.view(|v| v.backend.settings().advanced.speed_limit);
+    press(h, &["Downloads", "Speed limiter", "Limit speed"]);
+    assert_ne!(
+        h.view(|v| v.backend.settings().advanced.speed_limit),
+        limit,
+        "Limit speed"
+    );
+    press(h, &["Downloads", "Speed limiter", "Limit speed"]);
+    assert_eq!(
+        h.view(|v| v.backend.settings().advanced.speed_limit),
+        limit,
+        "and back"
+    );
+    press(h, &["Downloads", "Options"]);
+    h.until("Downloads › Options", |h| h.dialog_open("Options"));
+    h.close_dialogs();
+    use edm_shell::app::power::WhenDone;
+    let when_done = [
+        ("Exit EDM", WhenDone::Quit),
+        ("Sleep", WhenDone::Sleep),
+        ("Hibernate", WhenDone::Hibernate),
+        ("Turn off computer", WhenDone::ShutDown),
+        ("Do nothing", WhenDone::Nothing),
+    ];
+    // Greyed where the computer has no such command (macOS has no hibernate; a Linux with no
+    // `systemctl` has none of the three).
+    for (item, wanted) in when_done
+        .into_iter()
+        .filter(|(_, w)| w.possible(edm_desktop_base::power::available))
+    {
+        press(h, &["Downloads", "When done", item]);
+        assert_eq!(
+            h.view(|v| v.session.when_done),
+            wanted,
+            "Downloads › When done › {item}"
+        );
+    }
+    assert!(
+        h.fake
+            .opened
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|o| !o.starts_with("power")),
+        "nothing slept"
+    );
+    // Each a list of the queues, as reference A's menu has.
+    // Each says so once the queue has answered, which a loaded computer takes a moment over
+    // (a whole run read the item before's "Speed limiter off.", 2026-11-21).
+    press(h, &["Downloads", "Start queue", "Main queue"]);
+    h.until("Start queue to say what it did", |h| {
+        let said = h.said();
+        said.starts_with("Started") || said.starts_with("Nothing in")
+    });
+    press(h, &["Downloads", "Stop queue", "Main queue"]);
+    h.until("Stop queue to say what it did", |h| {
+        h.said().starts_with("Stopped")
+    });
+}
+
+/// Redownload, Delete Completed, Delete, Import (of the `list` Export wrote) and Exit.
+fn last_items(h: &mut Harness, done: &edm_core::Entry, list: &std::path::Path) {
+    // The finished row again: fetched afresh, then the list cleared of it.
+    h.select_by_port("file.zip");
+    press(h, &["File", "Redownload"]);
+    // A fresh copy, beside the first (which stays), followed by its row.
+    h.until("Redownload to finish again", |h| {
+        h.rows()
+            .iter()
+            .any(|r| r.id == done.id && r.state == State::Completed && r.path != done.path)
+    });
+    let again = h.rows().into_iter().find(|r| r.id == done.id).unwrap();
+    assert_eq!(std::fs::read(&again.path).unwrap(), payload(), "Redownload");
+    assert!(
+        std::path::Path::new(&done.path).exists(),
+        "the first copy is kept"
+    );
+    press(h, &["Downloads", "Delete completed"]);
+    h.until("Downloads › Delete completed", |h| {
+        h.rows().iter().all(|r| r.state != State::Completed)
+    });
+
+    // Delete waits for a download to stop, then asks first.
+    h.select_by_port("stalled.bin");
+    if !is(h, "stalled.bin", State::Running) {
+        press(h, &["File", "Resume"]);
+        h.until("it to run", |h| is(h, "stalled.bin", State::Running));
+    }
+    assert!(greyed(h, Command::Remove), "Delete while it is downloading");
+    press(h, &["File", "Stop download"]);
+    h.until("it to stop", |h| is(h, "stalled.bin", State::Paused));
+    press(h, &["File", "Delete"]);
+    h.until_shown("Remove download");
+    h.click("Remove download");
+    h.until("the row to go", |h| {
+        h.rows().iter().all(|r| r.filename != "stalled.bin")
+    });
+
+    // Import what Export wrote at the start: its rows come back.
+    let rows = h.rows().len();
+    h.choose_ahead(list);
+    press(h, &["Tasks", "Import"]);
+    // A row of the list still there (under load a download the list kept may not have
+    // finished or gone yet) is asked about: kept once, the others come back.
+    h.until("Tasks › Import", |h| {
+        if h.shows("Skip them") {
+            h.click("Skip them");
+        }
+        h.said().starts_with("Imported")
+    });
+    h.until("the rows imported", |h| h.rows().len() > rows);
+
+    // With nothing downloading, Exit quits; with something, it asks.
+    h.act(|view, cx| view.run(Command::StopAll, cx));
+    h.until("all stopped", |h| {
+        h.rows().iter().all(|r| r.state != State::Running)
+    });
+    press(h, &["Tasks", "Exit"]);
+    h.until("Tasks › Exit to quit", |_| {
+        crate::dialogs::question::is_quitting()
+    });
+}
+
+/// Every toolbar button, clicked by its name, does what its menu item does.
+#[test]
+fn every_toolbar_button_clicked_does_what_it_says() {
+    let world = world();
+    // Every button on: Delete completed and the Grabber are off at first.
+    let mut settings = world.settings();
+    settings.toolbar_hidden.clear();
+    let mut h = world.harness_with(settings);
+    h.add_url(&world.url("file.zip"), "Start now");
+    h.add_url(&world.url("stalled.bin"), "Start now");
+    h.until("file.zip to finish", finished);
+
+    // The toolbar's button, not a menu item of the same name: no menu is open.
+    h.click("Add URL");
+    h.until("Add URL", |h| h.dialog_open("Add URL"));
+    h.close_dialogs();
+    h.click("Options");
+    h.until("Options", |h| h.dialog_open("Options"));
+    h.close_dialogs();
+    h.click("Scheduler");
+    h.until("Scheduler", |h| h.dialog_open("Scheduler"));
+    h.close_dialogs();
+    h.click("Grabber");
+    h.until("Grabber", |h| h.dialog_open("Grabber"));
+    h.close_dialogs();
+
+    h.select_by_port("stalled.bin");
+    h.click("Stop");
+    h.until("Stop", |h| is(h, "stalled.bin", State::Paused));
+    h.click("Resume");
+    h.until("Resume", |h| !is(h, "stalled.bin", State::Paused));
+    h.click("Stop all");
+    h.until("Stop all", |h| {
+        h.rows().iter().all(|r| r.state != State::Running)
+    });
+
+    h.call(
+        "ui.place",
+        serde_json::json!({ "place": "queue:Main queue" }),
+    )
+    .unwrap();
+    // Each says what it did once the queue has answered, which on a slow runner is a step or
+    // more after the click (macOS's CI run, 2026-11-26): waited for, not read at once.
+    h.click("Start queue");
+    h.until("Start queue said", |h| {
+        let said = h.said();
+        said.starts_with("Started") || said.starts_with("Nothing in")
+    });
+    h.click("Stop queue");
+    h.until("Stop queue said", |h| h.said().starts_with("Stopped"));
+    h.call("ui.place", serde_json::json!({ "place": "all" }))
+        .unwrap();
+
+    h.click("Delete completed");
+    h.until("Delete completed", |h| {
+        h.rows().iter().all(|r| r.state != State::Completed)
+    });
+    h.select_by_port("stalled.bin");
+    h.click("Delete");
+    h.until_shown("Remove download");
+    h.click("Remove download");
+    h.until("Delete", |h| {
+        h.rows().iter().all(|r| r.filename != "stalled.bin")
+    });
+}
+
+/// Each item of a row's right-click menu, clicked by its name, acts on that row.
+#[test]
+fn every_row_menu_item_clicked_does_what_it_says() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("file.zip"), "Start now");
+    h.add_url(&world.url("stalled.bin"), "Start now");
+    h.until("file.zip to finish", finished);
+    let done = h.row("file.zip");
+    let stalled = h.row("stalled.bin");
+
+    // Right-clicks the row, then the item: the menu is the system's, which the port holds for
+    // its next click, so the item is clicked by its words and the menu closes with it.
+    let right = |h: &mut Harness, name: &str, item: &str| {
+        h.right_click(name);
+        h.until_shown(item);
+        h.click(item);
+    };
+
+    // Open is refused to the script, and runs the file as a person's choice in the menu. Its
+    // exact words are refused by the port itself ("runs a downloaded file: it is done in the
+    // window by a person"), before the held menu is walked ("is done by a person").
+    h.right_click("file.zip");
+    h.until_shown("Open folder");
+    let refused = h.call("ui.click", serde_json::json!({ "text": "Open" }));
+    assert!(
+        refused
+            .as_ref()
+            .is_err_and(|why| why.contains("by a person")),
+        "{refused:?}"
+    );
+    h.pick_as_person("Open");
+    h.until("Open", |h| {
+        h.fake.opened.lock().unwrap().contains(&done.path)
+    });
+    right(&mut h, "file.zip", "Open folder");
+    h.until("Open folder", |h| {
+        h.fake
+            .opened
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|o| o.starts_with("reveal "))
+    });
+    right(&mut h, "file.zip", "Move/Rename");
+    h.until("Move/Rename", |h| h.dialog_open("Move/Rename"));
+    h.close_dialogs();
+    right(&mut h, "file.zip", "Properties");
+    h.until("Properties", |h| h.dialog_open("File properties"));
+    h.close_dialogs();
+    right(&mut h, "file.zip", "Move to queue");
+    h.until("Move to queue", |h| h.dialog_open("Move to queue"));
+    h.close_dialogs();
+
+    right(&mut h, "stalled.bin", "Stop download");
+    h.until("Stop download", |h| {
+        h.rows()
+            .iter()
+            .any(|r| r.id == stalled.id && r.state == State::Paused)
+    });
+    right(&mut h, "stalled.bin", "Update download link");
+    h.until("Update download link", |h| {
+        h.dialog_open("Update download link")
+    });
+    h.close_dialogs();
+    right(&mut h, "stalled.bin", "Resume");
+    h.until("Resume", |h| {
+        h.rows()
+            .iter()
+            .any(|r| r.id == stalled.id && r.state != State::Paused)
+    });
+    right(&mut h, "stalled.bin", "Stop download");
+    h.until("it to stop", |h| {
+        h.rows()
+            .iter()
+            .any(|r| r.id == stalled.id && r.state == State::Paused)
+    });
+    right(&mut h, "stalled.bin", "Delete");
+    h.until_shown("Remove download");
+    h.click("Remove download");
+    h.until("Delete", |h| h.rows().iter().all(|r| r.id != stalled.id));
+
+    right(&mut h, "file.zip", "Redownload");
+    h.until("Redownload", |h| {
+        h.rows()
+            .iter()
+            .any(|r| r.id == done.id && r.state == State::Completed && r.path != done.path)
+    });
+}
+
+#[test]
+fn command_shift_n_opens_the_numbered_series_not_add_url() {
+    let world = world();
+    let mut h = world.harness();
+    h.key("n", &["cmd", "shift"]);
+    h.until("the numbered series", |h| {
+        h.dialog_open("Add numbered series")
+    });
+    assert!(!h.dialog_open("Add URL"), "Add URL opened too");
+    // And ⌘N alone is still Add URL.
+    h.close_dialogs();
+    h.key("n", &["cmd"]);
+    h.until("Add URL", |h| h.dialog_open("Add URL"));
+}
+
+/// Start Queue and Stop Queue each list the queues, as reference A's toolbar arrows and menus
+/// do: the queue chosen there is started or stopped, whatever the list shows; the button
+/// itself keeps to the list's queue. The toolbar's arrows open the system's own menu, which a
+/// script cannot reach, so the lists are walked in the Downloads menu, whose items are the same
+/// (`menus::RunOnQueue`, B64).
+#[test]
+fn the_queue_arrows_start_and_stop_the_queue_chosen() {
+    let world = world();
+    let mut h = world.harness();
+    h.add_url(&world.url("file.zip"), "Add for later");
+    h.until("the row", |h| !h.rows().is_empty());
+    let id = h.row("file.zip").id;
+    h.view(|v| v.backend.set_queue(id, "Night"));
+    h.until("the row to be in the Night queue", |h| {
+        h.rows().iter().any(|r| r.queue == "Night")
+    });
+    // The list shows every download, so the button would act on the Main queue; the choice in
+    // the list of queues is Night.
+    h.call("ui.place", serde_json::json!({ "place": "all" }))
+        .unwrap();
+    // Each line waited for, not read at once: a slow runner (Windows') says it a moment after
+    // the click, and read at once it is empty.
+    press(&mut h, &["Downloads", "Start queue", "Night"]);
+    h.until("the list to start the queue chosen", |h| {
+        h.said() == "Started 1 download in Night."
+    });
+    h.until("the Night queue's download to complete", |h| {
+        h.rows().iter().all(|r| r.state == State::Completed)
+    });
+    // Stop queue's list on Night: nothing is left there to stop.
+    press(&mut h, &["Downloads", "Stop queue", "Night"]);
+    h.until("Stop queue on Night", |h| {
+        h.said() == "Stopped 0 downloads in Night."
+    });
+    // The choice was for that one command: the button itself acts on the list's queue again.
+    h.click("Start queue");
+    h.until("the button on the Main queue", |h| {
+        h.said() == "Nothing in Main queue was waiting to start."
+    });
+}
+
+/// At the window's smallest usual size (960 by 660), with every column turned on, the columns
+/// run past its right edge, and the list scrolls sideways to reach the last of them, Folder.
+#[test]
+fn every_column_is_reached_at_the_default_window_size() {
+    let world = world();
+    let mut settings = world.settings();
+    // Every column shown: Description, Referrer and Folder are hidden at first (2026-11-26).
+    settings.columns_hidden.clear();
+    let mut h = world.harness_with(settings);
+    let main = h.window;
+    h.cx.update(|cx| {
+        main.update(cx, |_, window, _| {
+            window.resize(gpui::size(gpui::px(960.0), gpui::px(660.0)))
+        })
+    })
+    .unwrap();
+    h.add_url(&world.url("file.zip"), "Add for later");
+    h.until("the row", |h| !h.rows().is_empty());
+    let folder = |h: &mut Harness| {
+        let texts = h.call("ui.texts", serde_json::Value::Null).unwrap();
+        texts["texts"].as_array().unwrap().iter().find_map(|t| {
+            (t["text"] == "Folder" && t["window"] == "main").then(|| {
+                let r = t["rect"].as_array().unwrap();
+                (r[0].as_f64().unwrap(), r[2].as_f64().unwrap())
+            })
+        })
+    };
+    let width = 960.0;
+    let first = folder(&mut h);
+    assert!(
+        first.is_none_or(|(_, right)| right > width - 1.0),
+        "the premise: Folder starts past the edge, at {first:?}"
+    );
+    // A wheel's sideways turn over the headings, as far as the list goes.
+    let over = serde_json::json!({ "text": "File name", "sideways": 40.0 });
+    if let Err(why) = h.call("ui.scroll", over) {
+        panic!("the list did not scroll: {why}");
+    }
+    h.until("Folder in the window", |h| {
+        folder(h).is_some_and(|(left, right)| left >= 0.0 && right <= width)
+    });
+}

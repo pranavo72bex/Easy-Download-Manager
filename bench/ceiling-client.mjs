@@ -1,13 +1,13 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 // The reference client of `bench.mjs ceiling`, in a process of its own so it does not share the
 // server's event loop: N ranges of URL fetched at once, each written to a file of its own in DIR
 // through a 4 MiB buffered stream. Prints the seconds from the first request to the last file
 // closed, or exits 1. It is what the machine and its disk allow the simplest segmented client; it
-// is not dm and not reference A.
+// is not EDM and not reference A.
 //
 //   node bench/ceiling-client.mjs URL SIZE N DIR
 import http from 'node:http';

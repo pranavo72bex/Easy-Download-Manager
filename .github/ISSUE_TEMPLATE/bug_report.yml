@@ -1,12 +1,12 @@
 name: Bug report
-description: dm did something wrong, or did not do what it should
+description: EDM did something wrong, or did not do what it should
 labels: [bug]
 body:
   - type: textarea
     id: what
     attributes:
       label: What happened
-      description: What you did, what you expected, and what dm did instead.
+      description: What you did, what you expected, and what EDM did instead.
     validations:
       required: true
   - type: input
@@ -17,7 +17,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: dm version
+      label: EDM version
       description: From About.
     validations:
       required: true
@@ -37,4 +37,4 @@ body:
     id: more
     attributes:
       label: Anything else
-      description: Screenshots, the message dm showed, steps to make it happen again.
+      description: Screenshots, the message EDM showed, steps to make it happen again.

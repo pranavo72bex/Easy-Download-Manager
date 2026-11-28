@@ -8,5 +8,5 @@ Icon={{icon}}
 Terminal=false
 Categories=Network;FileTransfer;
 Keywords=download;manager;http;resume;
-StartupWMClass=dm
+StartupWMClass=EDM
 MimeType=x-scheme-handler/magnet;application/x-bittorrent;

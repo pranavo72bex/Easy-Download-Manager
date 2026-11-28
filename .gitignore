@@ -1,7 +1,7 @@
 dist/
 target/
-# dm-core's FTP `target` module's own folder (its tests), not a build's.
-!crates/dm-core/src/ftp/target/
+# edm-core's FTP `target` module's own folder (its tests), not a build's.
+!crates/edm-core/src/ftp/target/
 pkg/
 __pycache__/
 .DS_Store
@@ -10,7 +10,7 @@ __pycache__/
 !.claude/skills/
 human-shots/
 
-# Local test logins and secrets (crates/dm-test-support/src/secrets.rs); never pushed.
+# Local test logins and secrets (crates/edm-test-support/src/secrets.rs); never pushed.
 .env
 .env.*
 !.env.example
@@ -51,7 +51,7 @@ bench/local.json
 bench/results/
 
 # A test run inside a vendored crate (vendor/README.md) makes a lock
-# file of its own there; dm's build uses Cargo.lock.
+# file of its own there; EDM's build uses Cargo.lock.
 vendor/librqbit/Cargo.lock
 vendor/librqbit-sha1-wrapper/Cargo.lock
 

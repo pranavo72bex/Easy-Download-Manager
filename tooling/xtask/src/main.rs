@@ -1,9 +1,9 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-//! dm's own checks, run as `cargo xtask <job>` from the repository's root.
+//! EDM's own checks, run as `cargo xtask <job>` from the repository's root.
 //!
 //! - `scorecard` writes `docs/scorecard.md`: what is done, partial and
 //!   missing, counted from the parity matrix, the server zoo and the fuzz
@@ -14,11 +14,11 @@
 //!   `size-baseline` lowers the baselines to as they shrink, and no crate comes in more
 //!   versions than `doubles-baseline.txt` lists (`doubles.rs`), which `doubles-baseline`
 //!   shortens it to as they fall.
-//! - `privacy` holds dm to being free and private: no analytics or crash
+//! - `privacy` holds EDM to being free and private: no analytics or crash
 //!   reporting crate anywhere in the build, and no address in shipped code
 //!   but the project's own release page, which is fetched only when asked.
 //!
-//! - `headers` holds every source file of dm's own to its copyright and
+//! - `headers` holds every source file of EDM's own to its copyright and
 //!   licence header (`headers.rs`); `headers fix` writes the missing ones.
 //!
 //! Each is also a test, so `cargo test --workspace` runs them.
@@ -35,7 +35,7 @@
 //! - `package` makes this system's installers with cargo-packager, run where its settings are
 //!   (`package.rs`); it and the others work from the repository's root too
 //!   (`.cargo/config.toml` there).
-//! - `build`, `test` and `qa` build dm and its extension, run the tests and run
+//! - `build`, `test` and `qa` build EDM and its extension, run the tests and run
 //!   `scripts/human-qa.py`, the same on every system, as `package` makes the installers
 //!   (`tasks.rs`, gaps row X7).
 
@@ -104,7 +104,7 @@ fn main() {
     }
 }
 
-/// Every source file of dm's own carries the copyright and licence header
+/// Every source file of EDM's own carries the copyright and licence header
 /// (`headers.rs`), so a copy of any one of them says whose it is and on what terms.
 fn licence_headers() -> Result<(), String> {
     let missing = headers::missing(&root())?;
@@ -174,12 +174,12 @@ fn headline(text: &str) -> Option<(usize, usize)> {
 /// How many property tests the fuzz files hold.
 fn fuzz_targets(root: &Path) -> Vec<(String, usize)> {
     let files = [
-        "crates/dm-core/tests/fuzz.rs",
-        "crates/dm-shell/tests/fuzz.rs",
-        "crates/dm-protocol/tests/fuzz.rs",
-        "crates/dm-desktop-base/tests/fuzz.rs",
-        "crates/dm-gpui/src/window_tests/fuzz.rs",
-        "crates/dm-catcher/tests/fuzz.rs",
+        "crates/edm-core/tests/fuzz.rs",
+        "crates/edm-shell/tests/fuzz.rs",
+        "crates/edm-protocol/tests/fuzz.rs",
+        "crates/edm-desktop-base/tests/fuzz.rs",
+        "crates/edm-gpui/src/window_tests/fuzz.rs",
+        "crates/edm-catcher/tests/fuzz.rs",
     ];
     files
         .iter()
@@ -196,22 +196,22 @@ fn fuzz_targets(root: &Path) -> Vec<(String, usize)> {
 const BUDGETS: &[(&str, &str, &str)] = &[
     (
         "A download never needs twice its own size on disk",
-        "crates/dm-core/tests/download.rs",
+        "crates/edm-core/tests/download.rs",
         "a_download_never_needs_twice_its_own_size_on_disk",
     ),
     (
         "Resident memory stays flat across repeated downloads",
-        "crates/dm-core/tests/memory.rs",
+        "crates/edm-core/tests/memory.rs",
         "fn ",
     ),
     (
         "500 rows draw within a 100 ms frame",
-        "crates/dm-gpui/src/window_tests/layout.rs",
+        "crates/edm-gpui/src/window_tests/layout.rs",
         "five_hundred_rows_draw_inside_a_frame_budget",
     ),
     (
         "A pause on a stalled connection stops within the read timeout",
-        "crates/dm-core/tests/download.rs",
+        "crates/edm-core/tests/download.rs",
         "a_pause_on_a_stalled_connection_is_honoured_within_the_read_timeout",
     ),
 ];
@@ -300,7 +300,7 @@ fn write_scorecard() -> Result<String, String> {
 
 /* ---------------------------------------------------------------- layers */
 
-/// A crate's manifest, and which of its dependencies are dm's own.
+/// A crate's manifest, and which of its dependencies are EDM's own.
 struct Crate {
     name: String,
     deps: Vec<String>,
@@ -376,12 +376,12 @@ const GUI: &[&str] = &[
     "rfd",
     "notify-rust",
     "arboard",
-    // GPUI, under the names dm's manifests give it (docs/gaps.md G6).
+    // GPUI, under the names EDM's manifests give it (docs/gaps.md G6).
     "gpui",
     "gpui_platform",
     "gpui-component",
     "gpui-base",
-    // GPUI's Android platform, dm's copy of gpui-mobile's (dm-android alone, gaps row N16).
+    // GPUI's Android platform, EDM's copy of gpui-mobile's (edm-android alone, gaps row N16).
     "gpui-android",
 ];
 const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
@@ -389,19 +389,19 @@ const SOCKETS: &[&str] = &["tokio", "reqwest", "librqbit", "hyper"];
 fn layers() -> Result<(), String> {
     let root = root();
     let crates = [
-        "crates/dm-assets/Cargo.toml",
-        "crates/dm-protocol/Cargo.toml",
-        "crates/dm-safari/Cargo.toml",
-        "crates/dm-media/Cargo.toml",
-        "crates/dm-torrent/Cargo.toml",
-        "crates/dm-net/Cargo.toml",
-        "crates/dm-core/Cargo.toml",
-        "crates/dm-shell/Cargo.toml",
-        "crates/dm-test-support/Cargo.toml",
-        "crates/dm-desktop-base/Cargo.toml",
-        "crates/dm-gpui/Cargo.toml",
-        "crates/dm-android/Cargo.toml",
-        "crates/dm-catcher/Cargo.toml",
+        "crates/edm-assets/Cargo.toml",
+        "crates/edm-protocol/Cargo.toml",
+        "crates/edm-safari/Cargo.toml",
+        "crates/edm-media/Cargo.toml",
+        "crates/edm-torrent/Cargo.toml",
+        "crates/edm-net/Cargo.toml",
+        "crates/edm-core/Cargo.toml",
+        "crates/edm-shell/Cargo.toml",
+        "crates/edm-test-support/Cargo.toml",
+        "crates/edm-desktop-base/Cargo.toml",
+        "crates/edm-gpui/Cargo.toml",
+        "crates/edm-android/Cargo.toml",
+        "crates/edm-catcher/Cargo.toml",
     ]
     .iter()
     .map(|p| manifest(&root.join(p)))
@@ -412,21 +412,21 @@ fn layers() -> Result<(), String> {
     // workspace (the extension's too, gaps row A15) names a dependency with `x.workspace = true`
     // and adds only its own features.
     for member in [
-        "crates/dm-assets/Cargo.toml",
-        "crates/dm-protocol/Cargo.toml",
-        "crates/dm-safari/Cargo.toml",
-        "crates/dm-js/Cargo.toml",
-        "crates/dm-media/Cargo.toml",
-        "crates/dm-torrent/Cargo.toml",
-        "crates/dm-net/Cargo.toml",
-        "crates/dm-core/Cargo.toml",
-        "crates/dm-shell/Cargo.toml",
-        "crates/dm-test-support/Cargo.toml",
-        "crates/dm-desktop-base/Cargo.toml",
-        "crates/dm-gpui/Cargo.toml",
-        "crates/dm-android/Cargo.toml",
+        "crates/edm-assets/Cargo.toml",
+        "crates/edm-protocol/Cargo.toml",
+        "crates/edm-safari/Cargo.toml",
+        "crates/edm-js/Cargo.toml",
+        "crates/edm-media/Cargo.toml",
+        "crates/edm-torrent/Cargo.toml",
+        "crates/edm-net/Cargo.toml",
+        "crates/edm-core/Cargo.toml",
+        "crates/edm-shell/Cargo.toml",
+        "crates/edm-test-support/Cargo.toml",
+        "crates/edm-desktop-base/Cargo.toml",
+        "crates/edm-gpui/Cargo.toml",
+        "crates/edm-android/Cargo.toml",
         "tooling/xtask/Cargo.toml",
-        "crates/dm-catcher/Cargo.toml",
+        "crates/edm-catcher/Cargo.toml",
     ] {
         for d in manifest(&root.join(member))?.own_versions {
             wrong.push(format!(
@@ -440,64 +440,68 @@ fn layers() -> Result<(), String> {
             .deps
             .iter()
             .map(String::as_str)
-            .filter(|d| d.starts_with("dm-"))
+            .filter(|d| d.starts_with("edm-"))
             .collect();
         let (may, no_gui, no_sockets): (&[&str], bool, bool) = match c.name.as_str() {
             // The words both sides speak; nothing else.
-            "dm-protocol" => (&[], true, true),
-            // dm's files that are not code, as bytes (gaps row X9): nothing else.
-            "dm-assets" => (&[], true, true),
-            // dm's own JavaScript: the language alone, no window and no sockets (gaps row F15).
-            "dm-js" => (&[], true, true),
-            // dm's own media code (gaps row A6): files in, files out; nothing of dm's, no window,
+            "edm-protocol" => (&[], true, true),
+            // EDM's files that are not code, as bytes (gaps row X9): nothing else.
+            "edm-assets" => (&[], true, true),
+            // EDM's own JavaScript: the language alone, no window and no sockets (gaps row F15).
+            "edm-js" => (&[], true, true),
+            // EDM's own media code (gaps row A6): files in, files out; nothing of EDM's, no window,
             // no sockets and no async runtime.
-            "dm-media" => (&[], true, true),
-            // BitTorrent's engine behind dm's words (gaps rows A6, P3): the one crate that names
-            // librqbit; its sockets are the swarm's, and nothing of dm's.
-            "dm-torrent" => (&[], true, false),
-            // dm's network (gaps row A6): how a server is reached, whatever is fetched; dm-js
+            "edm-media" => (&[], true, true),
+            // BitTorrent's engine behind EDM's words (gaps rows A6, P3): the one crate that names
+            // librqbit; its sockets are the swarm's, and nothing of EDM's.
+            "edm-torrent" => (&[], true, false),
+            // EDM's network (gaps row A6): how a server is reached, whatever is fetched; edm-js
             // runs the proxy script. No window.
-            "dm-net" => (&["dm-js"], true, false),
-            // What the tests share (gaps row X10): nothing of dm's, and no crate may ship it, as
+            "edm-net" => (&["edm-js"], true, false),
+            // What the tests share (gaps row X10): nothing of EDM's, and no crate may ship it, as
             // none lists it among those it may depend on (only `[dev-dependencies]` name it).
-            "dm-test-support" => (&[], true, true),
+            "edm-test-support" => (&[], true, true),
             // The engine: no window, no browser.
-            "dm-core" => (&["dm-js", "dm-media", "dm-net", "dm-torrent"], true, false),
+            "edm-core" => (
+                &["edm-js", "edm-media", "edm-net", "edm-torrent"],
+                true,
+                false,
+            ),
             // Around the window but not the window.
-            "dm-shell" => (&["dm-assets", "dm-core", "dm-protocol"], true, false),
+            "edm-shell" => (&["edm-assets", "edm-core", "edm-protocol"], true, false),
             // What the desktop program does that is not drawing: any window
             // may use it, so it uses none.
-            "dm-desktop-base" => (
-                &["dm-assets", "dm-core", "dm-protocol", "dm-shell"],
+            "edm-desktop-base" => (
+                &["edm-assets", "edm-core", "edm-protocol", "edm-shell"],
                 true,
                 false,
             ),
             // The window.
-            "dm-gpui" => (
+            "edm-gpui" => (
                 &[
-                    "dm-assets",
-                    "dm-core",
-                    "dm-protocol",
-                    "dm-shell",
-                    "dm-desktop-base",
+                    "edm-assets",
+                    "edm-core",
+                    "edm-protocol",
+                    "edm-shell",
+                    "edm-desktop-base",
                 ],
                 false,
                 false,
             ),
-            // The phone's app (gaps rows N1, N3, N16): dm-gpui's window on gpui-android, with
-            // the phone's services handed to dm-desktop-base's seam, so a window toolkit is
-            // allowed here; dm-shell for the running dm's inbox, which a notification's Retry
+            // The phone's app (gaps rows N1, N3, N16): edm-gpui's window on gpui-android, with
+            // the phone's services handed to edm-desktop-base's seam, so a window toolkit is
+            // allowed here; edm-shell for the running EDM's inbox, which a notification's Retry
             // and Stop All are left in (N6).
-            "dm-android" => (
-                &["dm-core", "dm-desktop-base", "dm-gpui", "dm-shell"],
+            "edm-android" => (
+                &["edm-core", "edm-desktop-base", "edm-gpui", "edm-shell"],
                 false,
                 false,
             ),
             // The extension: only the protocol, and no sockets of its own.
-            "dm-catcher" => (&["dm-protocol"], true, true),
-            // Safari's extension's program (gaps row R4): it starts dm's host for each message
-            // and links nothing of dm's, no window and no sockets.
-            "dm-safari" => (&[], true, true),
+            "edm-catcher" => (&["edm-protocol"], true, true),
+            // Safari's extension's program (gaps row R4): it starts EDM's host for each message
+            // and links nothing of EDM's, no window and no sockets.
+            "edm-safari" => (&[], true, true),
             other => {
                 wrong.push(format!("{other} is not a crate the layering knows"));
                 continue;
@@ -517,9 +521,9 @@ fn layers() -> Result<(), String> {
             }
             // BitTorrent's engine is named in one crate (gaps rows A6, P3); a test may still
             // run a peer of its own with it.
-            if d == "librqbit" && c.name != "dm-torrent" {
+            if d == "librqbit" && c.name != "edm-torrent" {
                 wrong.push(format!(
-                    "{} may not use librqbit: BitTorrent's engine is dm-torrent's",
+                    "{} may not use librqbit: BitTorrent's engine is edm-torrent's",
                     c.name
                 ));
             }
@@ -550,11 +554,11 @@ fn layers() -> Result<(), String> {
                 continue;
             }
             // The window's spacing is a step of `widgets/space.rs` (gaps row A19).
-            if dir == "crates/dm-gpui/src" {
+            if dir == "crates/edm-gpui/src" {
                 for (line, written) in spacing_literals(&text) {
                     wrong.push(format!(
                         "{shown}:{line} writes {written}: a gap, padding or margin on the scale is \
-                         named in dm-gpui's widgets/space.rs (gaps row A19)"
+                         named in edm-gpui's widgets/space.rs (gaps row A19)"
                     ));
                 }
             }
@@ -563,7 +567,7 @@ fn layers() -> Result<(), String> {
                 for (line, what) in folder_reads(&text) {
                     wrong.push(format!(
                         "{shown}:{line} reads {what}: where a person's files live is \
-                         `dm_core::folders`'s to say (gaps row X1)"
+                         `edm_core::folders`'s to say (gaps row X1)"
                     ));
                 }
             }
@@ -577,23 +581,23 @@ fn layers() -> Result<(), String> {
     // no new double in Cargo.lock, and none in more versions than its baseline lists.
     wrong.extend(doubles::check(&root)?);
     // No `#[path]` out of a crate's folder (gaps row X10): what tests share is the
-    // `dm-test-support` crate, named in `[dev-dependencies]`.
+    // `edm-test-support` crate, named in `[dev-dependencies]`.
     for krate in [
-        "crates/dm-assets",
-        "crates/dm-js",
-        "crates/dm-media",
-        "crates/dm-torrent",
-        "crates/dm-net",
-        "crates/dm-protocol",
-        "crates/dm-safari",
-        "crates/dm-core",
-        "crates/dm-shell",
-        "crates/dm-test-support",
-        "crates/dm-desktop-base",
-        "crates/dm-gpui",
-        "crates/dm-android",
+        "crates/edm-assets",
+        "crates/edm-js",
+        "crates/edm-media",
+        "crates/edm-torrent",
+        "crates/edm-net",
+        "crates/edm-protocol",
+        "crates/edm-safari",
+        "crates/edm-core",
+        "crates/edm-shell",
+        "crates/edm-test-support",
+        "crates/edm-desktop-base",
+        "crates/edm-gpui",
+        "crates/edm-android",
         "tooling/xtask",
-        "crates/dm-catcher",
+        "crates/edm-catcher",
     ] {
         let home = root.join(krate);
         for sub in ["src", "tests", "benches", "examples"] {
@@ -606,7 +610,7 @@ fn layers() -> Result<(), String> {
                     let shown = file.strip_prefix(&root).unwrap_or(&file).display();
                     wrong.push(format!(
                         "{shown}:{line} includes {target} by `#[path]` from outside {krate}: \
-                         put what is shared in `dm-test-support` (gaps row X10)"
+                         put what is shared in `edm-test-support` (gaps row X10)"
                     ));
                 }
             }
@@ -616,20 +620,20 @@ fn layers() -> Result<(), String> {
     // the earlier toolkit or the migration plan's phases. xtask itself is not read: its list of
     // window crates names them to refuse them.
     for krate in [
-        "crates/dm-assets",
-        "crates/dm-js",
-        "crates/dm-media",
-        "crates/dm-torrent",
-        "crates/dm-net",
-        "crates/dm-protocol",
-        "crates/dm-safari",
-        "crates/dm-core",
-        "crates/dm-shell",
-        "crates/dm-test-support",
-        "crates/dm-desktop-base",
-        "crates/dm-gpui",
-        "crates/dm-android",
-        "crates/dm-catcher",
+        "crates/edm-assets",
+        "crates/edm-js",
+        "crates/edm-media",
+        "crates/edm-torrent",
+        "crates/edm-net",
+        "crates/edm-protocol",
+        "crates/edm-safari",
+        "crates/edm-core",
+        "crates/edm-shell",
+        "crates/edm-test-support",
+        "crates/edm-desktop-base",
+        "crates/edm-gpui",
+        "crates/edm-android",
+        "crates/edm-catcher",
     ] {
         let home = root.join(krate);
         let mut files = vec![home.join("Cargo.toml")];
@@ -651,9 +655,9 @@ fn layers() -> Result<(), String> {
             }
         }
     }
-    // Every `DM_` switch is read through `dm_core::env`'s table (gaps row A11).
+    // Every `EDM_` switch is read through `edm_core::env`'s table (gaps row A11).
     wrong.extend(env_check::problems(&root));
-    // Every `dm(<tag>):` change in vendor/ is a row of its README's table (A17, X5).
+    // Every `EDM(<tag>):` change in vendor/ is a row of its README's table (A17, X5).
     wrong.extend(vendor_marks::problems(&root));
     if wrong.is_empty() {
         Ok(())
@@ -727,7 +731,7 @@ fn is_test_file(file: &Path) -> bool {
         .is_some_and(|n| n == "tests.rs" || n.ends_with("_tests.rs"))
 }
 
-/// What only `dm-core/src/folders.rs` may read (gaps row X1): the `dirs` crate, and the
+/// What only `edm-core/src/folders.rs` may read (gaps row X1): the `dirs` crate, and the
 /// variables and paths that say where a person's folders are. AppRun's `XDG_DATA_DIRS`
 /// (`processes.rs`) names a variable a child is given, not a folder read, and is not here.
 const FOLDER_READS: &[&str] = &[
@@ -748,7 +752,7 @@ const SPACING_METHODS: &[&str] = &[
     "ml", "mr",
 ];
 
-/// dm-gpui's spacing scale (`widgets/space.rs`), as a literal is written.
+/// edm-gpui's spacing scale (`widgets/space.rs`), as a literal is written.
 const SPACING_SCALE: &[&str] = &[
     "2.0", "4.0", "6.0", "8.0", "10.0", "12.0", "16.0", "20.0", "24.0",
 ];
@@ -775,15 +779,15 @@ fn spacing_literals(text: &str) -> Vec<(usize, String)> {
     found
 }
 
-/// Whether `file` is `dm_core::folders` itself, or its tests.
+/// Whether `file` is `edm_core::folders` itself, or its tests.
 fn is_folders_module(file: &Path) -> bool {
     let shown = file.to_string_lossy().replace('\\', "/");
-    shown.ends_with("dm-core/src/folders.rs")
-        || shown.contains("dm-core/src/folders/")
+    shown.ends_with("edm-core/src/folders.rs")
+        || shown.contains("edm-core/src/folders/")
         // Safari's extension's program reads no folder: it gives the host it starts the
         // person's own `HOME`, which the extension's sandbox replaced, and the host then asks
-        // `dm_core::folders` as it always does (gaps row R4).
-        || shown.ends_with("dm-safari/src/relay.rs")
+        // `edm_core::folders` as it always does (gaps row R4).
+        || shown.ends_with("edm-safari/src/relay.rs")
 }
 
 /// The lines of `text` (numbered from 1) that read one of [`FOLDER_READS`], with what each
@@ -860,14 +864,14 @@ const REPORTERS: &[&str] = &[
 
 /// The only addresses shipped code may hold: the project's own release
 /// page (the update check and Help, both only when asked), and the two
-/// stores dm's extension is listed in, opened in the person's browser when
-/// they click "add dm to your browser".
+/// stores EDM's extension is listed in, opened in the person's browser when
+/// they click "add EDM to your browser".
 const ALLOWED_HOSTS: &[&str] = &[
     "github.com",
     // Asked only for a YouTube video a person asked for (`youtube.rs`).
     "youtube.com",
     // Asked only for a Google Drive share address a person gave, as Drive's own Download
-    // button asks it (`dm-core/src/filehost.rs`, gaps row W7).
+    // button asks it (`edm-core/src/filehost.rs`, gaps row W7).
     "drive.usercontent.google.com",
     "microsoftedge.microsoft.com",
     "addons.mozilla.org",
@@ -886,24 +890,24 @@ fn privacy() -> Result<(), String> {
         }
     }
     for dir in [
-        "crates/dm-assets/src",
-        "crates/dm-core/src",
-        "crates/dm-media/src",
-        "crates/dm-net/src",
-        "crates/dm-torrent/src",
-        "crates/dm-shell/src",
-        "crates/dm-protocol/src",
-        "crates/dm-safari/src",
-        "crates/dm-desktop-base/src",
-        "crates/dm-gpui/src",
-        "crates/dm-android/src",
-        "crates/dm-catcher/src",
+        "crates/edm-assets/src",
+        "crates/edm-core/src",
+        "crates/edm-media/src",
+        "crates/edm-net/src",
+        "crates/edm-torrent/src",
+        "crates/edm-shell/src",
+        "crates/edm-protocol/src",
+        "crates/edm-safari/src",
+        "crates/edm-desktop-base/src",
+        "crates/edm-gpui/src",
+        "crates/edm-android/src",
+        "crates/edm-catcher/src",
         "extension",
     ] {
         for file in walk(&root.join(dir)) {
             // A module's tests live in its `tests.rs` or a `*_tests.rs` (gaps row A13), or start
             // at #[cfg(test)]; the window's tests and their harness are test modules of their
-            // own (`dm-gpui/src/window_tests`, `harness`), whose files hold no #[cfg(test)].
+            // own (`edm-gpui/src/window_tests`, `harness`), whose files hold no #[cfg(test)].
             let test_only = is_test_file(&file)
                 || file.components().any(|c| {
                     [
@@ -944,7 +948,7 @@ fn privacy() -> Result<(), String> {
 
 /// Every tracked file is free of anything a secret scanner takes for a
 /// leaked credential: a login written into an address, a Basic header's
-/// token, a private key, a cloud or GitHub token. dm's tests use made-up
+/// token, a private key, a cloud or GitHub token. EDM's tests use made-up
 /// logins, and one written out whole raised a "Basic Auth String" incident
 /// on the published repository; they are now put together where they are
 /// used, and this keeps it so.
@@ -1104,7 +1108,7 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
 
 /// Every test a row of `docs/parity.md` names as its evidence still exists:
 /// a renamed test left rows citing nothing, and one that described the
-/// opposite of what dm now does. A name is a backticked word of 26 or more
+/// opposite of what EDM now does. A name is a backticked word of 26 or more
 /// letters, digits and underscores, which is how the rows name tests.
 fn parity_evidence() -> Result<(), String> {
     let parity = read(&root().join("docs/parity.md"))?;
@@ -1146,7 +1150,7 @@ fn parity_evidence() -> Result<(), String> {
 }
 
 #[cfg(test)]
-use dm_test_support::secrets as test_secrets;
+use edm_test_support::secrets as test_secrets;
 
 #[cfg(test)]
 mod tests {
@@ -1165,7 +1169,7 @@ mod tests {
     fn the_youtube_format_tables_agree() {
         use std::collections::BTreeMap;
         let app =
-            std::fs::read_to_string(root().join("crates/dm-core/src/youtube/itags.rs")).unwrap();
+            std::fs::read_to_string(root().join("crates/edm-core/src/youtube/itags.rs")).unwrap();
         let mut ours = BTreeMap::new();
         for line in app.lines() {
             let line = line.trim();
@@ -1178,7 +1182,7 @@ mod tests {
             }
         }
         let extension =
-            std::fs::read_to_string(root().join("crates/dm-catcher/src/decide/streams.rs"))
+            std::fs::read_to_string(root().join("crates/edm-catcher/src/decide/streams.rs"))
                 .unwrap();
         let table = extension
             .split("fn itag_height")
@@ -1247,7 +1251,7 @@ mod tests {
 
     #[test]
     fn a_path_attribute_stays_inside_its_crate() {
-        let home = Path::new("/r/crates/dm-core");
+        let home = Path::new("/r/crates/edm-core");
         let file = home.join("tests/live.rs");
         let text = "#[path = \"common/mp4_samples.rs\"]\nmod a;\n\
                     #[path = \"../../../test-support/secrets.rs\"]\nmod b;\n";
@@ -1260,7 +1264,7 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_is_read_in_dm_core_folders_alone() {
+    fn a_folder_is_read_in_edm_core_folders_alone() {
         let text = "// dirs::home_dir() in a comment is passed over\n\
                     let a = 1;\n\
                     let h = std::env::var_os(\"HOME\");\n\
@@ -1268,10 +1272,10 @@ mod tests {
                     let x = std::env::var_os(\"XDG_DATA_DIRS\");\n";
         assert_eq!(folder_reads(text), [(3, "\"HOME\""), (4, "dirs::")]);
         assert!(is_folders_module(Path::new(
-            r"C:\dm\crates/dm-core/src\folders.rs"
+            r"C:\EDM\crates/edm-core/src\folders.rs"
         )));
         assert!(!is_folders_module(Path::new(
-            "crates/dm-shell/src/settings.rs"
+            "crates/edm-shell/src/settings.rs"
         )));
     }
 
@@ -1397,20 +1401,20 @@ mod tests {
         let path = dir.0.join("Cargo.toml");
         std::fs::write(
             &path,
-            "[package]\nname = \"dm-x\"\n\n[dependencies]\ndm-core = \"1\"\n\n\
+            "[package]\nname = \"edm-x\"\n\n[dependencies]\nedm-core = \"1\"\n\n\
              [dev-dependencies]\ntempfile = \"3\"\n\n\
              [target.'cfg(windows)'.dependencies]\nwindows-sys = \"1\"\n",
         )
         .unwrap();
         let read = manifest(&path).unwrap();
-        assert_eq!(read.name, "dm-x");
-        assert_eq!(read.deps, ["dm-core", "windows-sys"]);
-        assert_eq!(read.own_versions, ["dm-core", "tempfile", "windows-sys"]);
+        assert_eq!(read.name, "edm-x");
+        assert_eq!(read.deps, ["edm-core", "windows-sys"]);
+        assert_eq!(read.own_versions, ["edm-core", "tempfile", "windows-sys"]);
 
         // Taken from the workspace, with or without features of its own: none written here.
         std::fs::write(
             &path,
-            "[package]\nname = \"dm-x\"\n\n[dependencies]\ndm-core.workspace = true\n\
+            "[package]\nname = \"edm-x\"\n\n[dependencies]\nedm-core.workspace = true\n\
              tokio = { workspace = true, features = [\"fs\"] }\n\n\
              [build-dependencies]\nembed-resource = { version = \"3\" }\n",
         )
@@ -1425,12 +1429,12 @@ mod tests {
     #[test]
     fn the_fuzz_files_are_counted_by_their_tests_and_a_missing_one_is_none() {
         let dir = Scratch::new("fuzz");
-        let file = dir.0.join("crates/dm-core/tests/fuzz.rs");
+        let file = dir.0.join("crates/edm-core/tests/fuzz.rs");
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(&file, "#[test]\nfn a() {}\n#[test]\nfn b() {}\n").unwrap();
         let counted = fuzz_targets(&dir.0);
         assert_eq!(counted.len(), 6);
-        assert_eq!(counted[0], ("crates/dm-core/tests/fuzz.rs".into(), 2));
+        assert_eq!(counted[0], ("crates/edm-core/tests/fuzz.rs".into(), 2));
         assert!(counted[1..].iter().all(|(_, n)| *n == 0));
     }
 }

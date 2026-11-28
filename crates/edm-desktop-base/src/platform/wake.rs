@@ -1,0 +1,83 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! Waking a sleeping computer for the schedule: the window's start, or a
+//! queue's start time, where the Scheduler says to. Windows lets any
+//! program set a wake timer (where the power plan allows them, as it does
+//! by default); macOS and Linux keep that to the administrator, so there
+//! this does nothing and the Scheduler does not offer it. On a phone the
+//! next start is handed to the app (`phone::next_start`), which sets an
+//! alarm for it (gaps row N12).
+
+/// Keeps a wake timer set for the next start `next` says (minutes from
+/// now), looked at again every minute so a change in the Scheduler is
+/// taken up. `None` clears it.
+pub fn watch(next: impl Fn() -> Option<u32> + Send + 'static) {
+    #[cfg(windows)]
+    {
+        let _ = std::thread::Builder::new()
+            .name("edm-wake".into())
+            .spawn(move || win::run(next));
+    }
+    #[cfg(target_os = "android")]
+    {
+        let _ = std::thread::Builder::new()
+            .name("edm-wake".into())
+            .spawn(move || loop {
+                super::phone::next_start(next());
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            });
+    }
+    #[cfg(not(any(windows, target_os = "android")))]
+    let _ = next;
+}
+
+/// Whether this system lets EDM wake the computer.
+pub fn possible() -> bool {
+    cfg!(windows)
+}
+
+/// Whether the schedule's next start is watched whatever Scheduler › Wake from sleep says:
+/// on a phone always, since Android stops an app left idle (its alarm, gaps row N12).
+pub(crate) const ALWAYS_WATCHED: bool = cfg!(target_os = "android");
+
+#[cfg(windows)]
+mod win {
+    use windows_sys::Win32::System::Threading::{
+        CancelWaitableTimer, CreateWaitableTimerW, SetWaitableTimer, WaitForSingleObject,
+    };
+
+    pub(super) fn run(next: impl Fn() -> Option<u32>) {
+        // SAFETY: no attributes and no name; the handle is kept for the
+        // life of the thread, which is the life of EDM.
+        let timer = unsafe { CreateWaitableTimerW(std::ptr::null(), 0, std::ptr::null()) };
+        if timer.is_null() {
+            return;
+        }
+        loop {
+            match next() {
+                // A minute early, so the queue is ready when its time comes.
+                Some(minutes) if minutes >= 2 => {
+                    // Relative times are negative, in 100-nanosecond units.
+                    let due: i64 = -(i64::from(minutes - 1) * 60 * 10_000_000);
+                    // SAFETY: `due` lives for the call; no completion routine.
+                    unsafe {
+                        SetWaitableTimer(timer, &due, 0, None, std::ptr::null(), 1);
+                    }
+                }
+                _ => {
+                    // SAFETY: the timer this thread made.
+                    unsafe {
+                        CancelWaitableTimer(timer);
+                    }
+                }
+            }
+            // SAFETY: the timer this thread made; a minute at most.
+            unsafe {
+                WaitForSingleObject(timer, 60_000);
+            }
+        }
+    }
+}

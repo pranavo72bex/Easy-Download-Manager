@@ -1,6 +1,6 @@
 # Fedora 41 as a person has it, for the browser checks run elsewhere than
-# Debian (DM_DISTRO=fedora in linux-chromium-human.sh and
-# linux-firefox-check.sh). dm is not built here: it is built in the Debian
+# Debian (EDM_DISTRO=fedora in linux-chromium-human.sh and
+# linux-firefox-check.sh). EDM is not built here: it is built in the Debian
 # image and copied in, as a person copies a binary or installs the .rpm.
 # What is installed is what a Fedora user has or would add: the browser from
 # Fedora's own repositories, the libraries the .rpm names

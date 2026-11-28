@@ -30,10 +30,10 @@ jobs:
         run: |
           # Weekly: the nightly schedule runs this hunt on Mondays alone.
           if [ "$GITHUB_EVENT_NAME" = schedule ] && [ "$(date -u +%u)" != 1 ]; then exit 0; fi
-          cargo test --release -p dm-core --test fuzz
-          cargo test --release -p dm-shell --test fuzz
-          cargo test --release -p dm-protocol --test fuzz
-          PROPTEST_CASES=5000 cargo test --release -p dm-desktop-base --test fuzz
+          cargo test --release -p edm-core --test fuzz
+          cargo test --release -p edm-shell --test fuzz
+          cargo test --release -p edm-protocol --test fuzz
+          PROPTEST_CASES=5000 cargo test --release -p edm-desktop-base --test fuzz
 
   extension:
     name: The extension's decisions
@@ -45,7 +45,7 @@ jobs:
           toolchain: 1.98.1 # as rust-toolchain.toml
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Hunt
-        working-directory: crates/dm-catcher
+        working-directory: crates/edm-catcher
         env:
           PROPTEST_CASES: '100000'
         run: |
@@ -62,7 +62,7 @@ jobs:
         target: [torrent_metainfo, hls_playlist, dash_manifest, metalink, archives, zip_listing, mp4, youtube_frames, javascript, peer_messages]
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      # libFuzzer's coverage needs nightly's sanitizer flags; dm itself is built on stable.
+      # libFuzzer's coverage needs nightly's sanitizer flags; EDM itself is built on stable.
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           toolchain: nightly

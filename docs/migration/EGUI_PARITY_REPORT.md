@@ -10,8 +10,8 @@ complete when every row holds in both, or a row's change is approved by the main
 State on 2026-11-09: egui holds 64 of 64 (macOS and Linux from the 0.9.0 release's own files;
 Windows by the maintainer's run).
 
-State on 2026-11-11: the GPUI window is the window dm ships on macOS, Windows and Linux. The GPUI
-column names the systems where `human-qa.py` passes the row with `DM_BINARY` naming dm-gpui.
+State on 2026-11-11: the GPUI window is the window EDM ships on macOS, Windows and Linux. The GPUI
+column names the systems where `human-qa.py` passes the row with `EDM_BINARY` naming edm-gpui.
 macOS: 64 of 64 (2026-11-10, and from its .dmg). Windows: 63 of 64 from its installer (2026-11-11:
 B36 missed only its click-to-first-request time on one of its two passes). Linux
 (`sh scripts/linux-human-qa.sh`, Debian 12 on X11, no GPU): 64 of 64 on 2026-11-11, from a build of
@@ -45,8 +45,8 @@ input, as the egui window holds them.
 | B19 | Presses Add for later, then Start Queue | window | 5 | holds | holds on macOS, Windows and Linux |
 | B64 | Opens Downloads › Start Queue (or Stop Queue), or the arrow beside the toolbar's Start… | window | 5 | holds | holds on macOS, Windows and Linux |
 | B20 | Chooses Low speed (256 KB/s) | window | 5 | holds | holds on macOS, Windows and Linux |
-| B21 | dm is killed in the middle of a download, then opened | engine (shown, not drawn) | all | holds | holds on macOS, Windows and Linux |
-| B22 | dm is quit and opened again | engine (shown, not drawn) | all | holds | holds on macOS, Windows and Linux |
+| B21 | EDM is killed in the middle of a download, then opened | engine (shown, not drawn) | all | holds | holds on macOS, Windows and Linux |
+| B22 | EDM is quit and opened again | engine (shown, not drawn) | all | holds | holds on macOS, Windows and Linux |
 | B23 | Selects a finished download and clicks Delete | window | 3 | holds | holds on macOS, Windows and Linux |
 | B38 | Selects a stopped, unfinished download and clicks Delete | window | 3 | holds | holds on macOS, Windows and Linux |
 | B24 | Clicks Delete Completed | window | 3 | holds | holds on macOS, Windows and Linux |
@@ -59,9 +59,9 @@ input, as the egui window holds them.
 | B46 | Double-clicks a download that is running, waiting or stopped; looks at its progress win… | window | 2 | holds | holds on macOS, Windows and Linux |
 | B47 | Adds a download from Add URL whose address has a token, a signature, a key, a password… | window | 4 | holds | holds on macOS, Windows and Linux |
 | B48 | Types text in Find, then presses Shift-F3, or chooses Downloads › Find previous | window | 2 | holds | holds on macOS, Windows and Linux |
-| B49 | Opens the Scheduler, picks what dm does when the scheduled downloads are done (nothing,… | window | 5 | holds | holds on macOS, Windows and Linux |
+| B49 | Opens the Scheduler, picks what EDM does when the scheduled downloads are done (nothing,… | window | 5 | holds | holds on macOS, Windows and Linux |
 | B50 | Adds an address that is already in the list; looks at the question | window | 4 | holds | holds on macOS, Windows and Linux |
-| B51 | Opens Options › Advanced; reads how dm identifies itself; turns on Identify as dm only | window | 7 | holds | holds on macOS, Windows and Linux |
+| B51 | Opens Options › Advanced; reads how EDM identifies itself; turns on Identify as EDM only | window | 7 | holds | holds on macOS, Windows and Linux |
 | B52 | Opens the tray icon's Speed menu; chooses Settings… | window | 8 | holds | holds on macOS, Windows and Linux |
 | B53 | Opens a running download's progress window and its Connections section | window | 6 | holds | holds on macOS, Windows and Linux |
 | B54 | Opens the window of a download that failed with the disk full, a link that no longer wo… | window | 6 | holds | holds on macOS, Windows and Linux |
@@ -69,13 +69,13 @@ input, as the egui window holds them.
 | B56 | Opens Options › Downloads and looks at "Connections per file" | window | 7 | holds | holds on macOS, Windows and Linux |
 | B57 | Opens Options › Advanced and adds a site with its own connection limit | window | 7 | holds | holds on macOS, Windows and Linux |
 | B26 | Clicks a link to a file | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
-| B37 | With dm set as installed, clicks a link to any kind of file: `.bin`, `.txt`, `.zip`, `.… | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
+| B37 | With EDM set as installed, clicks a link to any kind of file: `.bin`, `.txt`, `.zip`, `.… | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
 | B27 | Clicks a link to a PDF the browser would show | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
 | B28 | Alt-clicks a link | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
-| B29 | Right-clicks a link, "Download link with dm" | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
-| B30 | Right-clicks a page, "Download all links with dm" | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
+| B29 | Right-clicks a link, "Download link with EDM" | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
+| B30 | Right-clicks a page, "Download all links with EDM" | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
 | B31 | Switches "Catch downloads" off in the toolbar popup | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
-| B32 | Downloads with dm not installed | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
+| B32 | Downloads with EDM not installed | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
 | B33 | Rests the pointer on a playing video | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
 | B34 | Clicks it | browser and hand-off | all | holds | holds on macOS, Windows and Linux |
 | B35 | Picks one | browser and hand-off | all | holds | holds on macOS, Windows and Linux |

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The package managers' manifests for a release, written from its latest.json.
@@ -62,8 +62,8 @@ def asset(rel, name):
 
 
 def homebrew(rel, v):
-    arm_url, arm_sum = asset(rel, f"dm_{v}_aarch64.dmg")
-    _, intel_sum = asset(rel, f"dm_{v}_x64.dmg")
+    arm_url, arm_sum = asset(rel, f"edm_{v}_aarch64.dmg")
+    _, intel_sum = asset(rel, f"edm_{v}_x64.dmg")
     base = arm_url.rsplit("/", 1)[0].replace(f"desktop-v{v}", "desktop-v#{version}")
     return f'''cask "easy-download-manager" do
   arch arm: "aarch64", intel: "x64"
@@ -72,8 +72,8 @@ def homebrew(rel, v):
   sha256 arm:   "{arm_sum}",
          intel: "{intel_sum}"
 
-  url "{base}/dm_#{{version}}_#{{arch}}.dmg"
-  name "dm"
+  url "{base}/edm_#{{version}}_#{{arch}}.dmg"
+  name "EDM"
   desc "{CASK_DESC}"
   homepage "{HOME}"
 
@@ -85,16 +85,16 @@ def homebrew(rel, v):
 
   depends_on macos: ">= :big_sur"
 
-  app "dm.app"
+  app "EDM.app"
 
-  zap trash: "~/Library/Application Support/dm"
+  zap trash: "~/Library/Application Support/EDM"
 end
 '''
 
 
 def scoop(rel, v):
-    url, digest = asset(rel, f"dm_{v}_x64-portable.zip")
-    folder = f"dm_{v}_x64-portable"
+    url, digest = asset(rel, f"edm_{v}_x64-portable.zip")
+    folder = f"edm_{v}_x64-portable"
     return json.dumps({
         "version": v,
         "description": SUMMARY,
@@ -102,26 +102,26 @@ def scoop(rel, v):
         "license": LICENCE,
         "architecture": {"64bit": {"url": url, "hash": digest}},
         "extract_dir": folder,
-        "bin": [["dm-gpui.exe", "dm"]],
-        "shortcuts": [["dm-gpui.exe", "dm"]],
-        # The portable copy keeps its settings and list in dm-data beside it.
-        "persist": "dm-data",
+        "bin": [["edm-gpui.exe", "EDM"]],
+        "shortcuts": [["edm-gpui.exe", "EDM"]],
+        # The portable copy keeps its settings and list in edm-data beside it.
+        "persist": "edm-data",
         # The browser's host names the program's path: Scoop's `current` folder
         # stays the same across updates, so it is registered from there.
         "post_install": [
-            "& \"$($dir -replace '\\\\[^\\\\]+$', '\\current')\\dm-gpui.exe\" --register | Out-Null"
+            "& \"$($dir -replace '\\\\[^\\\\]+$', '\\current')\\edm-gpui.exe\" --register | Out-Null"
         ],
         "checkver": {"github": HOME, "regex": "desktop-v([\\d.]+)"},
         "autoupdate": {
             "architecture": {"64bit": {
-                "url": f"{HOME}/releases/download/desktop-v$version/dm_$version_x64-portable.zip"}},
-            "extract_dir": "dm_$version_x64-portable",
+                "url": f"{HOME}/releases/download/desktop-v$version/edm_$version_x64-portable.zip"}},
+            "extract_dir": "edm_$version_x64-portable",
         },
     }, indent=4) + "\n"
 
 
 def winget(rel, v):
-    url, digest = asset(rel, f"dm_{v}_x64-setup.exe")
+    url, digest = asset(rel, f"edm_{v}_x64-setup.exe")
     head = (f"PackageIdentifier: {WINGET_ID}\nPackageVersion: {v}\n")
     version = head + ("DefaultLocale: en-US\nManifestType: version\nManifestVersion: 1.6.0\n")
     installer = head + (
@@ -139,7 +139,7 @@ def winget(rel, v):
         "PackageLocale: en-US\n"
         "Publisher: pranavo72bex\n"
         f"PublisherUrl: https://github.com/pranavo72bex\n"
-        "PackageName: dm\n"
+        "PackageName: EDM\n"
         f"PackageUrl: {HOME}\n"
         f"License: {LICENCE}\n"
         f"LicenseUrl: {HOME}/blob/main/LICENSE\n"
@@ -156,15 +156,15 @@ def winget(rel, v):
 
 
 def flatpak(rel, v):
-    x_url, x_sum = asset(rel, f"dm_{v}_amd64.deb")
-    a_url, a_sum = asset(rel, f"dm_{v}_arm64.deb")
+    x_url, x_sum = asset(rel, f"edm_{v}_amd64.deb")
+    a_url, a_sum = asset(rel, f"edm_{v}_arm64.deb")
     i = FLATPAK_ID
     return f'''# Repackages the release's .deb: the same binary the .deb installs.
 app-id: {i}
 runtime: org.freedesktop.Platform
 runtime-version: "24.08"
 sdk: org.freedesktop.Sdk
-command: dm-gpui
+command: edm-gpui
 finish-args:
   - --share=network
   - --share=ipc
@@ -176,24 +176,24 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
 modules:
-  - name: dm
+  - name: EDM
     buildsystem: simple
     build-commands:
-      - ar x dm.deb
+      - ar x EDM.deb
       - tar -xf data.tar.*
-      - install -Dm755 usr/bin/dm-gpui /app/bin/dm-gpui
-      - install -Dm644 usr/share/icons/hicolor/128x128/apps/dm-gpui.png /app/share/icons/hicolor/128x128/apps/{i}.png
-      - install -Dm644 usr/share/icons/hicolor/32x32/apps/dm-gpui.png /app/share/icons/hicolor/32x32/apps/{i}.png
-      - install -Dm644 usr/share/applications/dm-gpui.desktop /app/share/applications/{i}.desktop
-      - desktop-file-edit --set-icon={i} --set-key=Exec --set-value="dm-gpui %u" /app/share/applications/{i}.desktop
+      - install -Dm755 usr/bin/edm-gpui /app/bin/edm-gpui
+      - install -Dm644 usr/share/icons/hicolor/128x128/apps/edm-gpui.png /app/share/icons/hicolor/128x128/apps/{i}.png
+      - install -Dm644 usr/share/icons/hicolor/32x32/apps/edm-gpui.png /app/share/icons/hicolor/32x32/apps/{i}.png
+      - install -Dm644 usr/share/applications/edm-gpui.desktop /app/share/applications/{i}.desktop
+      - desktop-file-edit --set-icon={i} --set-key=Exec --set-value="edm-gpui %u" /app/share/applications/{i}.desktop
     sources:
       - type: file
-        dest-filename: dm.deb
+        dest-filename: EDM.deb
         only-arches: [x86_64]
         url: {x_url}
         sha256: {x_sum}
       - type: file
-        dest-filename: dm.deb
+        dest-filename: EDM.deb
         only-arches: [aarch64]
         url: {a_url}
         sha256: {a_sum}

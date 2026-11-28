@@ -1,15 +1,15 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-# Compile-checks dm's Windows-only modules for x86_64-pc-windows-msvc from any
+# Compile-checks EDM's Windows-only modules for x86_64-pc-windows-msvc from any
 # computer, with `rustup target add x86_64-pc-windows-msvc` done once.
 #
 #     sh scripts/windows-modules-check.sh
 #
-# `cargo check --target x86_64-pc-windows-msvc -p dm-gpui` does not get
+# `cargo check --target x86_64-pc-windows-msvc -p edm-gpui` does not get
 # past the C build of aws-lc-sys without a Windows toolchain. These modules
 # need only `windows-sys` and `windows`, which are plain Rust, so each is
 # included in a small crate of its own and checked there; their logic is
@@ -17,7 +17,7 @@
 # It does not run them: that is for a Windows computer.
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
-src="$root/crates/dm-desktop-base/src/platform"
+src="$root/crates/edm-desktop-base/src/platform"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/src"
@@ -36,7 +36,7 @@ for module in quiet contrast jumplist; do
   printf '#[path = "%s/%s.rs"]\npub mod %s;\n' "$src" "$module" "$module" >> "$work/src/lib.rs"
 done
 # The native host's look for the browser that started it.
-printf '#[path = "%s/crates/dm-shell/src/host/parent.rs"]\npub mod parent;\n' "$root" >> "$work/src/lib.rs"
+printf '#[path = "%s/crates/edm-shell/src/host/parent.rs"]\npub mod parent;\n' "$root" >> "$work/src/lib.rs"
 cd "$work"
 echo "== check for x86_64-pc-windows-msvc"
 cargo check --target x86_64-pc-windows-msvc

@@ -2434,7 +2434,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "batch",
    "rep": 1,
    "ok": true,
@@ -2909,7 +2909,7 @@
    ]
   },
   {
-   "app": "dm",
+   "app": "EDM",
    "scenario": "batch",
    "rep": 2,
    "ok": true,
@@ -5870,7 +5870,7 @@
   "date": "2026-11-13T07:02:20.595Z",
   "apps": [
    "refa",
-   "dm"
+   "EDM"
   ],
   "system": {
    "platform": "win32",
@@ -5882,7 +5882,7 @@
   },
   "node": "v24.22.1",
   "dmBinary": {
-   "path": "D:\\dm-target\\release\\dm-gpui.exe",
+   "path": "D:\\edm-target\\release\\edm-gpui.exe",
    "bytes": 35624448,
    "modified": "2026-11-13T05:43:13.354Z"
   },
@@ -5906,10 +5906,10 @@
   },
   "dmConnections": null,
   "folders": {
-   "work": "C:\\Users\\prana\\AppData\\Local\\Temp\\dm-bench",
-   "dmHome": "C:\\Users\\prana\\AppData\\Local\\Temp\\dm-bench\\dm-home",
-   "dmDownloads": "D:\\dm-bench\\down-1113b",
-   "refa": "D:\\dm-bench\\refa-1113b"
+   "work": "C:\\Users\\prana\\AppData\\Local\\Temp\\edm-bench",
+   "dmHome": "C:\\Users\\prana\\AppData\\Local\\Temp\\edm-bench\\edm-home",
+   "dmDownloads": "D:\\edm-bench\\down-1113b",
+   "refa": "D:\\edm-bench\\refa-1113b"
   }
  }
 }

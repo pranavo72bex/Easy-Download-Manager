@@ -1,9 +1,9 @@
 # Statistics
 
-**View › Statistics…** opens a window of figures about what dm has
+**View › Statistics…** opens a window of figures about what EDM has
 downloaded. They are worked out when the window opens, from the finished
 downloads in the list: each one's size, when it finished, the site its
-address is on and its kind. dm writes nothing new to work them out, and
+address is on and its kind. EDM writes nothing new to work them out, and
 keeps nothing of them when the window closes. Asked for again while it is
 open, it comes to the front.
 
@@ -21,9 +21,9 @@ open, it comes to the front.
 - **By category:** the same for each kind (Videos, Audio, Documents, Apps,
   Archives, Pictures, Other), named as the side panel names them.
 - **Speed:** **Average speed** is how fast the downloads went together, on
-  average, while any of them ran since dm opened; **Best speed** is the
+  average, while any of them ran since EDM opened; **Best speed** is the
   fastest they went together. Each says "not measured yet" until something
-  has run. dm measures these while it is open and forgets them when it
+  has run. EDM measures these while it is open and forgets them when it
   closes.
 
 With nothing finished yet it says "Nothing has finished yet."

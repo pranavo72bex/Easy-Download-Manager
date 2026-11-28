@@ -1,7 +1,7 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # The .rpm, built and then installed the way a person would on Fedora and
@@ -12,53 +12,53 @@
 # Builds the release binary and the .rpm in the Debian image linux-check.sh
 # uses, then for each distribution installs it with its own package manager
 # (which must resolve the libraries the package names), runs
-# scripts/smoke.py against the installed /usr/bin/dm under a virtual display
+# scripts/smoke.py against the installed /usr/bin/EDM under a virtual display
 # (so the window must open with only what the package pulled in), and
 # removes it again.
 # Streamed in, not mounted, for the reason linux-check.sh gives.
 set -e
 cd "$(dirname "$0")/.."
-# The window Linux ships (dm-gpui), whose libraries nfpm.yaml names.
+# The window Linux ships (edm-gpui), whose libraries nfpm.yaml names.
 # shellcheck source=scripts/linux/window.sh
 . scripts/linux/window.sh
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' "crates/$binary/Cargo.toml" | head -1)
-docker build -q -t dm-linux-check scripts/linux >/dev/null
+docker build -q -t edm-linux-check scripts/linux >/dev/null
 stream() { git ls-files -z --cached --others --exclude-standard | tar --null -T - -cf -; }
 
-echo "== building dm $version and its .rpm"
-stream | docker run --rm -i -v dm-linux-target:/target \
-  -v "$HOME/.cargo/registry":/usr/local/cargo/registry dm-linux-check sh -c "
+echo "== building EDM $version and its .rpm"
+stream | docker run --rm -i -v edm-linux-target:/target \
+  -v "$HOME/.cargo/registry":/usr/local/cargo/registry edm-linux-check sh -c "
     set -e; mkdir -p /work && cd /work && tar -xf -
     cargo build -q --release -p $binary
     rm -rf /target/rpm
     NFPM_DIR=/target sh scripts/linux/nfpm.sh /target/release/$binary $version /target/rpm"
 
-# DM_RPM_DISTROS picks which, e.g. to retry one after a mirror failed.
-for distro in ${DM_RPM_DISTROS:-fedora:41 opensuse/leap:15.6}; do
+# EDM_RPM_DISTROS picks which, e.g. to retry one after a mirror failed.
+for distro in ${EDM_RPM_DISTROS:-fedora:41 opensuse/leap:15.6}; do
   echo
   echo "== $distro: install, smoke, remove"
   case $distro in
     fedora*) first=true
-             # Without the weak dependencies (the CJK fonts dm recommends,
+             # Without the weak dependencies (the CJK fonts EDM recommends,
              # a hundred megabytes and more): that they are named is checked
              # below, and the disk here is tight.
-             install="dnf install -y -q --setopt=install_weak_deps=False python3 xorg-x11-server-Xvfb /target/rpm/*.rpm"; remove="dnf remove -y -q dm" ;;
+             install="dnf install -y -q --setopt=install_weak_deps=False python3 xorg-x11-server-Xvfb /target/rpm/*.rpm"; remove="dnf remove -y -q EDM" ;;
     # Leap's image has no tar, which the source arrives through.
     opensuse*) first="zypper -q --non-interactive install -y tar"
                install="zypper -q --non-interactive install -y --no-recommends --allow-unsigned-rpm python3 xvfb-run /target/rpm/*.rpm"
-               remove="zypper -q --non-interactive remove -y dm" ;;
+               remove="zypper -q --non-interactive remove -y EDM" ;;
   esac
-  stream | docker run --rm -i -v dm-linux-target:/target "$distro" sh -c "
+  stream | docker run --rm -i -v edm-linux-target:/target "$distro" sh -c "
     set -e; $first >/dev/null; mkdir -p /work && cd /work && tar -xf -
     $install >/dev/null
-    rpm -q dm
+    rpm -q EDM
     # A font for names in Chinese, Japanese and Korean, recommended rather
     # than required.
-    if rpm -q --recommends dm | grep -q cjk; then echo 'ok    recommends a CJK font'; else echo 'FAIL  recommends no CJK font'; exit 1; fi
+    if rpm -q --recommends EDM | grep -q cjk; then echo 'ok    recommends a CJK font'; else echo 'FAIL  recommends no CJK font'; exit 1; fi
     # 24-bit: openSUSE's xvfb-run defaults to an 8-bit screen, which has no
     # GL config a window can use.
-    xvfb-run -a -s '-screen 0 1280x800x24' python3 scripts/smoke.py /usr/bin/dm
+    xvfb-run -a -s '-screen 0 1280x800x24' python3 scripts/smoke.py /usr/bin/EDM
     $remove >/dev/null
-    if [ -e /usr/bin/dm ]; then echo 'FAIL  removing the package left /usr/bin/dm'; exit 1; fi
+    if [ -e /usr/bin/EDM ]; then echo 'FAIL  removing the package left /usr/bin/EDM'; exit 1; fi
     echo 'ok    removed cleanly'"
 done

@@ -1,0 +1,61 @@
+[package]
+name = "edm-media"
+version = "0.10.3"
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: its paths to the other crates are this repository's
+# (deny.toml).
+publish = false
+
+# EDM's own media code, out of the engine (gaps row A6): the MP4, Matroska and transport-stream
+# writers, the MP3 and GIF encoders, the AAC and AV1 readers and the subtitles. Files in, files
+# out: no sockets, no async runtime and none of EDM's other crates, so an engine edit does not
+# rebuild the muxers and these can be read and tested alone.
+[features]
+# Small media files made for tests, for edm-core's tests too (`mp4mux::testing`,
+# `mkvmux::testing`); edm-core names it in `[dev-dependencies]` alone.
+testing = []
+
+[dependencies]
+# HLS's SAMPLE-AES with a clear key (`sealed.rs`, gaps row Y16): AES-128-CBC on a sample's
+# blocks; already in the build through edm-core's whole-segment AES-128.
+aes.workspace = true
+cbc.workspace = true
+# `shape::Shape` is kept in the queue's file.
+serde = { workspace = true, features = ["derive"] }
+# AAC-LC decoding where the system has no decoder EDM calls (`aac.rs`).
+symphonia-codec-aac.workspace = true
+symphonia-core.workspace = true
+
+# A GIF of a video's part on Linux, from its AV1 stream (gaps row 54): pure
+# Rust, without its assembly (no assembler needed to build). BSD-2-Clause.
+# libc for the C library's EAGAIN, rav1d's "not now".
+[target.'cfg(target_os = "linux")'.dependencies]
+rav1d.workspace = true
+libc.workspace = true
+
+# Media Foundation, the system's own decoders, for a video's sound saved as MP3
+# and a part saved as GIF (`mf.rs`): COM, which windows-sys has no wrappers
+# for. The same version GPUI's Windows platform uses, so already in the tree.
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Media_MediaFoundation",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+] }
+
+[dev-dependencies]
+# The AV1 reader is tested on every system, though only Linux builds it in;
+# libc for the C library's EAGAIN on Windows too.
+rav1d.workspace = true
+libc.workspace = true
+proptest.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+# An MP3 decoder, to read back what the encoder wrote (`mp3/tests.rs`).
+symphonia-bundle-mp3.workspace = true
+
+[lints]
+workspace = true

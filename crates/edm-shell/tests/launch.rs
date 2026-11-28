@@ -1,0 +1,65 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! What EDM does as it opens: the Main queue starts when the setting says
+//! so, with nobody clicking "Start queue".
+
+use edm_core::{AddOptions, DownloadList, State};
+use edm_shell::settings::{self, Settings};
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_main_queue_starts_at_launch_when_the_setting_says_so() {
+    let home = tempfile::tempdir().unwrap();
+    // SAFETY: the one test in this binary, so the process-wide home is its own
+    // and nothing else is reading the environment while it is set.
+    unsafe { std::env::set_var("EDM_HOME", home.path()) };
+    let saved = Settings {
+        folders: edm_shell::settings::FolderSettings {
+            download_dir: home.path().join("out"),
+            ..Default::default()
+        },
+        downloads: edm_shell::settings::DownloadSettings {
+            start_queue_on_launch: true,
+            ..Default::default()
+        },
+        ..Settings::default()
+    };
+    saved.save().unwrap();
+
+    // A row added for later, as the last run left it.
+    let queue = DownloadList::new(
+        edm_core::client(),
+        saved.options(home.path().join("parts"), edm_core::Limiter::unlimited()),
+        1,
+    );
+    queue.persist_to(settings::home().join("queue.json")).await;
+    let id = queue
+        .add_with(
+            "http://127.0.0.1:9/later.bin",
+            AddOptions {
+                later: true,
+                queue: edm_core::MAIN_QUEUE.into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(queue.get(id).await.unwrap().state, State::Paused);
+    queue.flush().await;
+    drop(queue);
+
+    let started = edm_shell::shell::start(&edm_shell::shell::orders(&[])).await;
+    let row = started
+        .queue
+        .get(id)
+        .await
+        .expect("the saved row was not read back");
+    assert_ne!(
+        row.state,
+        State::Paused,
+        "the Main queue was not started as EDM opened"
+    );
+    assert!(started.settings.downloads.start_queue_on_launch);
+}

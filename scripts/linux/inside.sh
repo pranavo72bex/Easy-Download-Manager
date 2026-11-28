@@ -1,7 +1,7 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # Runs inside the container: builds and drives the client without a desktop
@@ -10,12 +10,12 @@
 set -e
 cd /work
 
-echo "== what dm needs, as make doctor sees it"
+echo "== what EDM needs, as make doctor sees it"
 make doctor || true
 
 echo
-echo "== dm's own JavaScript (dm-js, gaps row F15)"
-cargo test -p dm-js
+echo "== EDM's own JavaScript (edm-js, gaps row F15)"
+cargo test -p edm-js
 
 echo
 echo "== the client, without a desktop tray host"

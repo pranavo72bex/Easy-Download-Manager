@@ -41,7 +41,7 @@ jobs:
       # A release that ships a broken build helps nobody, so the same suite
       # that guards a pull request guards a tag.
       - name: Tests
-        working-directory: crates/dm-catcher
+        working-directory: crates/edm-catcher
         run: cargo test
 
       # The version in the manifest is what browsers show and what the store
@@ -61,9 +61,9 @@ jobs:
               exit 1
             fi
           done
-          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/dm-catcher/Cargo.toml | head -1)
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/edm-catcher/Cargo.toml | head -1)
           if [ "$tag" != "$crate" ]; then
-            echo "tag v$tag does not match crates/dm-catcher/Cargo.toml ($crate)"
+            echo "tag v$tag does not match crates/edm-catcher/Cargo.toml ($crate)"
             exit 1
           fi
           echo "v$tag matches both manifests and the crate"
@@ -92,7 +92,7 @@ jobs:
             --upload-source-code "$RUNNER_TEMP/source.zip" \
             --api-key "$AMO_JWT_ISSUER" --api-secret "$AMO_JWT_SECRET"
           # Mozilla names the file after the add-on; named as the README says.
-          for x in dist/signed/*.xpi; do mv "$x" "dist/signed/dm-firefox-${GITHUB_REF_NAME#v}.xpi"; done
+          for x in dist/signed/*.xpi; do mv "$x" "dist/signed/edm-firefox-${GITHUB_REF_NAME#v}.xpi"; done
           ls dist/signed
 
       # A signed record of which commit and workflow built each file (gaps row H29), kept by
@@ -147,7 +147,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/edge-store.yml
     with:
-      notes: dm extension ${{ github.ref_name }}. Changes are listed at https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
+      notes: EDM extension ${{ github.ref_name }}. Changes are listed at https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}
       submit: true
     secrets:
       EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}

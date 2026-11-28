@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """The rest of the stress check: proxy, mirrors and Metalink, FTP, the watched
@@ -50,7 +50,7 @@ sys.modules["sc"] = sc
 spec.loader.exec_module(sc)
 MB = sc.MB
 finding, measure, check = sc.finding, sc.measure, sc.check
-DM, wait_for, states, verify = sc.DM, sc.wait_for, sc.states, sc.verify
+EDM, wait_for, states, verify = sc.EDM, sc.wait_for, sc.states, sc.verify
 slice_of, expected_sha, file_sha = sc.slice_of, sc.expected_sha, sc.file_sha
 
 PHASES = {}
@@ -452,40 +452,40 @@ def p_socks(ctx):
     proxy.start()
     def settings(port):
         return {"connections": 4, "attempts": 1, "proxy": {"enabled": True, "type": "socks5", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}
-    dm = DM(root, settings(proxy.port), name="socks1").start()
+    edm = EDM(root, settings(proxy.port), name="socks1").start()
     try:
         expect, urls = {}, []
         for i in range(20):
             expect[f"sk{i}.bin"] = (f"sk{i}", 2 * MB)
             urls.append(f"{base}/f/sk{i}/{2 * MB}/sk{i}.bin")
-        dm.add(urls)
-        wait_for(lambda: len(dm.rows()) >= 20 and all(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 120)
-        ok, bad = verify(dm.rows(), expect)
+        edm.add(urls)
+        wait_for(lambda: len(edm.rows()) >= 20 and all(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 120)
+        ok, bad = verify(edm.rows(), expect)
         measure("socks", f"20 files through SOCKS5: {ok} byte-exact; the proxy was asked for {len(proxy.connects)} connections, the server saw {sc.Stats.requests} requests")
         if ok != 20:
-            finding("high", "socks", f"through a working SOCKS5 proxy {ok} of 20 files were exact: {states(dm.rows())}")
+            finding("high", "socks", f"through a working SOCKS5 proxy {ok} of 20 files were exact: {states(edm.rows())}")
         if len(proxy.connects) == 0:
             finding("critical", "socks", "no connection went through the SOCKS5 proxy that was set")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
     for label, port, refuse in (("a proxy that refuses every request", None, True), ("a proxy that is not there", 1, False)):
         refusing = Socks5(refuse=True)
         if refuse:
             refusing.start()
             port = refusing.port
         sc.Stats.reset()
-        dm = DM(root, settings(port), name="socks2" + str(bool(refuse))).start()
+        edm = EDM(root, settings(port), name="socks2" + str(bool(refuse))).start()
         try:
-            dm.add([f"{base}/f/skd{int(refuse)}/{MB}/skd{int(refuse)}.bin"])
-            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 120)
-            kind = dm.rows()[0]["state"]["kind"]
+            edm.add([f"{base}/f/skd{int(refuse)}/{MB}/skd{int(refuse)}.bin"])
+            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 120)
+            kind = edm.rows()[0]["state"]["kind"]
             measure("socks", f"{label}: download {kind}; the server saw {sc.Stats.requests} requests")
             if sc.Stats.requests or kind == "completed":
                 finding("critical", "socks", f"with {label}, the download {'completed' if kind == 'completed' else 'failed'} and the server saw {sc.Stats.requests} direct requests: it went around the proxy that was set")
         finally:
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -496,16 +496,16 @@ def p_proxy(ctx):
     port = proxy.server_address[1]
     try:
         # 1. A working proxy: every request goes through it.
-        dm = DM(root, {"connections": 4, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}, name="proxy1").start()
+        edm = EDM(root, {"connections": 4, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}, name="proxy1").start()
         try:
             expect = {}
             urls = []
             for i in range(20):
                 expect[f"px{i}.bin"] = (f"px{i}", 3 * MB)
                 urls.append(f"{base}/f/px{i}/{3 * MB}/px{i}.bin")
-            dm.add(urls)
-            wait_for(lambda: len(dm.rows()) >= 20 and all(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 120)
-            ok, bad = verify(dm.rows(), expect)
+            edm.add(urls)
+            wait_for(lambda: len(edm.rows()) >= 20 and all(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 120)
+            ok, bad = verify(edm.rows(), expect)
             direct = sc.Stats.requests
             measure("proxy", f"20 files through the proxy: {ok} byte-exact; the proxy saw {len(proxy.log)} requests, the server {direct}")
             if ok != 20 or bad:
@@ -513,67 +513,67 @@ def p_proxy(ctx):
             if len(proxy.log) < direct * 0.9:
                 finding("high", "proxy", f"only {len(proxy.log)} of the server's {direct} requests came through the proxy: some downloads went out directly")
         finally:
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
         # 2. A proxy that needs a login: without it the download must fail, with it succeed.
         proxy.credentials = "alice:s3cret"
         proxy.log.clear()
         for label, user, pw, want in (("wrong login", "alice", "nope", False), ("right login", "alice", "s3cret", True)):
-            dm = DM(root, {"proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": user, "password": pw, "bypass": []}}, name="proxy2" + label.replace(" ", "")).start()
+            edm = EDM(root, {"proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": user, "password": pw, "bypass": []}}, name="proxy2" + label.replace(" ", "")).start()
             try:
-                dm.add([f"{base}/f/pa/{MB}/pa_{label.replace(' ', '')}.bin"])
-                wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 90)
-                kind = dm.rows()[0]["state"]["kind"]
+                edm.add([f"{base}/f/pa/{MB}/pa_{label.replace(' ', '')}.bin"])
+                wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 90)
+                kind = edm.rows()[0]["state"]["kind"]
                 measure("proxy", f"{label}: {kind}")
                 if (kind == "completed") != want:
                     finding("high", "proxy", f"with a {label} at the proxy the download {kind}")
             finally:
-                dm.stop()
-                shutil.rmtree(dm.out, ignore_errors=True)
+                edm.stop()
+                shutil.rmtree(edm.out, ignore_errors=True)
         proxy.credentials = None
         # 3. A proxy that is down: nothing may go around it.
         proxy.mode = "refuse"
         sc.Stats.reset()
-        dm = DM(root, {"attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}, name="proxy3").start()
+        edm = EDM(root, {"attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": []}}, name="proxy3").start()
         try:
-            dm.add([f"{base}/f/down/{MB}/down.bin"])
-            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 200)
-            kind = dm.rows()[0]["state"]["kind"]
+            edm.add([f"{base}/f/down/{MB}/down.bin"])
+            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 200)
+            kind = edm.rows()[0]["state"]["kind"]
             measure("proxy", f"proxy refusing everything: download {kind}; the server saw {sc.Stats.requests} requests")
             if sc.Stats.requests:
                 finding("critical", "proxy", f"with the proxy refusing every request, {sc.Stats.requests} requests reached the server directly: a download went around the proxy the person set")
             if kind == "completed":
                 finding("critical", "proxy", "a download completed with its proxy refusing everything")
         finally:
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
         # 4. A proxy that is simply not there.
         sc.Stats.reset()
-        dm = DM(root, {"attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": 1, "username": "", "password": "", "bypass": []}}, name="proxy4").start()
+        edm = EDM(root, {"attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": 1, "username": "", "password": "", "bypass": []}}, name="proxy4").start()
         try:
-            dm.add([f"{base}/f/gone/{MB}/gone.bin"])
-            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 200)
-            kind = dm.rows()[0]["state"]["kind"]
+            edm.add([f"{base}/f/gone/{MB}/gone.bin"])
+            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 200)
+            kind = edm.rows()[0]["state"]["kind"]
             measure("proxy", f"proxy port closed: download {kind}; the server saw {sc.Stats.requests} requests")
             if sc.Stats.requests:
                 finding("critical", "proxy", "with the proxy's port closed, the download went to the server directly")
         finally:
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
         # 5. The bypass list: a host on it is fetched directly.
         proxy.mode = "ok"
         proxy.log.clear()
         sc.Stats.reset()
-        dm = DM(root, {"proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": ["127.0.0.1"]}}, name="proxy5").start()
+        edm = EDM(root, {"proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": "", "password": "", "bypass": ["127.0.0.1"]}}, name="proxy5").start()
         try:
-            dm.add([f"{base}/f/byp/{MB}/byp.bin"])
-            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 60)
-            measure("proxy", f"bypass list names the host: proxy saw {len(proxy.log)}, server {sc.Stats.requests}, {dm.rows()[0]['state']['kind']}")
+            edm.add([f"{base}/f/byp/{MB}/byp.bin"])
+            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 60)
+            measure("proxy", f"bypass list names the host: proxy saw {len(proxy.log)}, server {sc.Stats.requests}, {EDM.rows()[0]['state']['kind']}")
             if proxy.log:
                 finding("low", "proxy", f"a host on the bypass list was still fetched through the proxy ({len(proxy.log)} requests)")
         finally:
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
     finally:
         proxy.shutdown()
 
@@ -600,12 +600,12 @@ def p_mirrors(ctx):
                 return self.send_head_body(200, {"Content-Type": "application/metalink4+xml"}, body, head)
             return super().route(parts, q, head)
     server, mbase = sc.start_server_with(H)
-    dm = DM(root, {"connections": 6}, name="mirrors").start()
+    edm = EDM(root, {"connections": 6}, name="mirrors").start()
     try:
         for kind in ("ok", "wrongfirst", "deadfirst", "allwrong", "nohash"):
-            dm.add([f"{mbase}/meta4/{kind}/x.meta4"])
-        wait_for(lambda: len(dm.rows()) >= 5 and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 240, every=2)
-        for r in dm.rows():
+            edm.add([f"{mbase}/meta4/{kind}/x.meta4"])
+        wait_for(lambda: len(edm.rows()) >= 5 and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 240, every=2)
+        for r in edm.rows():
             kind = r["url"].split("/meta4/")[-1].split("/")[0]
             ok = False
             if r["state"]["kind"] == "completed":
@@ -621,9 +621,9 @@ def p_mirrors(ctx):
             if kind == "nohash" and r["state"]["kind"] == "completed" and not ok:
                 measure("mirrors", "with no hash in the Metalink, wrong bytes from the first mirror are saved: expected, nothing to check against")
     finally:
-        dm.stop()
+        edm.stop()
         server.shutdown()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -633,12 +633,12 @@ def p_ftp(ctx):
     ftp = FTPServer()
     ftp.start()
     base = sc.with_login(f"ftp://127.0.0.1:{ftp.port}", "u", "p")
-    dm = DM(root, {"connections": 4, "concurrency": 8, "attempts": 5}, name="ftp").start()
+    edm = EDM(root, {"connections": 4, "concurrency": 8, "attempts": 5}, name="ftp").start()
     try:
         size = 24 * MB
-        dm.add([f"{base}/ftp1_{size}.bin"])
-        wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 120)
-        rows = dm.rows()
+        edm.add([f"{base}/ftp1_{size}.bin"])
+        wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 120)
+        rows = edm.rows()
         ok, bad = verify(rows, {f"ftp1_{size}.bin": ("ftp1", size)})
         measure("ftp", f"one {size // MB} MB file: {rows[0]['state']['kind']}, byte-exact {ok == 1}")
         if ok != 1:
@@ -647,9 +647,9 @@ def p_ftp(ctx):
         n = 100
         urls = [f"{base}/ftpm{i}_{200000 + i * 1000}.bin" for i in range(n)]
         t0 = time.time()
-        dm.add(urls)
-        wait_for(lambda: sum(1 for r in dm.rows() if "ftpm" in r["url"] and r["state"]["kind"] in ("completed", "failed")) >= n, 240, every=2)
-        mine = [r for r in dm.rows() if "ftpm" in r["url"]]
+        edm.add(urls)
+        wait_for(lambda: sum(1 for r in edm.rows() if "ftpm" in r["url"] and r["state"]["kind"] in ("completed", "failed")) >= n, 240, every=2)
+        mine = [r for r in edm.rows() if "ftpm" in r["url"]]
         exp = {f"ftpm{i}_{200000 + i * 1000}.bin": (f"ftpm{i}", 200000 + i * 1000) for i in range(n)}
         ok, bad = verify(mine, exp)
         measure("ftp", f"{n} files at once: {states(mine)}; {ok} byte-exact in {time.time() - t0:.0f}s; the server held {ftp.peak} control connections at once")
@@ -658,9 +658,9 @@ def p_ftp(ctx):
         if ftp.peak > 100:
             finding("low", "ftp", f"{ftp.peak} FTP control connections open at once for {n} files with concurrency 8 and 4 connections")
         # A bad login must fail, not loop.
-        dm.add([sc.with_login(f"ftp://127.0.0.1:{ftp.port}/bad_1000.bin", "u", "wrong")])
-        wait_for(lambda: any("u:wrong" in r["url"] or "•••@" in r["url"] and "bad_" in r["url"] for r in dm.rows() if r["state"]["kind"] in ("failed", "completed")), 90)
-        badrow = [r for r in dm.rows() if "bad_1000" in r["url"]]
+        edm.add([sc.with_login(f"ftp://127.0.0.1:{ftp.port}/bad_1000.bin", "u", "wrong")])
+        wait_for(lambda: any("u:wrong" in r["url"] or "•••@" in r["url"] and "bad_" in r["url"] for r in edm.rows() if r["state"]["kind"] in ("failed", "completed")), 90)
+        badrow = [r for r in edm.rows() if "bad_1000" in r["url"]]
         measure("ftp", f"wrong password: {badrow[0]['state'] if badrow else 'no row'}; the server saw {sum(1 for c in ftp.log if c[0] == 'PASS' and c[1] == 'wrong')} login tries")
         if badrow and badrow[0]["state"]["kind"] == "completed":
             finding("critical", "ftp", "a download with the wrong FTP password completed")
@@ -668,36 +668,36 @@ def p_ftp(ctx):
         if tries > 20:
             finding("low", "ftp", f"a wrong FTP password was sent {tries} times before the download gave up")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
     # A server that cuts the data connection half-way each time, then lets it finish.
     ftp.mode = "cut"
-    dm = DM(root, {"connections": 1, "attempts": 6}, name="ftp2").start()
+    edm = EDM(root, {"connections": 1, "attempts": 6}, name="ftp2").start()
     try:
-        dm.add([f"{base}/cut1_{8 * MB}.bin"])
-        wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 60)
-        r = dm.rows()[0]
-        ok, bad = verify(dm.rows(), {f"cut1_{8 * MB}.bin": ("cut1", 8 * MB)})
+        edm.add([f"{base}/cut1_{8 * MB}.bin"])
+        wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 60)
+        r = edm.rows()[0]
+        ok, bad = verify(edm.rows(), {f"cut1_{8 * MB}.bin": ("cut1", 8 * MB)})
         measure("ftp", f"a server that cuts the first transfer at half: {r['state']['kind']}, byte-exact {ok == 1}")
         if r["state"]["kind"] == "completed" and ok != 1:
             finding("critical", "ftp", "a download from an FTP server that cut the transfer half-way was marked completed with wrong content")
         elif r["state"]["kind"] != "completed":
             finding("high", "ftp", f"an FTP transfer cut at half did not resume with REST: {r['state']}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
-    # PASV pointing at another address: dm must keep to the server it logged in to.
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
+    # PASV pointing at another address: EDM must keep to the server it logged in to.
     ftp.mode = "bounce"
-    dm = DM(root, {"connections": 1, "attempts": 1}, name="ftp3").start()
+    edm = EDM(root, {"connections": 1, "attempts": 1}, name="ftp3").start()
     try:
-        dm.add([f"{base}/bounce1_{MB}.bin"])
-        wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 60)
-        measure("ftp", f"PASV naming 127.0.0.2: {dm.rows()[0]['state']['kind']}")
-        if dm.rows()[0]["state"]["kind"] != "completed":
-            finding("low", "ftp", "when the passive reply names another address, the download failed; dm connects to the server it logged in to (an FTP bounce is not possible), so this is a refusal of a server that is wrong, not a hole")
+        edm.add([f"{base}/bounce1_{MB}.bin"])
+        wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 60)
+        measure("ftp", f"PASV naming 127.0.0.2: {EDM.rows()[0]['state']['kind']}")
+        if edm.rows()[0]["state"]["kind"] != "completed":
+            finding("low", "ftp", "when the passive reply names another address, the download failed; EDM connects to the server it logged in to (an FTP bounce is not possible), so this is a refusal of a server that is wrong, not a hole")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -706,7 +706,7 @@ def p_watch(ctx):
     base, root = ctx["base"], ctx["root"]
     watch = root / "watch"
     watch.mkdir()
-    dm = DM(root, {"watch_folder": str(watch), "concurrency": 8}, name="watch").start()
+    edm = EDM(root, {"watch_folder": str(watch), "concurrency": 8}, name="watch").start()
     try:
         n = 300
         for i in range(n):
@@ -723,8 +723,8 @@ def p_watch(ctx):
             pass
         (watch / "dirs.url").mkdir()
         t0 = time.time()
-        wait_for(lambda: sum(1 for r in dm.rows() if "/wf" in r["url"] and r["state"]["kind"] in ("completed", "failed")) >= n + 3, 120, every=2)
-        rows = dm.rows()
+        wait_for(lambda: sum(1 for r in edm.rows() if "/wf" in r["url"] and r["state"]["kind"] in ("completed", "failed")) >= n + 3, 120, every=2)
+        rows = edm.rows()
         took = time.time() - t0
         mine = [r for r in rows if "/wf" in r["url"]]
         measure("watch", f"{len(mine)} downloads from the folder in {took:.0f}s: {states(mine)}")
@@ -739,11 +739,11 @@ def p_watch(ctx):
         measure("watch", f"{moved} files moved to done; left in the folder: {sorted(p.name for p in watch.iterdir() if p.is_file() or p.is_symlink())[:8]}")
         if any("wfbig" in r["url"] for r in rows):
             measure("watch", "an 8 MB text file's first link was read (only its first 64 KB is looked at)")
-        if dm.proc.poll() is not None:
-            finding("high", "watch", "dm died on a file in the watched folder")
+        if edm.proc.poll() is not None:
+            finding("high", "watch", "EDM died on a file in the watched folder")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
         shutil.rmtree(watch, ignore_errors=True)
 
 
@@ -756,44 +756,44 @@ def p_scheduler(ctx):
         t = (now.tm_hour * 60 + now.tm_min + minutes) % 1440
         return f"{t // 60:02d}:{t % 60:02d}"
     for label, window, want_run in (("window later today", (60, 120), False), ("window that includes now", (-30, 30), True)):
-        dm = DM(root, {"concurrency": 4, "schedule": {"enabled": True, "from": hhmm(window[0]), "to": hhmm(window[1]), "days": [0, 1, 2, 3, 4, 5, 6], "wake": False}}, name="sched").start()
+        edm = EDM(root, {"concurrency": 4, "schedule": {"enabled": True, "from": hhmm(window[0]), "to": hhmm(window[1]), "days": [0, 1, 2, 3, 4, 5, 6], "wake": False}}, name="sched").start()
         try:
-            dm.add([f"{base}/f/sch{i}/{MB}/sch{i}_{label[:4]}.bin" for i in range(6)])
+            edm.add([f"{base}/f/sch{i}/{MB}/sch{i}_{label[:4]}.bin" for i in range(6)])
             time.sleep(12)
-            done = sum(1 for r in dm.rows() if r["state"]["kind"] == "completed")
-            running = sum(1 for r in dm.rows() if r["state"]["kind"] == "running")
-            measure("scheduler", f"{label} ({hhmm(window[0])}-{hhmm(window[1])}): {states(dm.rows())}")
+            done = sum(1 for r in edm.rows() if r["state"]["kind"] == "completed")
+            running = sum(1 for r in edm.rows() if r["state"]["kind"] == "running")
+            measure("scheduler", f"{label} ({hhmm(window[0])}-{hhmm(window[1])}): {states(edm.rows())}")
             if want_run and done < 6:
-                finding("high", "scheduler", f"inside the scheduled window only {done} of 6 downloads finished in 12 s: {states(dm.rows())}")
+                finding("high", "scheduler", f"inside the scheduled window only {done} of 6 downloads finished in 12 s: {states(edm.rows())}")
             if not want_run and (done or running):
                 finding("high", "scheduler", f"outside the scheduled window {done} downloads finished and {running} ran")
             # Lifting the schedule must release them.
             if not want_run:
-                s = json.loads((dm.home / "settings.json").read_text(encoding="utf-8"))
-                r = dm.call("command.run", id="scheduler.toggle") if False else None
+                s = json.loads((edm.home / "settings.json").read_text(encoding="utf-8"))
+                r = edm.call("command.run", id="scheduler.toggle") if False else None
         finally:
-            dm.stop()
-            shutil.rmtree(dm.out, ignore_errors=True)
+            edm.stop()
+            shutil.rmtree(edm.out, ignore_errors=True)
     # Bad times are refused rather than saved.
-    dm = DM(root, {"schedule": {"enabled": True, "from": "25:99", "to": "banana", "days": [9, 9, 9]}}, name="sched2").start()
+    edm = EDM(root, {"schedule": {"enabled": True, "from": "25:99", "to": "banana", "days": [9, 9, 9]}}, name="sched2").start()
     try:
-        dm.add([f"{base}/f/schbad/{MB}/schbad.bin"])
+        edm.add([f"{base}/f/schbad/{MB}/schbad.bin"])
         time.sleep(8)
-        measure("scheduler", f"unreadable times in the settings file: {states(dm.rows())}; dm alive {dm.proc.poll() is None}")
-        if dm.proc.poll() is not None:
-            finding("high", "scheduler", "dm died on a settings file with a schedule it cannot read")
+        measure("scheduler", f"unreadable times in the settings file: {states(edm.rows())}; EDM alive {edm.proc.poll() is None}")
+        if edm.proc.poll() is not None:
+            finding("high", "scheduler", "EDM died on a settings file with a schedule it cannot read")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
 def p_mcp(ctx):
     """The MCP server: malformed and oversized requests, rapid calls, and what a tool may do."""
     base, root = ctx["base"], ctx["root"]
-    dm = DM(root, name="mcp").start()
+    edm = EDM(root, name="mcp").start()
     try:
-        env = {**os.environ, "DM_HOME": str(dm.home)}
+        env = {**os.environ, "EDM_HOME": str(edm.home)}
         def run(lines, timeout=30):
             data = ("\n".join(lines) + "\n").encode() if isinstance(lines, list) else lines
             p = subprocess.run([str(sc.BINARY), "mcp"], env=env, input=data, capture_output=True, timeout=timeout)
@@ -803,17 +803,17 @@ def p_mcp(ctx):
         tools = [t["name"] for t in json.loads(out.splitlines()[-1])["result"]["tools"]] if out.strip() else []
         measure("mcp", f"tools: {tools}")
         # Rapid calls.
-        calls = [init] + [json.dumps({"jsonrpc": "2.0", "id": 10 + i, "method": "tools/call", "params": {"name": "dm_add_downloads", "arguments": {"urls": [f"{base}/f/mcp{i}/4096/mcp{i}.bin"]}}}) for i in range(500)]
+        calls = [init] + [json.dumps({"jsonrpc": "2.0", "id": 10 + i, "method": "tools/call", "params": {"name": "edm_add_downloads", "arguments": {"urls": [f"{base}/f/mcp{i}/4096/mcp{i}.bin"]}}}) for i in range(500)]
         t0 = time.time()
         rc, out, err = run(calls, timeout=120)
         answered = len([l for l in out.splitlines() if l.strip()])
         measure("mcp", f"500 tool calls in one session: {answered} answers in {time.time() - t0:.1f}s, exit {rc}")
-        wait_for(lambda: len([r for r in dm.rows() if "mcp" in r["url"]]) >= 500, 60)
-        measure("mcp", f"{len([r for r in dm.rows() if '/mcp' in r['url']])} downloads came of it")
+        wait_for(lambda: len([r for r in edm.rows() if "mcp" in r["url"]]) >= 500, 60)
+        measure("mcp", f"{len([r for r in EDM.rows() if '/mcp' in r['url']])} downloads came of it")
         # Malformed input.
         for label, payload in (("not json", b"hello\n"), ("array", b"[1,2]\n"), ("no method", b'{"jsonrpc":"2.0","id":1}\n'),
                                ("unknown tool", (init + '\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"rm_rf","arguments":{}}}\n').encode()),
-                               ("huge arguments", (init + '\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"dm_add_downloads","arguments":{"urls":["' + "a" * 5_000_000 + '"]}}}\n').encode()),
+                               ("huge arguments", (init + '\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"edm_add_downloads","arguments":{"urls":["' + "a" * 5_000_000 + '"]}}}\n').encode()),
                                ("deep json", b"[" * 100000 + b"]" * 100000 + b"\n"),
                                ("20 MB line", b'{"x":"' + b"a" * (20 * MB) + b'"}\n')):
             try:
@@ -824,21 +824,21 @@ def p_mcp(ctx):
             except subprocess.TimeoutExpired:
                 finding("medium", "mcp", f"{label}: the MCP server did not finish within 60 s")
         # What the tools can reach: only downloads, by id.
-        for label, args in (("file url", {"urls": ["file:///etc/passwd"]}), ("folder traversal", {"urls": [f"{base}/f/mt/10/mt.bin"], "folder": f"{dm.out}/../../../tmp/mcp-escape"})):
-            rc, out, err = run([init, json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "dm_add_downloads", "arguments": args}})])
+        for label, args in (("file url", {"urls": ["file:///etc/passwd"]}), ("folder traversal", {"urls": [f"{base}/f/mt/10/mt.bin"], "folder": f"{edm.out}/../../../tmp/mcp-escape"})):
+            rc, out, err = run([init, json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "edm_add_downloads", "arguments": args}})])
             tail = out.strip().splitlines()[-1][:160] if out.strip() else ""
             measure("mcp", f"{label}: {tail}")
         if pathlib.Path("/tmp/mcp-escape").exists():
             finding("critical", "mcp", "a tool call wrote a download outside the download folder")
             shutil.rmtree("/tmp/mcp-escape", ignore_errors=True)
-        # With no dm running, the server says so.
-        dm.stop()
+        # With no EDM running, the server says so.
+        edm.stop()
         time.sleep(1)
-        rc, out, err = run([init, json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "dm_list_downloads", "arguments": {}}})])
-        measure("mcp", f"with dm stopped: exit {rc}, {out.strip().splitlines()[-1][:120] if out.strip() else err[:120]}")
+        rc, out, err = run([init, json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "edm_list_downloads", "arguments": {}}})])
+        measure("mcp", f"with EDM stopped: exit {rc}, {out.strip().splitlines()[-1][:120] if out.strip() else err[:120]}")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -848,7 +848,7 @@ def p_lossy(ctx):
     port = int(base.rsplit(":", 1)[1])
     link = Lossy(port, delay=0.03, jitter=0.08, cut=0.03)
     link.start()
-    dm = DM(root, {"connections": 6, "concurrency": 10, "attempts": 20}, name="lossy").start()
+    edm = EDM(root, {"connections": 6, "concurrency": 10, "attempts": 20}, name="lossy").start()
     try:
         n, size = 30, 6 * MB
         expect = {}
@@ -857,9 +857,9 @@ def p_lossy(ctx):
             expect[f"ls{i}.bin"] = (f"ls{i}", size)
             urls.append(f"http://127.0.0.1:{link.port}/f/ls{i}/{size}/ls{i}.bin")
         t0 = time.time()
-        dm.add(urls)
-        wait_for(lambda: len(dm.rows()) >= n and all(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 600, every=2)
-        rows = dm.rows()
+        edm.add(urls)
+        wait_for(lambda: len(edm.rows()) >= n and all(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 600, every=2)
+        rows = edm.rows()
         st = states(rows)
         ok, bad = verify(rows, expect)
         measure("lossy", f"{n} x {size // MB} MB through a link that cut {link.cuts} connections: {st}; {ok} byte-exact in {time.time() - t0:.0f}s")
@@ -868,8 +868,8 @@ def p_lossy(ctx):
         if st.get("failed"):
             finding("medium", "lossy", f"{st['failed']} of {n} downloads failed through a link that only cut connections ({link.cuts} cuts, 20 retries allowed)")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 @phase
@@ -894,30 +894,30 @@ def p_manifests(ctx):
             return super().route(parts, q, head)
     server, mbase = sc.start_server_with(H)
     sc.Stats.reset()
-    dm = DM(root, {"connections": 4}, name="man").start()
+    edm = EDM(root, {"connections": 4}, name="man").start()
     try:
-        rss0 = sc.proc_stats(dm.proc.pid)[0]
+        rss0 = sc.proc_stats(edm.proc.pid)[0]
         for u in (f"{mbase}/m3u8big/1000000/big.m3u8", f"{mbase}/mpdbig/x.mpd", f"{mbase}/m3u8nest/x.m3u8"):
-            dm.add([u])
+            edm.add([u])
         t0 = time.time()
-        wait_for(lambda: len(dm.rows()) >= 3 and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in dm.rows()), 150, every=2)
-        rss1, cpu, fds, th = dm.peak()
-        for r in dm.rows():
+        wait_for(lambda: len(edm.rows()) >= 3 and all(r["state"]["kind"] in ("completed", "failed", "cancelled") for r in edm.rows()), 150, every=2)
+        rss1, cpu, fds, th = edm.peak()
+        for r in edm.rows():
             measure("manifests", f"{r['url'][-30:]}: {r['state']['kind']} {str(r['state'].get('reason', ''))[:90]}")
         measure("manifests", f"after {time.time() - t0:.0f}s: peak rss {rss1:.0f} MB (from {rss0:.0f}), requests to the server {sc.Stats.requests}")
         if rss1 > 1500:
             finding("medium", "manifests", f"a playlist of a million segments (or a manifest of 100 000 hours) took {rss1:.0f} MB")
         if sc.Stats.requests > 50000:
-            finding("medium", "manifests", f"a hostile manifest made dm send {sc.Stats.requests} requests")
-        if any(r["state"]["kind"] in ("running", "queued") for r in dm.rows()):
-            kinds = [(r["url"][-24:], r["state"]["kind"]) for r in dm.rows() if r["state"]["kind"] in ("running", "queued")]
+            finding("medium", "manifests", f"a hostile manifest made EDM send {sc.Stats.requests} requests")
+        if any(r["state"]["kind"] in ("running", "queued") for r in edm.rows()):
+            kinds = [(r["url"][-24:], r["state"]["kind"]) for r in edm.rows() if r["state"]["kind"] in ("running", "queued")]
             finding("low", "manifests", f"after 150 s these were still working through hostile manifests: {kinds}")
-        if dm.proc.poll() is not None:
-            finding("high", "manifests", "dm died on a hostile playlist or manifest")
+        if edm.proc.poll() is not None:
+            finding("high", "manifests", "EDM died on a hostile playlist or manifest")
     finally:
-        dm.stop()
+        edm.stop()
         server.shutdown()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 SANDBOX = """(version 1)
@@ -956,7 +956,7 @@ print("LEAKS" if bad else "HOLDS", bad)
     if "HOLDS" not in held.stdout:
         finding("info", "torrent", "skipped: the sandbox that keeps the torrent test off the public network could not be shown to hold")
         return
-    build = subprocess.run(["cargo", "test", "-p", "dm-core", "--release", "--test", "torrent_stress", "--no-run", "--message-format=json"],
+    build = subprocess.run(["cargo", "test", "-p", "edm-core", "--release", "--test", "torrent_stress", "--no-run", "--message-format=json"],
                            cwd=ROOT, capture_output=True, text=True, timeout=1500, encoding="utf-8", errors="replace")
     binary = None
     for line in build.stdout.splitlines():
@@ -988,7 +988,7 @@ print("LEAKS" if bad else "HOLDS", bad)
     make("deep", ["d"] * 300 + ["escape_torrent_deep.txt"])
     make("nulbyte", ["a\x00b", "escape_torrent_nul.txt"])
     make("dotname", [".", "escape_torrent_dot.txt"], name=b"..")
-    env = {**os.environ, "DM_STRESS_TORRENT_DIR": str(tdir)}
+    env = {**os.environ, "EDM_STRESS_TORRENT_DIR": str(tdir)}
     for test in ("parallel_swarms", "many_files", "paths_outside_the_folder", "swarm_with_a_piece_missing", "pause_and_resume", "magnet_through_a_tracker"):
         try:
             run = subprocess.run([*jail, binary, "--ignored", "--nocapture", "--test-threads=1", test],
@@ -1029,14 +1029,14 @@ WIRED_CD = ("magnet:?xt=urn:btih:a88fda5954e89178c372716a6a78b8180ed4dad3&dn=The
 def p_realtorrent(ctx):
     """A real public swarm: webtorrent.io's Creative Commons 'The WIRED CD' by magnet link, with a pause and a resume."""
     root = ctx["root"]
-    dm = DM(root, {"connections": 8}, name="realtorrent").start()
+    edm = EDM(root, {"connections": 8}, name="realtorrent").start()
     try:
-        dm.add([WIRED_CD])
+        edm.add([WIRED_CD])
         t0 = time.time()
         paused = resumed = False
         last = None
         while time.time() - t0 < 600:
-            rows = dm.rows()
+            rows = edm.rows()
             if rows:
                 r = rows[0]
                 pr = r["progress"]
@@ -1046,23 +1046,23 @@ def p_realtorrent(ctx):
                     last = line
                 total = pr.get("total") or 0
                 if not paused and total and pr["downloaded"] > total * 0.3:
-                    dm.call("downloads.pause", ids=[r["id"]])
+                    edm.call("downloads.pause", ids=[r["id"]])
                     paused = True
                     measure("realtorrent", f"paused at {pr['downloaded'] // 1024} KB")
                     time.sleep(5)
-                    after = dm.rows()[0]["progress"]["downloaded"]
-                    measure("realtorrent", f"5 s later {after // 1024} KB, state {dm.rows()[0]['state']['kind']}")
+                    after = edm.rows()[0]["progress"]["downloaded"]
+                    measure("realtorrent", f"5 s later {after // 1024} KB, state {EDM.rows()[0]['state']['kind']}")
                     if after > pr["downloaded"] + 3 * MB:
                         finding("medium", "realtorrent", "a paused torrent kept receiving data")
-                    dm.call("downloads.resume", ids=[r["id"]])
+                    edm.call("downloads.resume", ids=[r["id"]])
                     resumed = True
                 if r["state"]["kind"] in ("completed", "failed", "cancelled"):
                     break
             time.sleep(1)
-        r = dm.rows()[0]
+        r = edm.rows()[0]
         took = time.time() - t0
-        measure("realtorrent", f"{r['state']} after {took:.0f}s; peak rss {dm.peak()[0]:.0f} MB, fds {dm.peak()[2]}, threads {dm.peak()[3]}")
-        out = dm.out.resolve()
+        measure("realtorrent", f"{r['state']} after {took:.0f}s; peak rss {edm.peak()[0]:.0f} MB, fds {edm.peak()[2]}, threads {edm.peak()[3]}")
+        out = edm.out.resolve()
         files = [p for p in out.rglob("*") if p.is_file()]
         total = sum(p.stat().st_size for p in files)
         measure("realtorrent", f"{len(files)} files, {total // 1024} KB, e.g. {[p.name for p in files[:4]]}")
@@ -1074,8 +1074,8 @@ def p_realtorrent(ctx):
         elif not files:
             finding("high", "realtorrent", "a torrent marked completed saved no files")
     finally:
-        dm.stop()
-        shutil.rmtree(dm.out, ignore_errors=True)
+        edm.stop()
+        shutil.rmtree(edm.out, ignore_errors=True)
 
 
 
@@ -1098,11 +1098,11 @@ def p_proxytls(ctx):
             proxy.credentials = creds
             proxy.log.clear()
             name = f"proxytls{n}"
-            dm = DM(root, {"connections": 4, "attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": user, "password": pw, "bypass": []}}, name=name).start()
+            edm = EDM(root, {"connections": 4, "attempts": 1, "proxy": {"enabled": True, "type": "http", "host": "127.0.0.1", "port": port, "username": user, "password": pw, "bypass": []}}, name=name).start()
             try:
-                dm.add([url])
-                wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 180)
-                row = dm.rows()[0]
+                edm.add([url])
+                wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 180)
+                row = edm.rows()[0]
                 kind = row["state"]["kind"]
                 tunnels = [e for e in proxy.log if e[0] == "CONNECT"]
                 same = kind == "completed" and pathlib.Path(row["path"]).read_bytes() == expected
@@ -1116,14 +1116,14 @@ def p_proxytls(ctx):
                 if any(e[1] != "proof.ovh.net:443" for e in tunnels):
                     finding("medium", "proxytls", f"{label}: a tunnel to somewhere else: {tunnels}")
             finally:
-                dm.stop()
-                shutil.rmtree(dm.out, ignore_errors=True)
+                edm.stop()
+                shutil.rmtree(edm.out, ignore_errors=True)
     finally:
         proxy.shutdown()
 
 
 def p_fulldisk(ctx):
-    """A full disk (macOS): the download folder a 30 MB disk image; a 50 MB file fails with a reason and dm goes on; a 5 MB one then lands."""
+    """A full disk (macOS): the download folder a 30 MB disk image; a 50 MB file fails with a reason and EDM goes on; a 5 MB one then lands."""
     if sys.platform != "darwin":
         finding("low", "fulldisk", "needs hdiutil (macOS); not run")
         return
@@ -1140,13 +1140,13 @@ def p_fulldisk(ctx):
         finding("low", "fulldisk", f"the disk image would not attach: {attached.stderr.strip()}")
         return
     try:
-        dm = DM(root, {"connections": 4, "attempts": 1, "download_dir": str(mount)}, name="fulldisk").start()
+        edm = EDM(root, {"connections": 4, "attempts": 1, "download_dir": str(mount)}, name="fulldisk").start()
         try:
-            dm.add([f"{base}/f/big/{50 * MB}/big.bin"])
+            edm.add([f"{base}/f/big/{50 * MB}/big.bin"])
             # Out of room, a row is paused with why (`stalled`), to resume
             # once there is room, not failed.
-            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed", "paused") for r in dm.rows()), 120)
-            row = dm.rows()[0]
+            wait_for(lambda: any(r["state"]["kind"] in ("completed", "failed", "paused") for r in edm.rows()), 120)
+            row = edm.rows()[0]
             kind = row["state"]["kind"]
             reason = row["state"].get("reason", "") or row.get("stalled", "")
             measure("fulldisk", f"50 MB into a 30 MB volume: {kind}: {reason}")
@@ -1160,8 +1160,8 @@ def p_fulldisk(ctx):
             measure("fulldisk", f"left on the volume after the failure: {left}")
             # Two that each fit the check before they start, and together do
             # not: the disk fills while the second is being put in place.
-            dm.add([f"{base}/f/twoa/{20 * MB}/twoa.bin", f"{base}/f/twob/{20 * MB}/twob.bin"])
-            two = lambda: [r for r in dm.rows() if r["url"].endswith(("twoa.bin", "twob.bin"))]
+            edm.add([f"{base}/f/twoa/{20 * MB}/twoa.bin", f"{base}/f/twob/{20 * MB}/twob.bin"])
+            two = lambda: [r for r in edm.rows() if r["url"].endswith(("twoa.bin", "twob.bin"))]
             wait_for(lambda: len(two()) == 2 and all(r["state"]["kind"] in ("completed", "failed", "paused") for r in two()), 180)
             kinds = sorted(r["state"]["kind"] for r in two())
             why = [r.get("stalled") or r["state"].get("reason", "") for r in two() if r["state"]["kind"] != "completed"]
@@ -1180,27 +1180,27 @@ def p_fulldisk(ctx):
                 pathlib.Path(r["path"]).unlink(missing_ok=True)
             waiting = [r for r in two() if r["state"]["kind"] != "completed"]
             for r in waiting:
-                dm.call("downloads.resume", ids=[r["id"]])
+                edm.call("downloads.resume", ids=[r["id"]])
             wait_for(lambda: all(r["state"]["kind"] in ("completed", "failed") for r in two()), 120)
             kinds = sorted(r["state"]["kind"] for r in two())
             measure("fulldisk", f"with room again, resumed: {kinds}")
             if waiting and kinds != ["completed", "completed"]:
                 finding("high", "fulldisk", f"the download that waited for room did not finish once there was room: {kinds}")
-            # dm still answers, and a file that fits lands.
-            dm.add([f"{base}/f/fits/{5 * MB}/fits.bin"])
-            wait_for(lambda: any(r["url"].endswith("fits.bin") and r["state"]["kind"] in ("completed", "failed") for r in dm.rows()), 120)
-            fits = next(r for r in dm.rows() if r["url"].endswith("fits.bin"))
+            # EDM still answers, and a file that fits lands.
+            edm.add([f"{base}/f/fits/{5 * MB}/fits.bin"])
+            wait_for(lambda: any(r["url"].endswith("fits.bin") and r["state"]["kind"] in ("completed", "failed") for r in edm.rows()), 120)
+            fits = next(r for r in edm.rows() if r["url"].endswith("fits.bin"))
             ok, bad = verify([fits], {"fits.bin": ("fits", 5 * MB)})
             measure("fulldisk", f"then a 5 MB file: {fits['state']['kind']}, byte-exact: {ok == 1}")
             if ok != 1:
                 finding("high", "fulldisk", f"after a full disk, a file that fits did not land whole: {fits['state']} {bad[:1]}")
         finally:
-            dm.stop()
+            edm.stop()
     finally:
         subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True)
 
 def p_detach(ctx):
-    """A drive pulled mid-download (macOS; gaps row 187): the download folder a disk image, detached by force while a 100 MB file arrives into it; it must end paused with why, dm must keep answering, and with the drive back it lands whole."""
+    """A drive pulled mid-download (macOS; gaps row 187): the download folder a disk image, detached by force while a 100 MB file arrives into it; it must end paused with why, EDM must keep answering, and with the drive back it lands whole."""
     if sys.platform != "darwin":
         # On Linux a loop device does this, and needs root: owed to the final Linux pass.
         finding("low", "detach", "needs hdiutil (macOS); not run")
@@ -1226,19 +1226,19 @@ def p_detach(ctx):
         return
     size = 100 * MB
     try:
-        dm = DM(root, {"connections": 4, "download_dir": str(mount)}, name="detach").start()
+        edm = EDM(root, {"connections": 4, "download_dir": str(mount)}, name="detach").start()
         try:
-            dm.add([f"{base}/f/drive/{size}/drive.bin?rate={MB}"])
-            wait_for(lambda: any(r["progress"]["downloaded"] > 5 * MB for r in dm.rows()
+            edm.add([f"{base}/f/drive/{size}/drive.bin?rate={MB}"])
+            wait_for(lambda: any(r["progress"]["downloaded"] > 5 * MB for r in edm.rows()
                                  if r["state"]["kind"] == "running"), 60)
-            had = dm.rows()[0]["progress"]["downloaded"]
+            had = edm.rows()[0]["progress"]["downloaded"]
             pulled = subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True, text=True, encoding="utf-8", errors="replace")
             check("detach", "the volume was detached by force, and its folder went with it",
                   pulled.returncode == 0 and not mount.exists(), pulled.stderr.strip())
             t = time.time()
             # It goes on until it next touches the folder: up to 90 s is given.
-            wait_for(lambda: dm.rows()[0]["state"]["kind"] in ("paused", "failed", "completed"), 90)
-            row = dm.rows()[0]
+            wait_for(lambda: edm.rows()[0]["state"]["kind"] in ("paused", "failed", "completed"), 90)
+            row = edm.rows()[0]
             kind = row["state"]["kind"]
             reason = row.get("stalled") or row["state"].get("reason", "") or row["state"].get("message", "")
             measure("detach", f"pulled at {had / MB:.0f} MB of 100: {kind} after {time.time() - t:.1f}s: {reason}")
@@ -1251,20 +1251,20 @@ def p_detach(ctx):
             elif not reason:
                 finding("medium", "detach", "it paused without saying why")
             t = time.time()
-            dm.call("commands.list")
+            edm.call("commands.list")
             answer = time.time() - t
-            measure("detach", f"dm answered in {answer * 1000:.0f} ms after the drive was pulled")
-            check("detach", "dm still answers after the drive was pulled", answer < 1.0, f"{answer:.2f}s")
+            measure("detach", f"EDM answered in {answer * 1000:.0f} ms after the drive was pulled")
+            check("detach", "EDM still answers after the drive was pulled", answer < 1.0, f"{answer:.2f}s")
             # The drive put back, and the download resumed into it.
             if kind != "completed" and attach():
-                dm.call("downloads.resume", ids=[row["id"]])
-                wait_for(lambda: dm.rows()[0]["state"]["kind"] in ("completed", "failed"), 240)
-                ok, bad = verify(dm.rows(), {"drive.bin": ("drive", size)})
-                measure("detach", f"with the drive back and resumed: {dm.rows()[0]['state']['kind']}, byte-exact: {ok == 1}")
+                edm.call("downloads.resume", ids=[row["id"]])
+                wait_for(lambda: edm.rows()[0]["state"]["kind"] in ("completed", "failed"), 240)
+                ok, bad = verify(edm.rows(), {"drive.bin": ("drive", size)})
+                measure("detach", f"with the drive back and resumed: {EDM.rows()[0]['state']['kind']}, byte-exact: {ok == 1}")
                 if ok != 1:
                     finding("high", "detach", f"after the drive came back the file did not land whole: {bad[:1]}")
         finally:
-            dm.stop()
+            edm.stop()
     finally:
         if mount.exists():
             subprocess.run(["hdiutil", "detach", "-force", str(mount)], capture_output=True)
@@ -1284,11 +1284,11 @@ def main():
     PHASES.update({k: v for k, v in OPT_IN.items() if k in args})
     names = [a for a in args if not a.startswith("-")] or [k for k in PHASES if k not in OPT_IN]
     if not sc.BINARY.exists():
-        sys.exit(f"no dm at {sc.BINARY}")
-    root = pathlib.Path(tempfile.mkdtemp(prefix="dm-stress-"))
+        sys.exit(f"no EDM at {sc.BINARY}")
+    root = pathlib.Path(tempfile.mkdtemp(prefix="edm-stress-"))
     server, base = sc.start_server()
     ctx = {"root": root, "base": base, "server": server}
-    print(f"protocol stress check: dm {sc.BINARY}, server {base}, folder {root}, {sc.free_gb(tempfile.gettempdir()):.1f} GB free", flush=True)
+    print(f"protocol stress check: EDM {sc.BINARY}, server {base}, folder {root}, {sc.free_gb(tempfile.gettempdir()):.1f} GB free", flush=True)
     try:
         for name in names:
             if name not in PHASES:
@@ -1310,7 +1310,7 @@ def main():
         server.shutdown()
         for d in sc.LIVE_DMS:
             d.stop()
-        if os.environ.get("DM_STRESS_KEEP"):
+        if os.environ.get("EDM_STRESS_KEEP"):
             print(f"kept {root}")
         else:
             shutil.rmtree(root, ignore_errors=True)

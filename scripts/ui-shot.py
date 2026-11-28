@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""A picture of dm's window, for checking a visual change by eye.
+"""A picture of EDM's window, for checking a visual change by eye.
 
 It starts the real binary on a throwaway home, with a
 local server and a few downloads in the states a window has to draw (done,
@@ -12,7 +12,7 @@ running, paused, failed), drives it over the control protocol, and saves
 PNGs:
 
     python3 scripts/ui-shot.py out-dir [command-id ...]
-    DM_SHOT_SIZE=412x915 python3 scripts/ui-shot.py out-dir   # a phone-wide window
+    EDM_SHOT_SIZE=412x915 python3 scripts/ui-shot.py out-dir   # a phone-wide window
 
 With command ids (as `commands.list` names them), each is run and the window
 is photographed after it as well, so a dialog can be looked at; `click:Words`
@@ -41,7 +41,7 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-BINARY = pathlib.Path(os.environ.get("DM_BINARY") or ROOT / "target/debug/dm-gpui")
+BINARY = pathlib.Path(os.environ.get("EDM_BINARY") or ROOT / "target/debug/edm-gpui")
 SIZE = 2 * 1024 * 1024
 
 
@@ -86,30 +86,30 @@ def main():
     # shows the download folder, and that folder's path is unique to the
     # computer and its user (/var/folders/xx/<id>/T on macOS), which the
     # README's pictures carried.
-    home = pathlib.Path(tempfile.mkdtemp(prefix="dm-ui-shot-", dir="/tmp" if os.path.isdir("/tmp") else None))
+    home = pathlib.Path(tempfile.mkdtemp(prefix="edm-ui-shot-", dir="/tmp" if os.path.isdir("/tmp") else None))
     (home / "downloads").mkdir()
     (home / "settings.json").write_text(json.dumps({
         "download_dir": str(home / "downloads"), "categorize": True, "show_progress": False,
         "show_complete": False,
-        # This edition's pop-ups' number: without it dm reads the file as an older edition's
+        # This edition's pop-ups' number: without it EDM reads the file as an older edition's
         # and turns every pop-up back on (Download complete opened over each dialog pictured).
         "popups_version": 2,
-        # DM_SHOT_THEME=light|dark|classic|system picks the look to photograph.
-        "theme": os.environ.get("DM_SHOT_THEME", "system"),
-        # DM_SHOT_LANG=de|fr|... photographs it in that language.
-        "language": os.environ.get("DM_SHOT_LANG", ""),
-        # DM_SHOT_TEXT_SIZE=1.5|2.0 photographs it at a larger text size.
-        "text_size": float(os.environ.get("DM_SHOT_TEXT_SIZE", "1.0")),
+        # EDM_SHOT_THEME=light|dark|classic|system picks the look to photograph.
+        "theme": os.environ.get("EDM_SHOT_THEME", "system"),
+        # EDM_SHOT_LANG=de|fr|... photographs it in that language.
+        "language": os.environ.get("EDM_SHOT_LANG", ""),
+        # EDM_SHOT_TEXT_SIZE=1.5|2.0 photographs it at a larger text size.
+        "text_size": float(os.environ.get("EDM_SHOT_TEXT_SIZE", "1.0")),
     }), encoding="utf-8")
-    # DM_SHOT_SIZE=412x915 opens the window that size (in points), as dm opens one it kept:
+    # EDM_SHOT_SIZE=412x915 opens the window that size (in points), as EDM opens one it kept:
     # under 600 wide, the phone's layout, pictured on a computer.
-    if os.environ.get("DM_SHOT_SIZE"):
-        width, height = (float(n) for n in os.environ["DM_SHOT_SIZE"].lower().split("x"))
+    if os.environ.get("EDM_SHOT_SIZE"):
+        width, height = (float(n) for n in os.environ["EDM_SHOT_SIZE"].lower().split("x"))
         (home / "window.json").write_text(json.dumps({
             "format": 1, "x": 120, "y": 80, "width": width, "height": height,
             "state": "windowed", "display": None,
         }), encoding="utf-8")
-    env = dict(os.environ, DM_HOME=str(home))
+    env = dict(os.environ, EDM_HOME=str(home))
     app = subprocess.Popen([BINARY, "--control", "0"], env=env,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -125,7 +125,7 @@ def main():
             conn.sendall((json.dumps({"id": 1, "method": method, "params": params}) + "\n").encode())
             started = time.time()
             reply = json.loads(replies.readline())
-            if os.environ.get("DM_SHOT_TRACE"):
+            if os.environ.get("EDM_SHOT_TRACE"):
                 print(method, round(time.time() - started, 2), str(reply)[:100])
             return reply
 
@@ -151,13 +151,13 @@ def main():
 
         def shoot_dialog(name):
             # A dialog is a window of its own: pictured from the screen, over the rectangle
-            # dm says the last one opened stands on (macOS; as human-qa.py does).
+            # EDM says the last one opened stands on (macOS; as human-qa.py does).
             info = call("ui.windows").get("result", {}) or {}
             shown = [d["outer"] for d in info.get("dialogs", []) if d.get("outer")]
             if not shown or sys.platform != "darwin":
                 return
             x0, y0, x1, y1 = shown[-1]
-            # dm to the front first: the rectangle is the screen's, and another app's window
+            # EDM to the front first: the rectangle is the screen's, and another app's window
             # over it (an editor) was pictured in its place.
             subprocess.run(["osascript", "-e", "tell application \"System Events\" to set frontmost of "
                             f"(first process whose unix id is {app.pid}) to true"], capture_output=True)

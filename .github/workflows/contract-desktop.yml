@@ -1,8 +1,8 @@
 name: Contract on Windows and macOS
 
 # The behaviour contract's rows (docs/behaviour-contract.md) on GitHub's Windows and macOS
-# runners, as a person runs them: `cargo xtask qa` builds dm, packages the extension and runs
-# human-qa.py, which drives dm's real window through its own buttons and dialogs (UI Automation
+# runners, as a person runs them: `cargo xtask qa` builds EDM, packages the extension and runs
+# human-qa.py, which drives EDM's real window through its own buttons and dialogs (UI Automation
 # on Windows, NSAccessibility on macOS) in the runner's desktop session, with Edge for the
 # browser rows. Its words are the run's `contract-words-<os>` artifact and its rows the run's
 # summary (scripts/human-qa-report.py), as contract-linux.yml's are.
@@ -65,7 +65,7 @@ jobs:
         id: qa
         continue-on-error: true
         timeout-minutes: 150
-        shell: pwsh # on Windows not Git Bash, where dm's window is pictured black (xtask refuses it)
+        shell: pwsh # on Windows not Git Bash, where EDM's window is pictured black (xtask refuses it)
         env:
           PYTHONUNBUFFERED: "1"
         run: |

@@ -1,12 +1,12 @@
-# Contributing to dm
+# Contributing to EDM
 
 Thank you for helping. Bug reports, fixes and new features are all welcome.
 
 ## Reporting a bug
 
 Open an issue with the **Bug report** form. The most useful reports say
-what you downloaded (a link, if it is public), what you expected, what dm
-did, and your operating system and dm version (About). For a security
+what you downloaded (a link, if it is public), what you expected, what EDM
+did, and your operating system and EDM version (About). For a security
 problem, see [SECURITY.md](SECURITY.md) instead.
 
 ## Translating
@@ -26,7 +26,7 @@ fix, open an issue first so the approach can be agreed before you build it.
 
 ## Building and testing
 
-You need rustup from <https://rustup.rs>; it fetches the Rust dm is built with
+You need rustup from <https://rustup.rs>; it fetches the Rust EDM is built with
 (`rust-toolchain.toml`) the first time you build.
 
 ```sh
@@ -34,15 +34,15 @@ You need rustup from <https://rustup.rs>; it fetches the Rust dm is built with
 cargo xtask check
 
 # the app
-cargo run -p dm-gpui
+cargo run -p edm-gpui
 
 # the browser extension
-cd crates/dm-catcher
+cd crates/edm-catcher
 cargo test
 cd ../.. && sh scripts/package.sh     # builds dist/chrome and dist/firefox
 ```
 
-`cargo xtask build`, `test`, `package` and `qa`, from the repository's root, do the same on Windows, macOS and Linux: dm and the extension built
+`cargo xtask build`, `test`, `package` and `qa`, from the repository's root, do the same on Windows, macOS and Linux: EDM and the extension built
 for release, the workspace's tests as CI runs them, this system's installers
 (it needs `cargo install cargo-packager --locked`) and `scripts/human-qa.py`
 whole, with what the system needs set for it.
@@ -54,22 +54,22 @@ and how to run it, including on Linux in Docker.
 ### On Windows
 
 - Run the checks, `scripts/human-qa.py` above all, from PowerShell or
-  Windows Terminal, not Git Bash: from Git Bash dm's window is pictured
+  Windows Terminal, not Git Bash: from Git Bash EDM's window is pictured
   solid black, and `human-qa.py` stops at its first picture saying so.
 - Plain `python` is enough: every Python script sets UTF-8 for itself
   (`python -X utf8` is no longer needed). A new script does the same.
 - Turn off incremental builds and put the build on a drive with room before
   a debug build, or its cache fills the disk:
-  `$env:CARGO_INCREMENTAL = "0"; $env:CARGO_TARGET_DIR = "D:\dm-target"`.
-  Then `$env:DM_BINARY` names the build for the Python checks.
+  `$env:CARGO_INCREMENTAL = "0"; $env:CARGO_TARGET_DIR = "D:\edm-target"`.
+  Then `$env:EDM_BINARY` names the build for the Python checks.
 
 `docs/testing.md`, "On Windows: what goes wrong, and what to do", says why.
 
 ### Logins and secrets in tests
 
 No password, token or cookie is written in the code, not even a made-up
-one for a test. A test asks `dm_test_support::secrets` for one by
-name; it is `DM_TEST_<NAME>` from the environment or from a `.env` file at
+one for a test. A test asks `edm_test_support::secrets` for one by
+name; it is `EDM_TEST_<NAME>` from the environment or from a `.env` file at
 the repository's root, and otherwise made up for that run. `.env` is in
 `.gitignore`; `.env.example` lists the names. `cargo xtask secrets`, run by
 CI and by `scripts/pre-commit`, fails on a login, token or key written into
@@ -79,25 +79,25 @@ Actions secrets only (docs/RELEASING.md).
 ## What a pull request needs
 
 - **Tests.** A behaviour change comes with a test that fails without it.
-  dm's tests run against real servers on loopback and a real queue, not
+  EDM's tests run against real servers on loopback and a real queue, not
   mocks; follow the tests next to the code you change.
 - **No panics on outside input.** Clippy denies `unwrap`, `expect` and
   `panic!` in shipped code. Anything that reads a server's reply, a file or
   a message returns an error instead.
-- **The docs it touches.** If you change what dm does, update the line in
+- **The docs it touches.** If you change what EDM does, update the line in
   `docs/parity.md` (and the checklist in `CLAUDE.md`) that describes it.
 - **Your own work.** Do not copy code, text, artwork or layouts from other
-  download managers or other products. dm is written from scratch.
-- **Privacy.** dm sends nothing anywhere except the downloads a person asks
+  download managers or other products. EDM is written from scratch.
+- **Privacy.** EDM sends nothing anywhere except the downloads a person asks
   for. `cargo xtask privacy` checks that no analytics or stray addresses
   creep in.
-- **The licence header.** Every source file of dm's own starts with its
+- **The licence header.** Every source file of EDM's own starts with its
   copyright and licence notice, in its language's comment style:
 
   ```rust
-  // Copyright (C) 2026 pranavo72bex and the dm contributors.
+  // Copyright (C) 2026 pranavo72bex and the EDM contributors.
   // SPDX-License-Identifier: GPL-3.0-or-later
-  // Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+  // Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
   // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
   ```
 
@@ -105,7 +105,7 @@ Actions secrets only (docs/RELEASING.md).
   `cargo xtask headers`, which CI runs, fails a file without it. Third-party
   code in `vendor/` keeps its own licence and takes no header, and
   test data under `fixtures/` takes none either. The NOTICE's section 7(b)
-  term asks everyone who copies dm's code to keep these notices unchanged.
+  term asks everyone who copies EDM's code to keep these notices unchanged.
 
 By contributing, you agree that your contribution is licensed under the
-[GNU GPL v3 or later](LICENSE), with the attribution terms in [NOTICE](NOTICE), like the rest of dm.
+[GNU GPL v3 or later](LICENSE), with the attribution terms in [NOTICE](NOTICE), like the rest of EDM.

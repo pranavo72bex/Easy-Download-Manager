@@ -1,15 +1,15 @@
 <!doctype html>
 <!--
-  Copyright (C) 2026 pranavo72bex and the dm contributors.
+  Copyright (C) 2026 pranavo72bex and the EDM contributors.
   SPDX-License-Identifier: GPL-3.0-or-later
-  Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+  Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
   with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 -->
 
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>dm</title>
+<title>EDM</title>
 <style>
   /* Every margin, padding and gap on a 4-point step, 16 at the sides (unslop review, 2026-11-27). */
   :root { color-scheme: light dark; --bg: #ffffff; --text: #242424; --weak: #616161;
@@ -52,15 +52,15 @@
 </style>
 </head>
 <body>
-<header><span class="mark" aria-hidden="true">&#8595;</span>dm</header>
-<p id="status" class="status" role="status" data-i18n="popupLooking">Looking for the dm app…</p>
+<header><span class="mark" aria-hidden="true">&#8595;</span>EDM</header>
+<p id="status" class="status" role="status" data-i18n="popupLooking">Looking for the EDM app…</p>
 <ul class="going" id="going" aria-live="polite" hidden></ul>
 <p class="status bad" id="failed" hidden></p>
 <div class="heading" id="recent-head" hidden><span data-i18n="popupRecent">Recent</span><button class="small" id="clear" type="button" data-i18n="popupClearFinished" hidden>Clear finished</button></div>
 <ul class="going" id="recent" hidden></ul>
 <ol class="steps" id="steps" hidden>
-  <li data-i18n="popupStepGet">1. No dm app on this computer yet? Get it, install it and open it once.</li>
-  <li data-i18n="popupStepOpen">2. Already installed? Open dm (if it's already open, open it again). This popup connects by itself.</li>
+  <li data-i18n="popupStepGet">1. No EDM app on this computer yet? Get it, install it and open it once.</li>
+  <li data-i18n="popupStepOpen">2. Already installed? Open EDM (if it's already open, open it again). This popup connects by itself.</li>
 </ol>
 <p class="advanced" id="advanced" hidden></p>
 <label class="row"><input type="checkbox" id="catching" checked><span data-i18n="popupCatch">Catch downloads</span></label>
@@ -68,8 +68,8 @@
 <label class="row" id="catchall-row"><input type="checkbox" id="catchall"><span id="catchall-label" data-i18n="popupCatchAllHere">Take every download from this site</span></label>
 <label class="row" id="paused-row"><input type="checkbox" id="paused"><span id="paused-label" data-i18n="popupPausedHere">Pause capturing on this site</span></label>
 <label class="row" id="cookies-row"><input type="checkbox" id="cookies"><span id="cookies-label" data-i18n="popupCookiesHere">Hand over this site's sign-in with its downloads</span></label>
-<div class="actions" id="open-actions"><button id="open" type="button" data-i18n="popupOpen">Open dm</button></div>
-<div class="actions" id="get-actions" hidden><a class="button" id="get-app" target="_blank" rel="noopener" href="https://github.com/pranavo72bex/Easy-Download-Manager/releases/latest" data-i18n="popupGetApp">Get the dm app</a></div>
+<div class="actions" id="open-actions"><button id="open" type="button" data-i18n="popupOpen">Open EDM</button></div>
+<div class="actions" id="get-actions" hidden><a class="button" id="get-app" target="_blank" rel="noopener" href="https://github.com/pranavo72bex/Easy-Download-Manager/releases/latest" data-i18n="popupGetApp">Get the EDM app</a></div>
 <script type="module" src="pkg/popup.js"></script>
 </body>
 </html>

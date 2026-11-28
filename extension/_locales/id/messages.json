@@ -1,24 +1,24 @@
 {
   "extName": {
-    "message": "dm — Pengelola Unduhan"
+    "message": "EDM — Pengelola Unduhan"
   },
   "extDescription": {
-    "message": "Menyerahkan unduhan dan video ke aplikasi dm, yang mengunduhnya. Tanpa aplikasi, browser menyimpannya."
+    "message": "Menyerahkan unduhan dan video ke aplikasi EDM, yang mengunduhnya. Tanpa aplikasi, browser menyimpannya."
   },
   "menuLink": {
-    "message": "Unduh tautan dengan dm"
+    "message": "Unduh tautan dengan EDM"
   },
   "menuMedia": {
-    "message": "Unduh media dengan dm"
+    "message": "Unduh media dengan EDM"
   },
   "menuAllLinks": {
-    "message": "Unduh semua tautan dengan dm"
+    "message": "Unduh semua tautan dengan EDM"
   },
   "menuSelectedLinks": {
-    "message": "Unduh tautan terpilih dengan dm"
+    "message": "Unduh tautan terpilih dengan EDM"
   },
   "popupLooking": {
-    "message": "Mencari aplikasi dm…"
+    "message": "Mencari aplikasi EDM…"
   },
   "popupCatch": {
     "message": "Tangkap unduhan"
@@ -80,22 +80,22 @@
     "message": "Tidak ada login untuk diserahkan dari halaman ini"
   },
   "popupOpen": {
-    "message": "Buka dm"
+    "message": "Buka EDM"
   },
   "popupGetApp": {
-    "message": "Dapatkan aplikasi dm"
+    "message": "Dapatkan aplikasi EDM"
   },
   "popupNoAnswer": {
-    "message": "Aplikasi dm tidak menjawab"
+    "message": "Aplikasi EDM tidak menjawab"
   },
   "popupOpening": {
-    "message": "Membuka dm…"
+    "message": "Membuka EDM…"
   },
   "popupIsOpen": {
-    "message": "dm sudah terbuka"
+    "message": "EDM sudah terbuka"
   },
   "popupConnected": {
-    "message": "Terhubung ke dm $VERSION$",
+    "message": "Terhubung ke EDM $VERSION$",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -103,7 +103,7 @@
     }
   },
   "popupConnectedOld": {
-    "message": "Terhubung ke dm $VERSION$ · perbarui aplikasi dm: sampai saat itu browser menyimpan unduhannya",
+    "message": "Terhubung ke EDM $VERSION$ · perbarui aplikasi EDM: sampai saat itu browser menyimpan unduhannya",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -130,13 +130,13 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm belum terhubung ke peramban ini."
+    "message": "EDM belum terhubung ke peramban ini."
   },
   "popupStepGet": {
-    "message": "1. Belum ada aplikasi dm di komputer ini? Dapatkan, pasang, lalu buka sekali."
+    "message": "1. Belum ada aplikasi EDM di komputer ini? Dapatkan, pasang, lalu buka sekali."
   },
   "popupStepOpen": {
-    "message": "2. Sudah terpasang? Buka dm (jika sudah terbuka, buka lagi). Jendela ini terhubung dengan sendirinya."
+    "message": "2. Sudah terpasang? Buka EDM (jika sudah terbuka, buka lagi). Jendela ini terhubung dengan sendirinya."
   },
   "popupAdvanced": {
     "message": "Lanjutan: $COMMAND$",
@@ -187,7 +187,7 @@
     "message": "Bersihkan yang selesai"
   },
   "popupNotAnswering": {
-    "message": "dm tidak menjawab ($REASON$). Buka dm (jika sudah terbuka, buka lagi); jendela ini mencoba lagi dengan sendirinya. Jika masih tidak menjawab: $COMMAND$",
+    "message": "EDM tidak menjawab ($REASON$). Buka EDM (jika sudah terbuka, buka lagi); jendela ini mencoba lagi dengan sendirinya. Jika masih tidak menjawab: $COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"
@@ -207,13 +207,13 @@
     "message": "Video terlindungi"
   },
   "panelProtectedSaid": {
-    "message": "Video ini dilindungi dari penyalinan, jadi hanya pemutar milik situs itu sendiri yang dapat memutarnya. dm tidak mengunduh video terlindungi."
+    "message": "Video ini dilindungi dari penyalinan, jadi hanya pemutar milik situs itu sendiri yang dapat memutarnya. EDM tidak mengunduh video terlindungi."
   },
   "panelThroughApp": {
-    "message": "halaman ini, melalui aplikasi dm"
+    "message": "halaman ini, melalui aplikasi EDM"
   },
   "panelHelp": {
-    "message": "dm mengunduh video ini dengan aplikasi dm, tempat Anda memilih nama dan foldernya. Tautan yang diklik sambil menahan tombol simpan (Alt, kecuali diubah di Opsi dm) tetap di browser."
+    "message": "EDM mengunduh video ini dengan aplikasi EDM, tempat Anda memilih nama dan foldernya. Tautan yang diklik sambil menahan tombol simpan (Alt, kecuali diubah di Opsi EDM) tetap di browser."
   },
   "panelDrag": {
     "message": "Seret untuk memindahkan"
@@ -242,22 +242,22 @@
     "message": "Membaca kualitas…"
   },
   "panelReadingSaid": {
-    "message": "dm sedang membaca kualitas video halaman ini; ini bisa memakan waktu hingga setengah menit."
+    "message": "EDM sedang membaca kualitas video halaman ini; ini bisa memakan waktu hingga setengah menit."
   },
   "panelTimedOut": {
-    "message": "dm tidak menjawab tepat waktu. Coba lagi, atau klik kanan video lalu pilih “Unduh media dengan dm”."
+    "message": "EDM tidak menjawab tepat waktu. Coba lagi, atau klik kanan video lalu pilih “Unduh media dengan EDM”."
   },
   "panelSending": {
-    "message": "Mengirim ke dm…"
+    "message": "Mengirim ke EDM…"
   },
   "panelNotTaken": {
-    "message": "dm tidak dapat mengambilnya"
+    "message": "EDM tidak dapat mengambilnya"
   },
   "panelUpdated": {
-    "message": "dm telah diperbarui: muat ulang halaman ini untuk menggunakannya"
+    "message": "EDM telah diperbarui: muat ulang halaman ini untuk menggunakannya"
   },
   "panelSent": {
-    "message": "Terkirim ke dm"
+    "message": "Terkirim ke EDM"
   },
   "panelInBrowser": {
     "message": "Mengunduh di browser"
@@ -289,19 +289,19 @@
     }
   },
   "panelAppReading": {
-    "message": "Aplikasi dm sedang membaca halaman ini untuk videonya"
+    "message": "Aplikasi EDM sedang membaca halaman ini untuk videonya"
   },
   "panelAppHas": {
-    "message": "Aplikasi dm sudah menerimanya"
+    "message": "Aplikasi EDM sudah menerimanya"
   },
   "panelAppDownloading": {
-    "message": "Aplikasi dm sedang mengunduhnya"
+    "message": "Aplikasi EDM sedang mengunduhnya"
   },
   "panelNoAnswer": {
-    "message": "dm tidak menjawab"
+    "message": "EDM tidak menjawab"
   },
   "panelFailed": {
-    "message": "dm tidak menjawab. Coba lagi, atau klik kanan video lalu pilih “Unduh media dengan dm”."
+    "message": "EDM tidak menjawab. Coba lagi, atau klik kanan video lalu pilih “Unduh media dengan EDM”."
   },
   "panelHls": {
     "message": "Stream HLS, kualitas terbaik"
@@ -310,7 +310,7 @@
     "message": "Unduh"
   },
   "toastSentMany": {
-    "message": "$COUNT$ unduhan dikirim ke dm",
+    "message": "$COUNT$ unduhan dikirim ke EDM",
     "description": "The one toast for several downloads handed to the app together.",
     "placeholders": {
       "count": {

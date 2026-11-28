@@ -1,7 +1,7 @@
-# dm's window, scene main-rows (android, 412x915, en, text at 100%), drawn by crates/dm-gpui/src/window_tests/golden.rs.
+# EDM's window, scene main-rows (android, 412x915, en, text at 100%), drawn by crates/edm-gpui/src/window_tests/golden.rs.
 # Each word: left top right bottom, where it is seen; "hidden" where nothing of it is.
 
-[main "dm" 412x915]
+[main "EDM" 412x915]
 "All downloads" 24 4.5 308 37
 "3 downloads" 24 37 308 58
 "Filter" 324 19.5 348 43.5

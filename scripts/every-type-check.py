@@ -1,19 +1,19 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
-"""Every type of file a person clicks goes to dm, with dm set as installed.
+"""Every type of file a person clicks goes to EDM, with EDM set as installed.
 
     sh scripts/package.sh                      # builds dist/chrome
-    cargo build -p dm-gpui  # the app the host starts
+    cargo build -p edm-gpui  # the app the host starts
     CHROME_PATH=/path/to/msedge python3 scripts/every-type-check.py
 
 chrome-check.py sets the app to catch `.bin` and `.pdf` only, to check that a
 list a person chose is kept; this runs all of its checks too, but replaces
 its panel step with the app's own settings as a new install has them (no
 list: every type) and a real click on a link to each kind of file below.
-Each must land whole in dm's folder while the browser keeps nothing. In a
+Each must land whole in EDM's folder while the browser keeps nothing. In a
 window, as a person sees it (docs/behaviour-contract.md, B37).
 
 The extension keeps what the app said for a minute, so after the settings
@@ -50,7 +50,7 @@ def every_type(base, origin, engine_dl, engine_home, worker):
     settings = json.loads(settings_file.read_text(encoding="utf-8"))
     settings.pop("catch", None)                     # the app's own default: no list
     settings_file.write_text(json.dumps(settings), encoding="utf-8")
-    print("  dm set as installed (no type list); waiting a minute for the extension to ask it again", flush=True)
+    print("  EDM set as installed (no type list); waiting a minute for the extension to ask it again", flush=True)
     time.sleep(62)
     browser_dl = engine_home.parent / "browser-downloads"
     tab = cc.open_tab(base, f"{origin}/page.html")
@@ -67,8 +67,8 @@ def every_type(base, origin, engine_dl, engine_home, worker):
         taken = cc.wait_for(lambda: cc.whole(engine_dl, name), 60)
         time.sleep(1)
         kept = sorted(p.name for p in browser_dl.iterdir() if p.name.startswith(name.split(".")[0]))
-        cc.check(f"a click on {name} goes to dm and the browser keeps nothing",
-                 bool(taken) and not kept, f"in dm: {bool(taken)}; in the browser's folder: {kept}")
+        cc.check(f"a click on {name} goes to EDM and the browser keeps nothing",
+                 bool(taken) and not kept, f"in EDM: {bool(taken)}; in the browser's folder: {kept}")
 
 
 cc.panel_checks = every_type

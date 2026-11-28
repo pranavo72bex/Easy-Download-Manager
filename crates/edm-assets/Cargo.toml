@@ -1,0 +1,14 @@
+[package]
+name = "edm-assets"
+version = "0.10.3"
+license = "GPL-3.0-or-later"
+edition = "2021"
+# Never published: what it compiles in is this repository's assets/.
+publish = false
+description = "EDM's files that are not code (the window's pictures, the catalogs, the site rules), compiled in from assets/"
+
+# Nothing: it only holds bytes.
+[dependencies]
+
+[lints]
+workspace = true

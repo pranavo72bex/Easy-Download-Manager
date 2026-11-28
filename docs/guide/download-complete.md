@@ -33,5 +33,5 @@ one.
 
 - **Return**, **Escape**, Ctrl+W (⌘W on macOS) and the close button all
   close it, keeping what **Don’t show this window again** says.
-- It does not open over **Exit dm?** while that is asked; it opens once you
+- It does not open over **Exit EDM?** while that is asked; it opens once you
   answer.

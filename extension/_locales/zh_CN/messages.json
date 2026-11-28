@@ -1,24 +1,24 @@
 {
   "extName": {
-    "message": "dm — 下载管理器"
+    "message": "EDM — 下载管理器"
   },
   "extDescription": {
-    "message": "将下载和视频交给 dm 应用下载。没有应用时，由浏览器保留。"
+    "message": "将下载和视频交给 EDM 应用下载。没有应用时，由浏览器保留。"
   },
   "menuLink": {
-    "message": "使用 dm 下载链接"
+    "message": "使用 EDM 下载链接"
   },
   "menuMedia": {
-    "message": "使用 dm 下载媒体"
+    "message": "使用 EDM 下载媒体"
   },
   "menuAllLinks": {
-    "message": "使用 dm 下载全部链接"
+    "message": "使用 EDM 下载全部链接"
   },
   "menuSelectedLinks": {
-    "message": "使用 dm 下载选中的链接"
+    "message": "使用 EDM 下载选中的链接"
   },
   "popupLooking": {
-    "message": "正在查找 dm 应用…"
+    "message": "正在查找 EDM 应用…"
   },
   "popupCatch": {
     "message": "捕获下载"
@@ -80,22 +80,22 @@
     "message": "此页面没有可交出的登录信息"
   },
   "popupOpen": {
-    "message": "打开 dm"
+    "message": "打开 EDM"
   },
   "popupGetApp": {
-    "message": "获取 dm 应用"
+    "message": "获取 EDM 应用"
   },
   "popupNoAnswer": {
-    "message": "dm 应用没有回应"
+    "message": "EDM 应用没有回应"
   },
   "popupOpening": {
-    "message": "正在打开 dm…"
+    "message": "正在打开 EDM…"
   },
   "popupIsOpen": {
-    "message": "dm 已打开"
+    "message": "EDM 已打开"
   },
   "popupConnected": {
-    "message": "已连接到 dm $VERSION$",
+    "message": "已连接到 EDM $VERSION$",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -103,7 +103,7 @@
     }
   },
   "popupConnectedOld": {
-    "message": "已连接到 dm $VERSION$ · 请更新 dm 应用：在此之前，浏览器会保留它的下载",
+    "message": "已连接到 EDM $VERSION$ · 请更新 EDM 应用：在此之前，浏览器会保留它的下载",
     "placeholders": {
       "version": {
         "content": "$1"
@@ -130,13 +130,13 @@
     }
   },
   "popupNotConnected": {
-    "message": "dm 尚未连接到此浏览器。"
+    "message": "EDM 尚未连接到此浏览器。"
   },
   "popupStepGet": {
-    "message": "1. 这台电脑上还没有 dm 应用？请获取并安装，然后打开一次。"
+    "message": "1. 这台电脑上还没有 EDM 应用？请获取并安装，然后打开一次。"
   },
   "popupStepOpen": {
-    "message": "2. 已经安装？请打开 dm（如果已经打开，请再打开一次）。此窗口会自动连接。"
+    "message": "2. 已经安装？请打开 EDM（如果已经打开，请再打开一次）。此窗口会自动连接。"
   },
   "popupAdvanced": {
     "message": "高级：$COMMAND$",
@@ -187,7 +187,7 @@
     "message": "清除已完成"
   },
   "popupNotAnswering": {
-    "message": "dm 没有应答（$REASON$）。请打开 dm（如果已经打开，请再打开一次）；此窗口会自动重试。如果仍然没有应答：$COMMAND$",
+    "message": "EDM 没有应答（$REASON$）。请打开 EDM（如果已经打开，请再打开一次）；此窗口会自动重试。如果仍然没有应答：$COMMAND$",
     "placeholders": {
       "reason": {
         "content": "$1"
@@ -207,13 +207,13 @@
     "message": "受保护的视频"
   },
   "panelProtectedSaid": {
-    "message": "此视频受复制保护，只有网站自己的播放器才能播放。dm 不下载受保护的视频。"
+    "message": "此视频受复制保护，只有网站自己的播放器才能播放。EDM 不下载受保护的视频。"
   },
   "panelThroughApp": {
-    "message": "此页面，通过 dm 应用"
+    "message": "此页面，通过 EDM 应用"
   },
   "panelHelp": {
-    "message": "dm 用 dm 应用下载此视频，你可以在应用中选择名称和文件夹。按住保留键（除非在 dm 的选项中更改，否则为 Alt）点击的链接会留在浏览器中。"
+    "message": "EDM 用 EDM 应用下载此视频，你可以在应用中选择名称和文件夹。按住保留键（除非在 EDM 的选项中更改，否则为 Alt）点击的链接会留在浏览器中。"
   },
   "panelDrag": {
     "message": "拖动以移动"
@@ -242,22 +242,22 @@
     "message": "正在读取画质…"
   },
   "panelReadingSaid": {
-    "message": "dm 正在读取此页面的视频画质，最多可能需要半分钟。"
+    "message": "EDM 正在读取此页面的视频画质，最多可能需要半分钟。"
   },
   "panelTimedOut": {
-    "message": "dm 没有及时回应。请重试，或右键点击视频并选择“使用 dm 下载媒体”。"
+    "message": "EDM 没有及时回应。请重试，或右键点击视频并选择“使用 EDM 下载媒体”。"
   },
   "panelSending": {
-    "message": "正在发送到 dm…"
+    "message": "正在发送到 EDM…"
   },
   "panelNotTaken": {
-    "message": "dm 无法接收"
+    "message": "EDM 无法接收"
   },
   "panelUpdated": {
-    "message": "dm 已更新：请重新加载此页面以使用它"
+    "message": "EDM 已更新：请重新加载此页面以使用它"
   },
   "panelSent": {
-    "message": "已发送到 dm"
+    "message": "已发送到 EDM"
   },
   "panelInBrowser": {
     "message": "正在浏览器中下载"
@@ -289,19 +289,19 @@
     }
   },
   "panelAppReading": {
-    "message": "dm 应用正在读取此页面以获取视频"
+    "message": "EDM 应用正在读取此页面以获取视频"
   },
   "panelAppHas": {
-    "message": "dm 应用已接收"
+    "message": "EDM 应用已接收"
   },
   "panelAppDownloading": {
-    "message": "dm 应用正在下载"
+    "message": "EDM 应用正在下载"
   },
   "panelNoAnswer": {
-    "message": "dm 没有回应"
+    "message": "EDM 没有回应"
   },
   "panelFailed": {
-    "message": "dm 没有回应。请重试，或右键点击视频并选择“使用 dm 下载媒体”。"
+    "message": "EDM 没有回应。请重试，或右键点击视频并选择“使用 EDM 下载媒体”。"
   },
   "panelHls": {
     "message": "HLS 流，最佳画质"
@@ -310,7 +310,7 @@
     "message": "下载"
   },
   "toastSentMany": {
-    "message": "已将 $COUNT$ 个下载发送到 dm",
+    "message": "已将 $COUNT$ 个下载发送到 EDM",
     "description": "The one toast for several downloads handed to the app together.",
     "placeholders": {
       "count": {

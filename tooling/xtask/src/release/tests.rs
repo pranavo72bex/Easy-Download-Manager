@@ -1,6 +1,6 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! The crate list, and a release's signed digests checked (gaps row W21).
@@ -27,14 +27,14 @@ fn edge(pkg: &str, kinds: &[Option<&str>]) -> Value {
 /// one only tests use, one the graph reaches only through a feature tests turn on, a
 /// vendored copy, a git crate and a member nothing shipped needs.
 fn metadata() -> Value {
-    let w = r"C:\src\dm";
+    let w = r"C:\src\EDM";
     json!({
         "workspace_root": w,
-        "workspace_members": ["dm-gpui 0.10.0", "dm-catcher 3.5.0", "dm-test-support 0.1.0", "xtask 0.10.0"],
+        "workspace_members": ["edm-gpui 0.10.0", "edm-catcher 3.5.0", "edm-test-support 0.1.0", "xtask 0.10.0"],
         "packages": [
-            package("dm-gpui", "0.10.0", Value::Null, &format!(r"{w}\crates\dm-gpui\Cargo.toml")),
-            package("dm-catcher", "3.5.0", Value::Null, &format!(r"{w}\crates\dm-catcher\Cargo.toml")),
-            package("dm-test-support", "0.1.0", Value::Null, &format!(r"{w}\crates\dm-test-support\Cargo.toml")),
+            package("edm-gpui", "0.10.0", Value::Null, &format!(r"{w}\crates\edm-gpui\Cargo.toml")),
+            package("edm-catcher", "3.5.0", Value::Null, &format!(r"{w}\crates\edm-catcher\Cargo.toml")),
+            package("edm-test-support", "0.1.0", Value::Null, &format!(r"{w}\crates\edm-test-support\Cargo.toml")),
             package("xtask", "0.10.0", Value::Null, &format!(r"{w}\tooling\xtask\Cargo.toml")),
             package("serde", "1.0.200", json!(IO), "x"),
             package("cc", "1.2.0", json!(IO), "x"),
@@ -45,18 +45,18 @@ fn metadata() -> Value {
             package("gitdep", "0.2.0", json!("git+https://example.org/g.git?rev=abc#abcdef0"), "x"),
         ],
         "resolve": { "nodes": [
-            { "id": "dm-gpui 0.10.0", "deps": [
+            { "id": "edm-gpui 0.10.0", "deps": [
                 edge("serde 1.0.200", &[None]),
                 edge("cc 1.2.0", &[Some("build")]),
-                edge("dm-test-support 0.1.0", &[Some("dev")]),
+                edge("edm-test-support 0.1.0", &[Some("dev")]),
                 edge("librqbit 8.1.1", &[None]),
                 edge("proptest 1.12.0", &[None]),
             ]},
-            { "id": "dm-catcher 3.5.0", "deps": [
+            { "id": "edm-catcher 3.5.0", "deps": [
                 edge("serde 1.0.200", &[None, Some("dev")]),
                 edge("gitdep 0.2.0", &[None]),
             ]},
-            { "id": "dm-test-support 0.1.0", "deps": [edge("wiremock 0.6.0", &[None])] },
+            { "id": "edm-test-support 0.1.0", "deps": [edge("wiremock 0.6.0", &[None])] },
             { "id": "xtask 0.10.0", "deps": [] },
             { "id": "serde 1.0.200", "deps": [] },
             { "id": "cc 1.2.0", "deps": [] },
@@ -69,11 +69,11 @@ fn metadata() -> Value {
 }
 
 /// What `cargo tree` prints for [`metadata`]: not `wiremock` (a test's), nor `proptest`.
-const TREE_OUT: &str = r"dm-gpui v0.10.0 (C:\src\dm\crates\dm-gpui)
+const TREE_OUT: &str = r"edm-gpui v0.10.0 (C:\src\EDM\crates\edm-gpui)
 cc v1.2.0
-librqbit v8.1.1 (C:\src\dm\vendor\librqbit)
+librqbit v8.1.1 (C:\src\EDM\vendor\librqbit)
 serde v1.0.200
-dm-catcher v3.5.0 (C:\src\dm\crates\dm-catcher)
+edm-catcher v3.5.0 (C:\src\EDM\crates\edm-catcher)
 gitdep v0.2.0 (https://example.org/g.git?rev=abc#abcdef0)
 serde v1.0.200 (*)
 ";
@@ -104,14 +104,14 @@ fn the_crate_list_is_what_the_shipped_programs_are_built_from() {
         lines,
         [
             "cc 1.2.0 crates.io 1111111111111111111111111111111111111111111111111111111111111111",
-            "dm-catcher 3.5.0 dm crates/dm-catcher",
-            "dm-gpui 0.10.0 dm crates/dm-gpui",
+            "edm-catcher 3.5.0 EDM crates/edm-catcher",
+            "edm-gpui 0.10.0 EDM crates/edm-gpui",
             "gitdep 0.2.0 git https://example.org/g.git?rev=abc#abcdef0",
             "librqbit 8.1.1 vendored vendor/librqbit",
             "serde 1.0.200 crates.io 2222222222222222222222222222222222222222222222222222222222222222",
         ]
     );
-    assert!(list.starts_with("# dm 0.10.0: "), "{list}");
+    assert!(list.starts_with("# EDM 0.10.0: "), "{list}");
     assert!(list.contains("Rust 1.98.1"), "{list}");
     // No path of the computer that made it.
     assert!(
@@ -123,10 +123,10 @@ fn the_crate_list_is_what_the_shipped_programs_are_built_from() {
 #[test]
 fn a_crate_list_is_refused_without_its_programs_or_their_graph() {
     let mut no_app = metadata();
-    no_app["workspace_members"] = json!(["dm-catcher 3.5.0"]);
+    no_app["workspace_members"] = json!(["edm-catcher 3.5.0"]);
     assert!(crates_list(&no_app, TREE_OUT, LOCK, "1")
         .unwrap_err()
-        .contains("dm-gpui"));
+        .contains("edm-gpui"));
     let mut no_graph = metadata();
     no_graph["resolve"] = Value::Null;
     assert!(crates_list(&no_graph, TREE_OUT, LOCK, "1").is_err());
@@ -151,7 +151,7 @@ fn the_real_lock_is_read() {
 /// A release folder of three files, signed by a new key: (folder, public key, private key).
 fn release() -> (Scratch, String, String) {
     let dir = Scratch::new("release");
-    std::fs::write(dir.0.join("dm_0.10.0_x64-setup.exe"), b"an installer").unwrap();
+    std::fs::write(dir.0.join("edm_0.10.0_x64-setup.exe"), b"an installer").unwrap();
     std::fs::write(dir.0.join("crates.txt"), b"serde 1.0.200 crates.io\n").unwrap();
     let manifest = br#"{"version":"0.10.0"}"#;
     std::fs::write(dir.0.join("latest.json"), manifest).unwrap();
@@ -169,7 +169,7 @@ fn a_signed_release_checks() {
     assert_eq!(sums.lines().count(), 4, "{sums}");
     assert!(sums.contains("  crates.txt\n") && sums.contains("  latest.json.sig\n"));
     // sha256sum's own digest of "an installer".
-    let installer = sha256(&dir.0.join("dm_0.10.0_x64-setup.exe")).unwrap();
+    let installer = sha256(&dir.0.join("edm_0.10.0_x64-setup.exe")).unwrap();
     assert_eq!(installer.len(), 64);
     let said = verify(&dir.0, &public).unwrap();
     assert!(said.contains("4 file(s)"), "{said}");
@@ -188,23 +188,23 @@ fn a_signed_release_checks() {
 #[test]
 fn a_changed_file_is_refused() {
     let (dir, public, _) = release();
-    std::fs::write(dir.0.join("dm_0.10.0_x64-setup.exe"), b"another installer").unwrap();
+    std::fs::write(dir.0.join("edm_0.10.0_x64-setup.exe"), b"another installer").unwrap();
     let why = verify(&dir.0, &public).unwrap_err();
-    assert!(why.contains("dm_0.10.0_x64-setup.exe"), "{why}");
+    assert!(why.contains("edm_0.10.0_x64-setup.exe"), "{why}");
 }
 
 #[test]
 fn a_changed_digest_line_is_refused() {
     let (dir, public, _) = release();
     // The list rewritten to the changed file's digest: its signature no longer holds.
-    std::fs::write(dir.0.join("dm_0.10.0_x64-setup.exe"), b"another installer").unwrap();
+    std::fs::write(dir.0.join("edm_0.10.0_x64-setup.exe"), b"another installer").unwrap();
     let path = dir.0.join(SUMS);
     let sums = std::fs::read_to_string(&path).unwrap();
-    let new = sha256(&dir.0.join("dm_0.10.0_x64-setup.exe")).unwrap();
+    let new = sha256(&dir.0.join("edm_0.10.0_x64-setup.exe")).unwrap();
     let changed: String = sums
         .lines()
         .map(|l| match l.split_once("  ") {
-            Some((_, "dm_0.10.0_x64-setup.exe")) => format!("{new}  dm_0.10.0_x64-setup.exe\n"),
+            Some((_, "edm_0.10.0_x64-setup.exe")) => format!("{new}  edm_0.10.0_x64-setup.exe\n"),
             _ => format!("{l}\n"),
         })
         .collect();

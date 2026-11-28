@@ -1,14 +1,14 @@
 # Sites to check in the human QA, beside reference A
 
-The maintainer's list (2026-11-05) of popular sites where reference A works: dm should work on
+The maintainer's list (2026-11-05) of popular sites where reference A works: EDM should work on
 each as reference A does. Reference A keeps no list of sites; it takes downloads and media from any
-server through its browser extension, and so does dm. These are the sites a person checks in the
+server through its browser extension, and so does EDM. These are the sites a person checks in the
 final human QA, with both apps in Microsoft Edge on Windows, as `docs/reference-behavior.md`
-describes (`DM_KEEP_OTHER_EXTENSIONS=1`, `SITES_HOLD`, `scripts/sites-check.py` for the video
+describes (`EDM_KEEP_OTHER_EXTENSIONS=1`, `SITES_HOLD`, `scripts/sites-check.py` for the video
 sites it knows).
 
 **For each site:** open a public page, do what the "Try" column says in Edge with reference A's
-extension, then with dm's, and write in the last two columns what each did (the file, its name
+extension, then with EDM's, and write in the last two columns what each did (the file, its name
 and size, whether it is whole; a video's qualities and whether picture and sound arrived). A
 difference is a row in `docs/gaps.md`.
 
@@ -18,12 +18,12 @@ difference is a row in `docs/gaps.md`.
 * Only what the person running it may download: a public file, a Creative Commons or public-domain
   video, the person's own upload.
 * A stream protected by a DRM system (Widevine, PlayReady, FairPlay; most paid course platforms
-  and paid music) is refused by both apps, which decrypt none; dm says so in words (row 131,
-  `crates/dm-catcher/src/decide/protection.rs`). That is the expected result there, not a gap.
+  and paid music) is refused by both apps, which decrypt none; EDM says so in words (row 131,
+  `crates/edm-catcher/src/decide/protection.rs`). That is the expected result there, not a gap.
 * A site that is gone, or answers an automated browser with a challenge, is written down as that.
 
-**How dm gets it**, in the tables: *panel* is the button over a playing video, from the
-player's own requests (or dm's own YouTube reader); *hand-over* is the browser's download taken
+**How EDM gets it**, in the tables: *panel* is the button over a playing video, from the
+player's own requests (or EDM's own YouTube reader); *hand-over* is the browser's download taken
 by the extension (a host's Download button); *file* is a direct link, also by Add URL.
 
 Status: *not yet* until a person has run it beside reference A; where an earlier run covered a
@@ -31,19 +31,19 @@ site, the row says which.
 
 ## Video and media streaming
 
-| Site | Try | Sign-in | How dm gets it | Reference A | dm |
+| Site | Try | Sign-in | How EDM gets it | Reference A | EDM |
 |---|---|---|---|---|---|
-| YouTube | a public video; a Short; a playlist | no | panel (dm's own reader) | run 2026-11-04 (row 142) | whole, every quality but 60 fps lines (row 72d) |
+| YouTube | a public video; a Short; a playlist | no | panel (EDM's own reader) | run 2026-11-04 (row 142) | whole, every quality but 60 fps lines (row 72d) |
 | Vimeo | a public video | no | panel | run 2026-11-04 (row 142) | whole with sound (row 142); 2026-11-18 on macOS in Edge, signed out, `sites-check.py vimeo`: whole with sound (14 min 31 s, 1080 tall) from the player config's HLS stream; 2026-11-19 (row 214): named after the video's title ("Staff Pick Short Film.mp4"), and the panel lists the page's own stream once and its five MP4 qualities (six lines, where the background clip and a second CDN made nine) |
-| Dailymotion | a public video | no | panel | not yet | 2026-11-07, `video-sites-check.py` in Edge on Windows: not judged; the player is a frame of Dailymotion's own that the check lost hold of twice, and the player page alone showed no video to an automated browser. 2026-11-09 on macOS, signed out: the panel shows on the player and its list stays empty; the extension saw no stream request from the player's frame while it played, and dm's own reading of the page finds no qualities. The player's public metadata (`/player/metadata/video/<id>`) names an HLS playlist, which answered a program 403 (`x-error-code: E005`); what the player sends that a program does not was not looked into further (the check stopped there). For the run beside reference A |
+| Dailymotion | a public video | no | panel | not yet | 2026-11-07, `video-sites-check.py` in Edge on Windows: not judged; the player is a frame of Dailymotion's own that the check lost hold of twice, and the player page alone showed no video to an automated browser. 2026-11-09 on macOS, signed out: the panel shows on the player and its list stays empty; the extension saw no stream request from the player's frame while it played, and EDM's own reading of the page finds no qualities. The player's public metadata (`/player/metadata/video/<id>`) names an HLS playlist, which answered a program 403 (`x-error-code: E005`); what the player sends that a program does not was not looked into further (the check stopped there). For the run beside reference A |
 | Twitch | a past broadcast and a clip | no | panel (HLS) | not yet | 2026-11-07, `video-sites-check.py` in Edge on Windows, no sign-in: a NASA highlight (HLS) and a NASA clip, each a whole video with sound; a whole past broadcast is hours long and was still arriving when the check stopped waiting |
 | Facebook | a public video post, a reel | maintainer | panel | run 2026-11-04 (row 142); signed in on Windows 2026-11-07 | whole with sound: a NASA video post (26 s, 1280 tall) and the Watch page (222 s); saved as `video.mp4`, the page's title being "(1) Facebook" (row 75) |
-| Instagram | a reel | no | panel | run 2026-11-04 (row 142) | whole; one run in five a sign-in layer hides the button (row 71); 2026-11-21 on macOS in Edge, signed out, `sites-check.py instagram`: a silent NASA reel (its player: "Video has no audio") whole, picture alone, 16 s, 1280 tall, once dm offered a social site's picture with no sound |
+| Instagram | a reel | no | panel | run 2026-11-04 (row 142) | whole; one run in five a sign-in layer hides the button (row 71); 2026-11-21 on macOS in Edge, signed out, `sites-check.py instagram`: a silent NASA reel (its player: "Video has no audio") whole, picture alone, 16 s, 1280 tall, once EDM offered a social site's picture with no sound |
 | TikTok | a video | no | panel | run 2026-11-04 (row 142) | whole with sound (row 71) |
 | X (Twitter) | a post with a video | no | panel | run 2026-11-04 (row 142) | whole (row 142) |
 | Reddit | a post with a video | maintainer | panel (plain-JavaScript panel: Reddit forbids WebAssembly) | run 2026-11-04 (row 142) | whole with sound (rows 63, 142) |
 | Rumble | a public video | no | panel | not yet | 2026-11-07: Rumble answered the automated Edge with Cloudflare's "Just a moment…" check; not judged |
-| Bilibili | a public video | no | panel (picture and sound as two whole MP4 files the player fetches in ranges, joined by dm) | not yet | 2026-11-07, Edge on macOS, signed out: a whole 480p video with sound, 65.9 s (gaps row 155, closed: the panel tells the two files apart by their first bytes, `decide::mp4_track`) |
+| Bilibili | a public video | no | panel (picture and sound as two whole MP4 files the player fetches in ranges, joined by EDM) | not yet | 2026-11-07, Edge on macOS, signed out: a whole 480p video with sound, 65.9 s (gaps row 155, closed: the panel tells the two files apart by their first bytes, `decide::mp4_track`) |
 | Metacafe | a video | no | panel | not yet; check the site is still running | not yet |
 | Veoh | a video | no | panel | not yet; check the site is still running | not yet |
 | Break | a video | no | panel | not yet; check the site is still running | not yet |
@@ -52,11 +52,11 @@ site, the row says which.
 ## File hosting and cloud storage
 
 A share link's page, then its own Download button: the host's page starts the real download in
-the browser, which the extension hands to dm (a pasted page address alone is refused as a web
+the browser, which the extension hands to EDM (a pasted page address alone is refused as a web
 page, row 136). Many hosts make a visitor wait, solve a check or sign in first; that is written
 down, not worked around.
 
-| Site | Try | Sign-in | How dm gets it | Reference A | dm |
+| Site | Try | Sign-in | How EDM gets it | Reference A | EDM |
 |---|---|---|---|---|---|
 | Google Drive | a public file's share link (and one over 100 MB, which asks to confirm) | no | hand-over | not yet | not yet |
 | OneDrive | a public share link | no | hand-over | not yet | not yet |
@@ -79,7 +79,7 @@ down, not worked around.
 
 ## Software and open-source repositories
 
-| Site | Try | Sign-in | How dm gets it | Reference A | dm |
+| Site | Try | Sign-in | How EDM gets it | Reference A | EDM |
 |---|---|---|---|---|---|
 | GitHub | a release asset; a repository's "Download ZIP" | no | file, hand-over | release asset run 2026-11-04 (row 132) | byte-identical (rows 132, `real-sites.py`); 2026-11-06 `handover-check.py`: a release asset's link and the Code menu's Download ZIP (a `codeload` address named by the server) each handed over and arriving |
 | GitLab | a release asset; an archive | no | file, hand-over | not yet | not yet |
@@ -101,7 +101,7 @@ expected, both apps refuse a protected stream (see the rules above). What is che
 public material (a course's preview, an open lecture, a downloadable resource) and that a refusal
 says why.
 
-| Site | Try | Sign-in | How dm gets it | Reference A | dm |
+| Site | Try | Sign-in | How EDM gets it | Reference A | EDM |
 |---|---|---|---|---|---|
 | Udemy | a course's free preview; an attached resource | maintainer | panel, hand-over | not yet | not yet |
 | Coursera | a free lecture video; a lecture's slides | maintainer | panel, hand-over | not yet | not yet |
@@ -115,7 +115,7 @@ says why.
 
 ## Music and audio
 
-| Site | Try | Sign-in | How dm gets it | Reference A | dm |
+| Site | Try | Sign-in | How EDM gets it | Reference A | EDM |
 |---|---|---|---|---|---|
 | SoundCloud | a track the artist allows to be downloaded (its Download button), and a stream | no | hand-over; panel for the stream | not yet | not yet |
 | Bandcamp | a free or name-your-price download; a track's stream | no | hand-over; panel | not yet | not yet |
@@ -125,7 +125,7 @@ says why.
 
 ## Stock images and vectors
 
-| Site | Try | Sign-in | How dm gets it | Reference A | dm |
+| Site | Try | Sign-in | How EDM gets it | Reference A | EDM |
 |---|---|---|---|---|---|
 | Unsplash | a photo's Download button | no | hand-over | not yet | not yet |
 | Pexels | a photo's and a video's Download | no | hand-over | not yet | not yet |
@@ -135,7 +135,7 @@ says why.
 
 ## Sites for testing the engine
 
-| Site | Try | Sign-in | How dm gets it | Reference A | dm |
+| Site | Try | Sign-in | How EDM gets it | Reference A | EDM |
 |---|---|---|---|---|---|
 | Ubuntu ISO mirror | a current ISO (several GB: many connections, pause and resume, a kill and a restart) | no | file, hand-over | not yet | not yet |
 | VLC media player | the Windows installer from the official page (a mirror redirect) | no | hand-over | not yet | not yet |
@@ -145,10 +145,10 @@ says why.
 ## Download pages, run by `scripts/handover-check.py` (2026-11-06, Microsoft Edge on macOS)
 
 A page's own Download button, clicked as a person clicks it (or nothing, where the page starts
-the download itself), with the app's catch rules as a new install has them. Each was handed to dm
+the download itself), with the app's catch rules as a new install has them. Each was handed to EDM
 and arriving, and the browser kept nothing:
 
-| Page | How it starts the download | dm |
+| Page | How it starts the download | EDM |
 |---|---|---|
 | 7-zip.org | a plain link (to a GitHub release asset, signed redirect) | whole |
 | python.org | a button's link | arriving |
@@ -167,5 +167,5 @@ LibreOffice failed until 2026-11-11 (gaps row 173) because the check's click mis
 page's menu bar grows back by 63 pixels when the page is scrolled near its top, after the check
 had measured where the link was, so the click landed on the heading above. The check now
 measures the link where it rests after one scroll. The whole check, 2026-11-11 on macOS: 68 of 68,
-all twelve pages handed to dm and arriving.
+all twelve pages handed to EDM and arriving.
 

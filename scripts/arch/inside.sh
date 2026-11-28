@@ -1,7 +1,7 @@
 #!/bin/sh
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 # Runs inside an Arch container: makepkg, pacman -U, and a hand-off.
@@ -22,13 +22,13 @@ top="Easy-Download-Manager-desktop-v$version"
 build=/home/builder/pkg
 rm -rf "$build" && mkdir -p "$build/$top"
 cp -r . "$build/$top/"
-(cd "$build" && tar -czf "dm-$version.tar.gz" "$top" && rm -rf "$top")
+(cd "$build" && tar -czf "edm-$version.tar.gz" "$top" && rm -rf "$top")
 # The release PKGBUILD, fetching this checkout instead of a GitHub tag.
 # Its digest is the release tarball's, which this tarball made just now is
 # not: skipped for it, and kept in the PKGBUILD a person builds.
-sed -e "s|^source=.*|source=(\"dm-$version.tar.gz\")|" \
+sed -e "s|^source=.*|source=(\"edm-$version.tar.gz\")|" \
     -e "s|^sha256sums=.*|sha256sums=('SKIP')|" packaging/PKGBUILD > "$build/PKGBUILD"
-cp packaging/dm.desktop "$build/" 2>/dev/null || true
+cp packaging/EDM.desktop "$build/" 2>/dev/null || true
 chown -R builder:builder "$build"
 
 echo "== makepkg (build, check, package)"
@@ -42,7 +42,7 @@ if ! su builder -c "cd $build && makepkg --noconfirm --nodeps" >"$build/makepkg.
 fi
 tail -5 "$build/makepkg.log"
 pkg=
-for candidate in "$build"/dm-*.pkg.tar.*; do
+for candidate in "$build"/edm-*.pkg.tar.*; do
   case $candidate in *debug*) continue ;; esac
   [ -e "$candidate" ] && { pkg=$candidate; break; }
 done
@@ -50,9 +50,9 @@ done
 echo "== built: $pkg"
 echo "== namcap-free install with pacman"
 pacman -U --noconfirm "$pkg" >/dev/null
-pacman -Ql dm | grep -E 'bin/|\.desktop$|icons'
-echo "== the installed dm answers a browser hand-off"
+pacman -Ql EDM | grep -E 'bin/|\.desktop$|icons'
+echo "== the installed EDM answers a browser hand-off"
 printf '\053\000\000\000{"protocolVersion":1,"type":"engine.hello"}' \
-  | DM_HOME=/tmp/dm-home /usr/bin/dm --native-host | head -c 300 | tail -c +5
+  | EDM_HOME=/tmp/edm-home /usr/bin/EDM --native-host | head -c 300 | tail -c +5
 echo
 echo "== arch package ok"

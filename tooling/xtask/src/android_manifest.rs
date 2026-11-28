@@ -1,12 +1,12 @@
-// Copyright (C) 2026 pranavo72bex and the dm contributors.
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 // with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 //! `cargo xtask android-manifest [merged.xml]`: the Android app's safety held by a check rather
-//! than by hand (gaps row H17). The permissions dm asks for, the components other apps may
+//! than by hand (gaps row H17). The permissions EDM asks for, the components other apps may
 //! reach, backups off and the app not debuggable, compared with
-//! `crates/dm-android/android/manifest-kept.txt`. CI's release job names the release build's
+//! `crates/edm-android/android/manifest-kept.txt`. CI's release job names the release build's
 //! merged manifest, which holds what Gradle adds; with no argument the source manifest alone.
 
 use std::collections::BTreeSet;
@@ -95,7 +95,7 @@ fn said(xml: &str) -> BTreeSet<String> {
 
 /// The kept list's lines.
 fn kept(root: &Path) -> Result<BTreeSet<String>, String> {
-    let path = root.join("crates/dm-android/android/manifest-kept.txt");
+    let path = root.join("crates/edm-android/android/manifest-kept.txt");
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(text
         .lines()
@@ -109,7 +109,7 @@ fn kept(root: &Path) -> Result<BTreeSet<String>, String> {
 pub fn run(root: &Path, merged: Option<&str>) -> Result<String, String> {
     let kept = kept(root)?;
     let mut manifests =
-        vec![root.join("crates/dm-android/android/app/src/main/AndroidManifest.xml")];
+        vec![root.join("crates/edm-android/android/app/src/main/AndroidManifest.xml")];
     manifests.extend(merged.map(std::path::PathBuf::from));
     for manifest in &manifests {
         let xml = std::fs::read_to_string(manifest)
@@ -119,7 +119,7 @@ pub fn run(root: &Path, merged: Option<&str>) -> Result<String, String> {
         let gone: Vec<_> = kept.difference(&said).collect();
         if !added.is_empty() || !gone.is_empty() {
             return Err(format!(
-                "{} differs from crates/dm-android/android/manifest-kept.txt: not kept {added:?}, \
+                "{} differs from crates/edm-android/android/manifest-kept.txt: not kept {added:?}, \
                  missing {gone:?}; change the list in the same commit, so the change is seen",
                 manifest.display()
             ));

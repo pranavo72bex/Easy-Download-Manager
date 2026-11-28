@@ -4,7 +4,7 @@ version = "0.10.3"
 license = "GPL-3.0-or-later"
 edition = "2021"
 publish = false
-description = "dm's own checks: the scorecard, the layering of the crates, and that nothing phones home"
+description = "EDM's own checks: the scorecard, the layering of the crates, and that nothing phones home"
 
 [dependencies]
 toml.workspace = true
@@ -16,4 +16,4 @@ serde_json.workspace = true
 
 [dev-dependencies]
 # The logins and secrets tests use (gaps row X10).
-dm-test-support.workspace = true
+edm-test-support.workspace = true

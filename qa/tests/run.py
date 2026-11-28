@@ -1,6 +1,6 @@
-# Copyright (C) 2026 pranavo72bex and the dm contributors.
+# Copyright (C) 2026 pranavo72bex and the EDM contributors.
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Part of Easy Download Manager (dm): GNU General Public License v3.0 or later,
+# Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
 # with the attribution term in NOTICE. See the LICENSE and NOTICE files.
 
 """Runs the QA scenarios and writes reports/qa-<run>.json and .xml (JUnit).
@@ -64,7 +64,7 @@ def main():
     bad = sum(r["status"] in ("fail", "error") for r in results)
     skipped = sum(r["status"] == "skip" for r in results)
     (REPORTS / f"qa-{run}.xml").write_text(
-        f'<?xml version="1.0"?><testsuite name="dm-qa" tests="{len(results)}" failures="{bad}" skipped="{skipped}">{cases}</testsuite>\n', encoding="utf-8")
+        f'<?xml version="1.0"?><testsuite name="edm-qa" tests="{len(results)}" failures="{bad}" skipped="{skipped}">{cases}</testsuite>\n', encoding="utf-8")
     print(f"=== {len(results) - bad - skipped} passed, {bad} failed, {skipped} skipped", flush=True)
     sys.exit(1 if bad else 0)
 

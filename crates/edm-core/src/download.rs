@@ -1,0 +1,787 @@
+// Copyright (C) 2026 pranavo72bex and the EDM contributors.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Part of Easy Download Manager (EDM): GNU General Public License v3.0 or later,
+// with the attribution term in NOTICE. See the LICENSE and NOTICE files.
+
+//! Fetching a file over several connections at once, and putting it back
+//! together.
+//!
+//! Every range is written at its own offset in one staged file, renamed into
+//! place when whole. Each range's ledger records how much of it is on disk,
+//! written only after those bytes are flushed, so it is never ahead of them
+//! — a crash costs the bytes that were in flight and nothing else.
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+
+use futures_util::StreamExt;
+use tokio::fs;
+use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+use tokio::sync::Mutex;
+
+use crate::category::{self, Categories};
+use crate::checksum::{self, Checksum};
+use crate::control::Control;
+use crate::limit::Limiter;
+use crate::metalink::{self, Metalink};
+use crate::plan::{self, Segment};
+use crate::probe::{probe_get, Probe, ProbeWithBody};
+use crate::progress::{Meter, Progress};
+use crate::retry;
+use crate::stream::{self, Quality};
+use crate::Error;
+
+mod assemble;
+mod dash;
+mod dash_live;
+mod fetch;
+mod files;
+mod hls;
+mod hls_sealed;
+mod hls_text;
+mod http;
+mod in_place;
+mod mirrors;
+mod notes;
+mod page_stream;
+mod per_site;
+mod plain;
+mod ranged;
+pub(crate) mod same;
+mod sidecar;
+mod space;
+mod unwritten;
+
+pub(crate) use assemble::*;
+use fetch::fetch_reporting;
+pub(crate) use fetch::once_more;
+pub use files::*;
+pub(crate) use hls::*;
+pub use http::*;
+pub(crate) use in_place::{drop_spoiled, parts_in_place};
+use mirrors::*;
+pub use notes::*;
+use page_stream::is_stream;
+pub(crate) use page_stream::{
+    download_numbered_stream_with, download_video_stream_with, stream_headers, Headers,
+    StreamHints, NUMBERED_UNREAD,
+};
+#[cfg(test)]
+use per_site::refuses_unrouted;
+pub(crate) use ranged::*;
+pub use space::*;
+pub use unwritten::read_not_written;
+
+/// How a download should be carried out.
+#[derive(Debug, Clone)]
+pub struct Options {
+    /// How many connections one file may use at most.
+    pub connections: usize,
+    /// Somewhere to ask this download to stop. Shared, so a caller keeps its
+    /// own clone; the default never stops anything.
+    pub control: Control,
+    /// Where finished files land.
+    pub dest_dir: PathBuf,
+    /// Where parts are staged. Kept apart from the destination so a
+    /// half-finished download never looks like a finished one.
+    pub parts_dir: PathBuf,
+    /// The shared speed ceiling. Cloned from the queue's, so every download
+    /// draws on one budget rather than each getting the whole of it.
+    pub limiter: Limiter,
+    /// Disk space promised to downloads under way, shared like the
+    /// limiter, so downloads started together do not each count the same
+    /// free space.
+    pub room: Room,
+    /// Whether finished files are sorted into folders by kind, and what
+    /// those folders are called.
+    pub categories: Categories,
+    /// A digest the finished file must have. A Metalink supplies its own
+    /// where the caller gave none.
+    pub checksum: Option<Checksum>,
+    /// What only a torrent's download reads: the files chosen, the peers
+    /// blocked.
+    pub torrent: crate::torrent::TorrentOptions,
+    /// Which rendition to take from an adaptive stream.
+    pub quality: Quality,
+    /// The address of a separate sound track for the picture at the download's
+    /// own address, which a player fetched apart from it: both are fetched at
+    /// once and joined (`dash::download_media_pair`).
+    pub sound: Option<String>,
+    /// A part of the video rather than the whole: from one second to
+    /// another, cut from the streams EDM fetches itself (`crate::clip`).
+    /// A video that cannot be cut that way fails and says so; nothing
+    /// fetches the whole instead.
+    pub span: Option<crate::clip::Span>,
+    /// Vertical or square for a part of a video (`shape`); `None` as it is.
+    pub shape: Option<crate::shape::Shape>,
+    /// The finished sound saved as MP3 (`crate::mp3`).
+    pub mp3: bool,
+    /// The finished part saved as a GIF (`crate::gif`).
+    pub gif: bool,
+    /// Media was asked for (a player's video, from the browser's panel or
+    /// media menu): a non-YouTube page fails, rather than being fetched as
+    /// the document its address ends like.
+    pub media: bool,
+    /// The page a download came from, sent as `Referer`. Set for a download a
+    /// browser handed over, where the file is served only to a request that
+    /// names its page; `None` for one typed in, which needs no such thing.
+    pub referrer: Option<String>,
+    /// The proxy, as a URL, for a tool EDM runs on its behalf. The client
+    /// already carries it for every request of EDM's own.
+    pub proxy: Option<String>,
+    /// The container a video from the browser's panel was listed in ("mp4",
+    /// "webm"), preferred when choosing among the formats at its height,
+    /// so what arrives is what the list said. "mkv" takes the MP4 formats
+    /// and joins a picture and sound fetched apart into a Matroska file.
+    pub container: Option<String>,
+    /// The frame rate a video from the panel was listed at, where its height
+    /// has two lines ("720p HD" and "720p HD 60 fps", as reference A): above
+    /// 30 asks for the faster picture, 30 or less for the other.
+    pub frame_rate: Option<u32>,
+    /// The caption track a list line named (`Quality::caption_of`): its
+    /// language and whether it is the speech-recognised one. The download is
+    /// that caption file alone.
+    pub caption: Option<(String, bool)>,
+    /// The format number (YouTube's `itag`) of the picture a list line was built from
+    /// (`Quality::format_of`): taken where the download's own reading has it, else the
+    /// nearest by `quality`, `container` and `frame_rate` (gaps row Y9).
+    pub format: Option<u64>,
+    /// How many times one connection tries a range (or the probe) before
+    /// the download fails, where the failure is the kind waiting can fix.
+    /// Zero keeps trying until it gets through, or is paused or cancelled.
+    pub attempts: u32,
+    /// Sites that take fewer connections at once than `connections`: a
+    /// server that refuses or throttles a second connection is given one.
+    pub host_limits: Vec<HostLimit>,
+    /// Sites `proxy` is not used for; see `Proxy::bypass`. The client
+    /// already knows them; the tools and the FTP client are told here.
+    pub proxy_bypass: Vec<String>,
+    /// Carry a video's subtitles inside it, put there by EDM (`subtitles`).
+    pub subtitles: bool,
+    /// The site's sign-in the browser handed over with this download, sent
+    /// to that server only.
+    pub sign_in: Option<crate::cookies::SignIn>,
+    /// The name a person chose for the file, which it is placed under in
+    /// the first place: placed under the server's name and renamed after,
+    /// it held that name for a moment and pushed a download of the same
+    /// file finishing then to "name (1)".
+    pub save_name: Option<String>,
+    /// The title of the page the link came from: names the file when the name found says nothing (`naming`).
+    pub title_hint: Option<String>,
+    /// A page that answers for a file (a sign-in, an expired link) is saved as
+    /// an HTML page, named `<name>.html`, rather than failing the download:
+    /// what a person who was asked and said yes has chosen (reference A asks).
+    pub accept_page: bool,
+    /// The proxy is the computer's own settings. EDM's HTTP client reads
+    /// them, but where they name no address the environment carries (the
+    /// macOS and Windows network settings), FTP and BitTorrent, which
+    /// connect by themselves, have none to go through — and must not go
+    /// around it.
+    pub system_proxy: bool,
+    /// Put a stream that arrives as a transport stream (`.ts`) into an MP4,
+    /// losslessly, by EDM itself (`tsmux`); a stream in a format it does not
+    /// put into one stays a `.ts`. Players open an MP4; few open a `.ts`.
+    pub remux: bool,
+    /// Give a finished file the date the server says it last changed
+    /// (`Last-Modified`) rather than when it was fetched.
+    pub server_dates: bool,
+    /// Seconds between attempts after a failure; 0 for EDM's own pace.
+    pub retry_wait: u64,
+    /// How long a live stream (RTMP, RTSP, MMS) is recorded before EDM ends
+    /// it and keeps what it has, as it does when the server ends the stream;
+    /// `None` records until the server ends it or the person stops it.
+    pub record_limit: Option<std::time::Duration>,
+    /// The finished files the same file is asked about before its body is fetched (gaps row
+    /// W18, `same::already_here`); `None` asks nothing.
+    pub same_files: Option<Arc<same::SameFiles>>,
+}
+
+/// Fewer connections for one site: its host, or a suffix of it
+/// (`example.com` covers `dl.example.com`), and how many it takes.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct HostLimit {
+    /// The host, or a suffix of it, the limit is for.
+    pub host: String,
+    /// How many connections that site takes.
+    pub connections: usize,
+}
+
+/// What happened, once it stopped happening.
+#[derive(Debug)]
+pub struct Finished {
+    /// Where the finished file is.
+    pub path: PathBuf,
+    /// Its size in bytes.
+    pub bytes: u64,
+    /// How many connections it used.
+    pub connections: usize,
+    /// What it was sorted as, whether or not sorting was on.
+    pub category: category::Category,
+    /// Whether a digest was checked, and matched.
+    pub verified: bool,
+    /// How many mirrors the bytes came from. One unless a Metalink named
+    /// others that agreed about the file.
+    pub mirrors: usize,
+    /// Something left behind that the person should hear of, though the
+    /// download itself is whole: a torrent's staged copy that could not be
+    /// removed after it was copied across disks.
+    pub left_behind: Option<String>,
+    /// What the file is where its name says otherwise: a program named as a picture or a
+    /// document (`disguise`, gaps row H2). Read once the file is in place.
+    pub disguised: Option<&'static str>,
+}
+
+/// One place the same bytes can be fetched from.
+#[derive(Debug, Clone)]
+struct Source {
+    url: String,
+    /// This mirror's own ETag or Last-Modified. Per-source, because two
+    /// mirrors of the same file will not have the same ETag, and sending one
+    /// server's validator to another is how a resume gets refused.
+    validator: Option<String>,
+}
+
+/// Shared state for one download.
+struct Job {
+    segments: Mutex<Vec<Segment>>,
+    /// Set when the bytes either side of a seam, or at the file's end, asked
+    /// for again were other bytes than the ones on disk: the connections did
+    /// not get one file (`assemble::check_seams`).
+    disagreed: std::sync::atomic::AtomicBool,
+    /// Which seams have been asked for again, by the range that starts at the seam: each is
+    /// claimed once, by whichever of its two ranges is whole second.
+    seams_checked: Vec<std::sync::atomic::AtomicBool>,
+    /// Whether the file's last bytes have been asked for again.
+    end_checked: std::sync::atomic::AtomicBool,
+    /// The checks of the seams and of the file's end that whole ranges have handed on, asked on
+    /// the places of the connections done with ranges (`assemble::hand_on`).
+    handed: Handed,
+    /// The staged file, held open from its making until the finished file is placed or the
+    /// download stops (`ranged::release_staged`). macOS writes out what a file still holds in
+    /// memory when its last open handle is closed, before the close returns: in the end of a
+    /// fast download, the range whose handle happened to close last held its connection 140 to
+    /// 160 ms, and every other range opening the file waited with it (`bench` fast, 512 MiB,
+    /// 2026-11-11). Held here, no range's close is the last one, and the one that is happens off
+    /// the runtime's threads once nothing waits on it.
+    holding: std::sync::Mutex<Option<std::fs::File>>,
+    /// The syncs a stop began, waited for before the download returns (`files::Stopping`).
+    stopping: Arc<files::Stopping>,
+    /// For each range after the first, the bytes just before it (up to 64)
+    /// fetched as an overlap with the range before. `None` until fetched;
+    /// compared at assembly against the same bytes on disk, which is the only
+    /// way to catch a server that labels bytes from the wrong offset with the
+    /// right Content-Range.
+    overlaps: Vec<std::sync::Mutex<Option<Vec<u8>>>>,
+    limiter: Limiter,
+    /// Best first. More than one only when a Metalink named mirrors that
+    /// agree about the file.
+    sources: Vec<Source>,
+    /// How many attempts each range has made, so a retry lands on a different
+    /// mirror than the one that just failed it.
+    attempts: Vec<AtomicU64>,
+    /// Each range's live bounds, for halving one under the connection
+    /// filling it. Sized for every range there can ever be, as `overlaps`
+    /// and `attempts` are, so a split only fills a slot.
+    live: Vec<std::sync::Mutex<Live>>,
+    /// What the plan is recorded with, so a split can record it again.
+    size: Option<u64>,
+    resumable: bool,
+    validator: Option<String>,
+    parts: PathBuf,
+    /// Each range is written into a plain file of its own (`range_path`) rather than at its
+    /// offset in the one staged file: where the download folder is on another disk than `parts`
+    /// (`stage_by_range`).
+    by_range: bool,
+    /// The most one request asks for; see [`StreamHints::chunk`].
+    chunk: Option<u64>,
+    /// This stream's own headers; see [`Headers`].
+    headers: Headers,
+    control: Control,
+    /// The page a download came from, sent as `Referer` on every request.
+    referrer: Option<String>,
+    /// How many times a range is tried; see `Options::attempts`.
+    tries: retry::Tries,
+    /// The site's sign-in, sent with each range to its server.
+    sign_in: Option<crate::cookies::SignIn>,
+    /// Where a retry is said, if anyone is listening.
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+    /// Where the free space is read, for a download of no known length.
+    room: Room,
+    /// Bytes on disk across every range.
+    ///
+    /// An atomic rather than a field under the segment lock: this is written
+    /// on every chunk by every connection, and routing that through one mutex
+    /// would have them queueing behind each other to publish a number.
+    ///
+    /// Shared rather than owned so the sampler can read it without holding
+    /// the job — which is what lets streams, which have no job, use the same
+    /// sampler instead of a second copy of it.
+    downloaded: Arc<AtomicU64>,
+    /// What the connections share: how many requests are bringing bytes in now, counted from a
+    /// request's first byte to its end, so the connections added past [`OPENED_AT_ONCE`] are
+    /// judged once they are flowing; and, while none is, their turns at asking a server they
+    /// have all lost, ended for all of them by the first byte one gets (`retry::Together`).
+    together: retry::Together,
+    /// Told whenever a range's attempt ends or a range is given up for others to take, so a
+    /// connection waiting for something worth halving looks again at once (`SPLIT_LOOK`).
+    moved: tokio::sync::Notify,
+    /// How long this download's requests have waited for their first byte, in microseconds,
+    /// averaged as they come: what a halving's new request can expect to wait (`SPLIT_WORTH`).
+    first_byte_us: AtomicU64,
+    /// When a range last came whole: the ranges still under way take up its share for a moment,
+    /// and none is judged for halving until they have (`SPLIT_SETTLE`).
+    last_ended: std::sync::Mutex<Option<tokio::time::Instant>>,
+    /// What the server has shown of a limit on the requests it serves at once or takes a second,
+    /// and how the connections keep to it (`ranged::limits`).
+    limits: Limits,
+}
+
+/// The most connections a download opens at once, whatever more it is allowed. Past these, one
+/// more is opened only while the last ones added raised the total rate, and given back when they
+/// did not (`ranged::grow`): reference A treats its number as a ceiling in the same way. Allowed 16,
+/// on a server that shares 8 MiB/s among all of them and cuts each, opening every one took 10.1
+/// and 11.1 s where reference A's 8 took 8.4 and 8.2 s (gaps row 168).
+pub(super) const OPENED_AT_ONCE: usize = 8;
+
+/// Where a range under way has got to, and where it now ends.
+///
+/// One small lock per range, taken once per chunk by that range's own
+/// connection and only otherwise by a split: `reserved` is claimed before the
+/// bytes are written, so a split never moves the end below a byte that is
+/// about to land.
+#[derive(Debug, Default, Clone, Copy)]
+struct Live {
+    start: u64,
+    end: u64,
+    reserved: u64,
+    /// A connection has taken it, so it is not waiting for one.
+    taken: bool,
+    /// Every byte its ledger vouches for was written by this run, or its end has been checked
+    /// against the server once in it: a reconnect then goes on from the ledger without asking
+    /// for that end again (`ranged::attempt_segment`). The check is for what a power cut or a
+    /// crash leaves, which cannot happen to a run that is still going; asked again on every
+    /// reconnect, it was a sixteenth of each request on a server that cuts connections every
+    /// megabyte or so (gaps row 167).
+    trusted: bool,
+    /// The last byte its attempt's answer brings, past the range's end where the request asked
+    /// on over the ranges after it, or the answer is the probe's (`ranged::limits`).
+    reach: u64,
+    /// How its attempt is going, for whether halving it is worth a request (`Going::time_left`).
+    going: Going,
+}
+
+/// How a range's current attempt is going: when it asked, the pace its bytes came at over the
+/// last [`PACE_WINDOW`], and when its latest bytes came. Kept beside `Live::reserved` and set under
+/// the same lock, once an attempt and once a chunk, so the pace a split is judged by costs no lock
+/// of its own.
+#[derive(Debug, Default, Clone, Copy)]
+struct Going {
+    /// When the attempt asked for its bytes.
+    since: Option<tokio::time::Instant>,
+    /// Where the window being measured began: when, and what the range held then.
+    window: Option<(tokio::time::Instant, u64)>,
+    /// Bytes a second over the last whole window. Over the last one, not since the attempt
+    /// began: a connection that shared the line with seven others is judged by the pace it has
+    /// once they are done, not by the one it had among them.
+    pace: Option<f64>,
+    /// When its latest bytes came.
+    latest: Option<tokio::time::Instant>,
+}
+
+impl Going {
+    /// Counts bytes that came at `arrived`, the range then holding `held`: a window is closed and
+    /// its pace taken once it is [`PACE_WINDOW`] long. Whether these were the attempt's first.
+    fn came(&mut self, arrived: tokio::time::Instant, held: u64) -> bool {
+        self.latest = Some(arrived);
+        let Some((opened, had)) = self.window else {
+            // From the first bytes on: what came with them came before the window opened.
+            self.window = Some((arrived, held));
+            return true;
+        };
+        let lasted = arrived.saturating_duration_since(opened);
+        if lasted >= PACE_WINDOW {
+            self.pace = Some(held.saturating_sub(had) as f64 / lasted.as_secs_f64());
+            self.window = Some((arrived, held));
+        }
+        false
+    }
+}
+
+impl Live {
+    /// The bytes it still has to fetch.
+    fn left(&self) -> u64 {
+        (self.end - self.start)
+            .saturating_add(1)
+            .saturating_sub(self.reserved)
+    }
+
+    /// How long its own connection would take to fetch what it has left at the pace of its last
+    /// window: endless where the attempt has waited [`STUCK_AFTER`] for an answer or for its next
+    /// bytes, `None` where it is too soon to tell (an answer still on its way, or no window yet).
+    fn time_left(&self, now: tokio::time::Instant) -> Option<f64> {
+        let quiet = |since: Option<tokio::time::Instant>| {
+            since.is_some_and(|at| now.saturating_duration_since(at) >= STUCK_AFTER)
+        };
+        if quiet(self.going.latest.or(self.going.since)) {
+            return Some(f64::INFINITY);
+        }
+        let pace = self.going.pace?;
+        Some(self.left() as f64 / pace)
+    }
+}
+
+/// The least free space a download of no known length may leave. Such a body
+/// has no end to plan the room for: a server that sends on for ever, or a
+/// small compressed one that unpacks to gigabytes (a response whose
+/// `Content-Encoding` the engine undoes), wrote until the disk was full.
+const DISK_FLOOR: u64 = 256 * 1024 * 1024;
+
+/// How much a download of no known length writes between looks at the free
+/// space.
+const DISK_LOOK_EVERY: u64 = 32 * 1024 * 1024;
+
+/// The most ranges a download can end up with, splits included.
+const MAX_RANGES: usize = 256;
+
+/// A range is halved only if each half would be at least this. 16 KB:
+/// reference A halved a 100 KB file from a slow server into four, pieces
+/// down to about 14 KB, where 128 KB left EDM on one connection for it
+/// (`docs/reference-behavior.md`, measured 2026-10-31); 256 KB had left a
+/// 1.5 MB file on a connection-capped server a third slower. A fast server
+/// never sees the halving of a small file: the helpers that do it wait
+/// first (`HELP_AFTER`).
+const MIN_SPLIT: u64 = 16 * 1024;
+
+/// The least time a range must have left at its own pace for a connection with nothing to do to
+/// halve it, or twice what a request waited for its first byte in this download, if more. Below
+/// that the new request saves less than it costs: it waits for its answer while the range's own
+/// connection carries on, and the halving drops that connection's answer short, so whatever the
+/// server had sent past the new end comes again. Halved however soon it would end, the end of a
+/// fast file was a cascade: nine halvings of its last range in 5 ms, 38 to 60 requests for 8
+/// ranges, and 4 to 9% of 512 MiB fetched twice (`bench` fast, macOS, 2026-11-11; gaps rows 171
+/// and 177).
+const SPLIT_WORTH: Duration = Duration::from_millis(100);
+
+/// How long a range may wait for its answer, or go without bytes, before it counts as stuck and
+/// is halved however little it has left: a request the server has not answered in that time is
+/// not to be waited on, where one answered a few milliseconds late (a busy server) is.
+const STUCK_AFTER: Duration = Duration::from_secs(1);
+
+/// The window a range's pace is measured over (`Going::pace`).
+const PACE_WINDOW: Duration = Duration::from_millis(20);
+
+/// How long after a range comes whole the others are first judged for halving: what it was
+/// fetching goes to them, on a link or a server they share, and they are judged at the pace they
+/// have once they have it. Judged at once by the connection just freed, a fast file's last ranges
+/// looked three to four times slower than they were and were halved for nothing; judged 40 ms
+/// after its own range alone, while the ranges beside it were still ending, one in two fast runs
+/// still halved one (`bench` fast, macOS, 2026-11-11).
+const SPLIT_SETTLE: Duration = Duration::from_millis(40);
+
+/// How soon a connection that found nothing worth halving looks again, unless a range ends first:
+/// a range just asked for is judged once its bytes have come for a window, and one can slow down
+/// or stop, and is then worth helping after all.
+const SPLIT_LOOK: Duration = Duration::from_millis(25);
+
+impl Job {
+    /// The one file every range of this download is written into, each at
+    /// its own offset; renamed into place when whole.
+    fn staged(&self) -> PathBuf {
+        staged_path(&self.parts)
+    }
+
+    /// The file range `index`, starting at `start`, is written into, and where in it the range's
+    /// first byte is: its own file from the front, or the staged file at its offset.
+    fn held(&self, index: usize, start: u64) -> (PathBuf, u64) {
+        if self.by_range {
+            (range_path(&self.parts, index), 0)
+        } else {
+            (self.staged(), start)
+        }
+    }
+
+    /// Counts how long a request waited for its first byte into the average.
+    fn note_first_byte(&self, waited: Duration) {
+        let sample = u64::try_from(waited.as_micros()).unwrap_or(u64::MAX).max(1);
+        let _ = self
+            .first_byte_us
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |was| {
+                Some(if was == 0 {
+                    sample
+                } else {
+                    (was.saturating_mul(3).saturating_add(sample)) / 4
+                })
+            });
+    }
+
+    /// The least time left at a range's own pace that is worth a new request for its back half.
+    fn split_worth(&self) -> Duration {
+        let waited = Duration::from_micros(self.first_byte_us.load(Ordering::Relaxed));
+        SPLIT_WORTH.max(waited.saturating_mul(2))
+    }
+
+    /// How much of range `index` is on disk, as its ledger last said.
+    fn ledger(&self, index: usize) -> u64 {
+        read_ledger(&self.parts, index).unwrap_or(0)
+    }
+
+    /// Range `index`'s ledger, open for an attempt to write. Held open, as
+    /// a part file was: a connection still winding down after a pause
+    /// writes through it into a file already removed with the row, rather
+    /// than making one again in a folder being deleted.
+    async fn open_ledger(&self, index: usize) -> Result<fs::File, Error> {
+        Ok(fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(false)
+            .open(ledger_path(&self.parts, index))
+            .await?)
+    }
+
+    /// Which mirror this range should use on this attempt.
+    ///
+    /// Ranges are spread across mirrors by their own index, so a download
+    /// with eight connections and three mirrors draws from all three at once
+    /// — the point of having them. Adding the attempt count moves a range off
+    /// a mirror that has just failed it rather than retrying the same one.
+    fn source(&self, index: usize) -> &Source {
+        let attempt = self.attempts[index].load(Ordering::Relaxed) as usize;
+        &self.sources[(index + attempt) % self.sources.len()]
+    }
+}
+
+tokio::task_local! {
+    /// Set while one stream of a video page is fetched (`videopage::fetch`): the
+    /// address is the file, so a refusal or a page in its place is the
+    /// stream's failure, not a page to try reading.
+    static STREAM: ();
+
+    /// How one stream of a video page is served, from the reading, set
+    /// beside [`STREAM`]. Kept here rather than on `Options`, which callers
+    /// build field by field.
+    static HINTS: StreamHints;
+}
+
+/// Downloads `url` into the folder in `options` and returns what came of it;
+/// [`download_reporting`] also reports progress as it goes.
+pub async fn download(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+) -> Result<Finished, Error> {
+    let finished = download_reporting(client, url, options, None).await?;
+    // Nothing more is done to it here; the queue's runner starts it after its own renames and
+    // the mark of where the file came from instead.
+    sync_after(finished.path.clone());
+    Ok(finished)
+}
+
+/// What the engine tells a caller while a download is in flight.
+///
+/// The name is sent as well as the byte counts because it is learned by the
+/// probe, before a single byte has arrived, and a list of long URLs is not a
+/// list anyone can read. Waiting for the download to finish to name its own
+/// row shows the URL for exactly as long as the name is useful.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Update {
+    /// The filename the probe settled on, and what kind of file it is.
+    ///
+    /// The category comes with the name rather than at assembly because a
+    /// list that can be filtered by kind has to know the kind of every row,
+    /// not only the finished ones.
+    Named {
+        /// The filename the server or URL gives to the file.
+        name: String,
+        /// Which category the file falls into.
+        category: category::Category,
+    },
+    /// How far the download has got.
+    Progress(Progress),
+    /// A torrent's swarm at this sample: its peers and what was sent to them.
+    Swarm(crate::torrent::Swarm),
+    /// A torrent's files, once its metadata is known.
+    Files(Vec<crate::torrent::TorrentFile>),
+    /// The server's ETag or Last-Modified for the file being fetched.
+    Validator(String),
+    /// Something the download wants its row to say beside its state, in English as one of
+    /// [`NOTES`] says it (the window says it in the person's language): higher qualities passed
+    /// over as protected, a live stream's pieces gone before they were fetched, parts of a stream
+    /// in another format left out (gaps rows Y19, Y23, Y18).
+    Note(String),
+    /// A range failed and is about to be tried again: attempt `attempt`
+    /// (the first try is 1) of `of`, 0 being "keep trying". Over once bytes
+    /// arrive again.
+    Retrying {
+        /// Which attempt this is; the first try is 1.
+        attempt: u32,
+        /// Total attempts allowed; 0 means keep trying indefinitely.
+        of: u32,
+        /// What failed, in the engine's words, so the row can say why.
+        why: String,
+        /// How long it waits before the next attempt.
+        wait: std::time::Duration,
+    },
+}
+
+/// `download`, with somewhere to send progress.
+///
+/// A separate entry point rather than a field on `Options`: a channel is not
+/// configuration, and `Options` stays something a caller can clone and debug.
+pub async fn download_reporting(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let mut done = match fetched(client, url, options, report.clone()).await {
+        // A server that refuses HTTP/1.1 is asked again over HTTP/2, the whole download over
+        // it (gaps row F9); every other one keeps HTTP/1.1, a connection per range.
+        Err(why)
+            if url.starts_with("http") && crate::http_client::refuses_http1(&why.to_string()) =>
+        {
+            fetched(&crate::http_client::http2_client(), url, options, report).await?
+        }
+        other => other?,
+    };
+    // Its sound as an MP3, where that was asked for: an M4A (or an MP4's
+    // sound), or a WebM's Opus where the system decodes Opus, read by the
+    // system's decoder and encoded by EDM (`mp3::takes`), at 192 kbit/s.
+    let ext = done
+        .path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    if options.mp3 && crate::mp3::takes(&done.path) {
+        let target = done.path.with_extension("mp3");
+        let bytes = crate::mp3::convert_async(done.path.clone(), target.clone(), None)
+            .await
+            .map_err(|why| Error::Internal(format!("the MP3 could not be made: {why}")))?;
+        let _ = tokio::fs::remove_file(&done.path).await;
+        done.path = target;
+        done.bytes = bytes;
+    }
+    // A part as a GIF: its pictures decoded by the system, written by EDM.
+    if options.gif && options.span.is_some() && ext == "mp4" {
+        let target = done.path.with_extension("gif");
+        let bytes = crate::gif::from_video_async(done.path.clone(), target.clone())
+            .await
+            .map_err(|why| Error::Internal(format!("the GIF could not be made: {why}")))?;
+        let _ = tokio::fs::remove_file(&done.path).await;
+        done.path = target;
+        done.bytes = bytes;
+    }
+    Ok(done)
+}
+
+/// [`download_reporting`] before any conversion.
+async fn fetched(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    let counted = Arc::new(AtomicUsize::new(0));
+    let outcome = MIRRORS
+        .scope(
+            counted.clone(),
+            Box::pin(fetched_once_more_if_changed(
+                client,
+                url,
+                options,
+                report.clone(),
+            )),
+        )
+        .await;
+    /* A Metalink whose mirrors give files that disagree (the same length,
+     * other bytes) fails as a whole, though one of them may be the file.
+     * Each is then tried alone, in the document's order, and what
+     * the document's digest accepts is the download; it fails only when
+     * none is left. */
+    let mirrors = counted.load(Ordering::SeqCst);
+    if mirrors > 1
+        && matches!(
+            outcome,
+            Err(Error::DishonestRanges | Error::Checksum { .. } | Error::Changed)
+        )
+    {
+        let mut last = outcome;
+        for only in 0..mirrors {
+            discard_staged(&options.parts_dir).await;
+            let again = ONLY_MIRROR
+                .scope(
+                    only,
+                    MIRRORS.scope(
+                        counted.clone(),
+                        Box::pin(fetched_once_more_if_changed(
+                            client,
+                            url,
+                            options,
+                            report.clone(),
+                        )),
+                    ),
+                )
+                .await;
+            match again {
+                Ok(done) => return Ok(done),
+                Err(stop @ (Error::Paused | Error::Cancelled)) => return Err(stop),
+                Err(e) => last = Err(e),
+            }
+        }
+        return last;
+    }
+    outcome
+}
+
+tokio::task_local! {
+    /// How many mirrors the Metalink being fetched named that agree about
+    /// the file, told back to `download_reporting`.
+    static MIRRORS: Arc<AtomicUsize>;
+    /// The one mirror to fetch from, where each is being tried alone.
+    static ONLY_MIRROR: usize;
+}
+
+async fn fetched_once_more_if_changed(
+    client: &reqwest::Client,
+    url: &str,
+    options: &Options,
+    report: Option<tokio::sync::mpsc::Sender<Update>>,
+) -> Result<Finished, Error> {
+    /* A file found changed on the server has had its staged parts disowned
+     * (their plan is gone), so a second go starts from nothing and fetches
+     * the version that is there now — what anyone asking for the file
+     * wants, rather than a failed row and a Retry. Once: a server whose
+     * bytes differ on every request fails the second time and says so. */
+    match fetch_reporting(client, url, options, report.clone()).await {
+        // Ranges refused on what was already one connection (a resume, or a server that stopped
+        // serving ranges): there is no fewer to fall back to, so the file is fetched again from
+        // the start, as a changed one is.
+        Err(Error::Changed) | Err(Error::RangesIgnored) => {
+            // The parts go as well as their plan: a connection that was
+            // writing the plan down as the change was found can put it back,
+            // and a plan with no parts to point at adopts nothing.
+            discard_staged(&options.parts_dir).await;
+            fetch_reporting(client, url, options, report).await
+        }
+        outcome => outcome,
+    }
+}
+
+/// `name` as an HTML page's: its extension replaced by `.html`, so a `.zip`
+/// that was a page is saved as the page it is.
+pub(crate) fn html_name(name: &str) -> String {
+    let path = std::path::Path::new(name);
+    match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) if ext.eq_ignore_ascii_case("html") || ext.eq_ignore_ascii_case("htm") => {
+            name.to_string()
+        }
+        _ => {
+            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
+            format!("{stem}.html")
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

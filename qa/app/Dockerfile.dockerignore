@@ -1,6 +1,6 @@
 **/target
 **/target-*
-!crates/dm-core/src/ftp/target
+!crates/edm-core/src/ftp/target
 qa/reports
 .env
 dist

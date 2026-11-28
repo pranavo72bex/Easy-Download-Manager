@@ -2,7 +2,7 @@ name: AI triage
 
 # Every issue a person opens or edits, and every comment, is read by a free AI model
 # (scripts/ai-triage.py, scripts/ai-ask.py): it is labelled, answered, closed when it is a
-# duplicate, already done, not about dm or spam (and reopened if its author replies), and,
+# duplicate, already done, not about EDM or spam (and reopened if its author replies), and,
 # with enough to act on, queued for the fixer: a bug at once, a feature when the maintainer
 # opened it or BOT_FEATURE_VOTES people gave it a thumbs-up. A comment on one of the bot's
 # pull requests, from the maintainer or the issue's author, asking for a change queues a
