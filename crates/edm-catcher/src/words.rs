@@ -138,7 +138,7 @@ const SITE: &[&str] = &["site"];
 /// The extension's name.
 pub const EXT_NAME: Word = Word {
     key: "extName",
-    en: "EDM — Download Manager",
+    en: "EDM — Easy Download Manager",
     places: NONE,
 };
 /// The extension's description; the stores take 132 characters at most.

@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/app-icons/icon.svg" width="112" height="112" alt="EDM's icon: a white arrow over a progress bar, on blue"></p>
+
 <h1 align="center">Easy Download Manager (EDM)</h1>
 
 <p align="center"><strong>Faster downloads, picked up where they left off.</strong></p>
@@ -410,7 +412,7 @@ EDM is on Microsoft Edge Add-ons, Microsoft's own store.
 
 EDM is on Firefox Add-ons, Mozilla's own store.
 
-1. Open **[EDM — Download Manager on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/)** in Firefox.
+1. Open **[EDM — Easy Download Manager on Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/dm-download-manager/)** in Firefox.
 2. Click **Add to Firefox**, then **Add**.
 3. If Firefox asks, allow it to run in private windows only if you want it
    to; EDM leaves private-window downloads with the browser either way.

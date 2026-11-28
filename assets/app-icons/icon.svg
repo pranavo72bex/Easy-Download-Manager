@@ -1,0 +1,17 @@
+<!-- Copyright (C) 2026 pranavo72bex and the EDM contributors. SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- EDM's icon, the one source of every icon EDM ships (desktop, browser extension, Android):
+     a white arrow over a download's progress bar, on the accent blue.
+     Drawn in Android's adaptive-icon units (108 wide, the visible tile the middle 72), so
+     the Android layers use the same numbers. After changing it run scripts/app-icons.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="18" x2="54" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F98FF"/>
+      <stop offset="1" stop-color="#1A55CF"/>
+    </linearGradient>
+  </defs>
+  <rect id="tile" x="18" y="18" width="72" height="72" rx="16" fill="url(#bg)"/>
+  <path d="M54,30 V55 M42,43.5 L54,55.5 L66,43.5" fill="none" stroke="#FFFFFF" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="34" y="66" width="40" height="8" rx="4" fill="#FFFFFF" fill-opacity="0.35"/>
+  <rect x="34" y="66" width="27" height="8" rx="4" fill="#FFFFFF"/>
+</svg>

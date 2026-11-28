@@ -8479,7 +8479,7 @@ wait for the maintainer's word on their wording.
 
 The maintainer was asked "Allow one small Java file per feature that just hands its call to
 Rust?" and answered "Yes, all four" (2026-11-20). So four classes join gpui-mobile's two, in
-`crates/edm-android/java/com/EDM/android/`, package `com.edm.android`, with EDM's licence
+`crates/edm-android/java/com/edm/android/`, package `com.edm.android`, with EDM's licence
 header: `EdmActivity` (gpui-mobile's activity with `onNewIntent`, N5), `EdmService` (the dataSync
 foreground service, N6), `EdmActionReceiver` (a notification's Retry, Stop All and Open, and the
 schedule's alarm; not exported, N6, N12) and `EdmBootReceiver` (`BOOT_COMPLETED`, N12). Each does
@@ -9356,3 +9356,17 @@ the window's goldens changed with it, at that approval. What is kept, and why:
 - Done by a script (word-bounded: `dm-`/`dm_` to `edm-`/`edm_`, `DM_` to `EDM_`, `com.dm.` to
   `com.edm.`, `Dm…` types to `Edm…`, the word to EDM in text and `edm` in code), then
   the compiler and the tests for what it missed (`libdm_android`, `\ndm-…` in strings).
+
+## One icon for the desktop, the extension and Android, 2026-11-28
+
+At the maintainer's words ("Make a better Icon and improve branding … it is still easy
+download manager", "Icon should be consistent for android desktop and extension"): the
+desktop's dark tile with a green arrow, the extension's blue tile and Android's arrow into a
+tray were three icons. Now `assets/app-icons/icon.svg` is the one source: a white arrow over a
+progress bar two thirds full (a download that comes in parts and resumes), on the accent blue.
+It is drawn in Android's adaptive-icon units (108, the tile the middle 72), so the launcher's
+two vector layers carry the same numbers; `scripts/app-icons.py` (rsvg-convert, ImageMagick,
+iconutil) writes every PNG, the `.ico`, the `.icns` (macOS's grid: the tile 824 of 1024 with a
+shadow) and the extension's sizes. A plain arrow into a tray was tried first and dropped: it
+was every system's stock download picture. The extension's name in every store language is the
+product's proper name, "EDM — Easy Download Manager", untranslated.

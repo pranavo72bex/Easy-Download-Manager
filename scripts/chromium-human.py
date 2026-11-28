@@ -803,7 +803,7 @@ def main():
                   f"{[s for s in seen.get('seen', []) if 'button' in s][:40]}")
         # By the start of its name: a store's copy, managed by policy, is
         # listed with more after it.
-        entry = button and wait_for(lambda: where(APP, "*", "EDM — Download Manager")
+        entry = button and wait_for(lambda: where(APP, "*", "EDM — Easy Download Manager")
                                     or where(APP, "*", "EDM —", prefix=True), 10)
         shoot("6-extensions-menu", tab)
         if entry:
