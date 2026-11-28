@@ -79,10 +79,10 @@ bots edits only what the check named, keeps their guardrails (`CLAUDE.md`, "The 
 GitHub Actions"), runs `bash scripts/ai-selftest.sh` before pushing, and says what it fixed
 in `docs/decisions.md`.
 
-## The rename to EDM, and 0.11.0 readied (2026-11-28, afternoon)
+## The rename to EDM, and 0.10.4 readied (2026-11-28, afternoon)
 
 dm is EDM everywhere, at the maintainer's word (`docs/decisions.md`, "dm is renamed EDM").
-Versions: app and Android 0.11.0 (versionCode 4), extension 3.6.0. Tests, clippy, the
+Versions: app and Android 0.10.4 (versionCode 4; the maintainer asked for 0.10.4 over 0.11.0), extension 3.6.0. Tests, clippy, the
 extension's Edge checks and the debug APK on the emulator pass. `human-qa.py` on this Mac: 74
 of 77 rows. B25's macOS pictures retaken (the window says EDM; Download details' and Add URL's
 design changes since 2026-11-21 were never pictured). B40 (Don't download kept the row) and B48
@@ -95,7 +95,7 @@ typographic apostrophes (B38, B68, B72, B77) and B74 now holds; fixed.
 layouts were written on the Mac, CI says if they differ; Windows' and Linux's B25 pictures from
 CI's artifacts or `human-qa.py --save-baseline` there). Then the tags, extension first:
 `v3.6.0` (the extension finds an app under either host name, `LEGACY_NATIVE_HOST`), then
-`desktop-v0.11.0` and `android-v0.11.0`. The maintainer's: rename the Firefox Add-ons page's
+`desktop-v0.10.4` and `android-v0.10.4`. The maintainer's: rename the Firefox Add-ons page's
 address, submit the AUR package as `edm-appimage`, then point README's links at them; Android
 installs EDM beside dm (another package), which the release notes say.
 

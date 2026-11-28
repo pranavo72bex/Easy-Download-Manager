@@ -5,7 +5,7 @@ the browser extension (`v*` tags) are versioned separately.
 
 ## Unreleased
 
-## App 0.11.0, extension 3.6.0, Android app 0.11.0
+## App 0.10.4, extension 3.6.0, Android app 0.10.4
 
 - dm is now called EDM, everywhere: the window, the browser extension, the Android app and the installers. Settings and the list of downloads move over on the first start. Android installs EDM as a new app beside dm, and the browser extension finds the app under either name, so update the extension first.
 - EDM has a new icon, the same on the desktop, in the browser and on Android: a white arrow over a file in three parts, the last still coming in, on the window's blue. The browser extension is now listed as "EDM — Easy Download Manager".

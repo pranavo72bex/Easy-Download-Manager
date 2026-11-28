@@ -5,7 +5,7 @@
 "All downloads" 24 8 106 38.5
 "Filter" 122 11.5 146 35.5
 "Menu" 174 11.5 198 35.5
-"Add EDM to your browser:" 36 54 230 76.5
+"Add EDM to your browser:" 36 54 238 76.5
 "Microsoft Edge" 51 89 169 111.5
 "Firefox" 207 89 266 111.5
 "Chrome and others" 51 129 194 151.5

@@ -691,7 +691,7 @@ jobs:
           toolchain: 1.98.1 # as rust-toolchain.toml
       - name: Sign the update manifest
         env:
-          EDM_UPDATE_SIGNING_KEY: ${{ secrets.EDM_UPDATE_SIGNING_KEY }}
+          EDM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
         run: |
           if [ -z "$EDM_UPDATE_SIGNING_KEY" ]; then
             echo "::notice::no EDM_UPDATE_SIGNING_KEY: latest.json goes out unsigned, and EDM's update check will not offer this version"
@@ -709,7 +709,7 @@ jobs:
       # as the step above does.
       - name: The crate list and the signed digests
         env:
-          EDM_UPDATE_SIGNING_KEY: ${{ secrets.EDM_UPDATE_SIGNING_KEY }}
+          EDM_UPDATE_SIGNING_KEY: ${{ secrets.DM_UPDATE_SIGNING_KEY }}
         run: |
           cargo xtask crates-list installers/crates.txt
           if [ -z "$EDM_UPDATE_SIGNING_KEY" ]; then

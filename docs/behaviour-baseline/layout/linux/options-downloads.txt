@@ -23,10 +23,10 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add EDM to your browser:" 236 99.5 430 122
-"Microsoft Edge" 453 99.5 571 122
-"Firefox" 609 99.5 668 122
-"Chrome and others" 706 99.5 849 122
+"Add EDM to your browser:" 236 99.5 438 122
+"Microsoft Edge" 461 99.5 579 122
+"Firefox" 617 99.5 676 122
+"Chrome and others" 714 99.5 857 122
 "Not now" 1194 99.5 1253 122
 "File name" 212 138.5 277 158
 "Size" 676 138.5 705 158

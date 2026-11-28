@@ -22,19 +22,19 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add EDM to your browser:" 236 98.5 430 121
-"Microsoft Edge" 453 98.5 571 121
-"Firefox" 251 138.5 310 161
-"Chrome and others" 348 138.5 491 161
-"Not now" 251 178.5 310 201
-"File name" 212 216.5 277 236
-"Size" 440 216.5 469 236
-"Status" 485 216.5 529 236
-"Time left" 593 216.5 600 236
-"Nothing queued" 332.5 323 467.5 349
-"Add URL, paste a link, or send one from your browser." 224 353 576 398
-"Add URL" 370.5 414.5 429.5 437
-"Drop a link, .torrent, .url, .webloc or text file of links here." 224 454 576 493
+"Add EDM to your browser:" 236 94 438 116.5
+"Microsoft Edge" 251 129 369 151.5
+"Firefox" 407 129 466 151.5
+"Chrome and others" 251 169 394 191.5
+"Not now" 514 169 573 191.5
+"File name" 212 207 277 226.5
+"Size" 440 207 469 226.5
+"Status" 485 207 529 226.5
+"Time left" 593 207 600 226.5
+"Nothing queued" 332.5 313.5 467.5 339.5
+"Add URL, paste a link, or send one from your browser." 224 343.5 576 388.5
+"Add URL" 370.5 405 429.5 427.5
+"Drop a link, .torrent, .url, .webloc or text file of links here." 224 444.5 576 483.5
 "0 downloads" 16 578.5 96 598
 "· Nothing downloading" 100 578.5 252 598
 "· Speed limiter" 256 578.5 364 598

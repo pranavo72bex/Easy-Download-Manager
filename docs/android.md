@@ -414,7 +414,7 @@ and N12:
 ## A release
 
 Raise `versionCode` by one, then tag the commit `android-v<version>`, where the version is
-edm-android's `Cargo.toml` and Gradle's `versionName` (both 0.11.0 now). Not `v*` (the
+edm-android's `Cargo.toml` and Gradle's `versionName` (both 0.10.4 now). Not `v*` (the
 extension's releases, `release.yml`) or `desktop-v*` (the desktop's). The release job drafts a
 GitHub release holding one APK for the three processors and its SHA-256.
 
@@ -422,10 +422,10 @@ EDM's key is four repository secrets:
 
 | Secret | What it is |
 |--------|------------|
-| `EDM_ANDROID_KEYSTORE` | the keystore (PKCS12 or JKS), base64: `base64 -w0 edm-release.keystore` |
-| `EDM_ANDROID_KEYSTORE_PASSWORD` | the keystore's password |
-| `EDM_ANDROID_KEY_ALIAS` | the key's alias in it |
-| `EDM_ANDROID_KEY_PASSWORD` | the key's password |
+| `DM_ANDROID_KEYSTORE` | the keystore (PKCS12 or JKS), base64: `base64 -w0 edm-release.keystore` |
+| `DM_ANDROID_KEYSTORE_PASSWORD` | the keystore's password |
+| `DM_ANDROID_KEY_ALIAS` | the key's alias in it |
+| `DM_ANDROID_KEY_PASSWORD` | the key's password |
 
 Making one costs nothing: `keytool -genkeypair -v -keystore edm-release.keystore -storetype
 PKCS12 -alias EDM -keyalg RSA -keysize 4096 -validity 10000`. Keep the keystore and its

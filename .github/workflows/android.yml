@@ -208,10 +208,10 @@ jobs:
       id-token: write
       attestations: write
     env:
-      EDM_ANDROID_KEYSTORE: ${{ secrets.EDM_ANDROID_KEYSTORE }}
-      EDM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.EDM_ANDROID_KEYSTORE_PASSWORD }}
-      EDM_ANDROID_KEY_ALIAS: ${{ secrets.EDM_ANDROID_KEY_ALIAS }}
-      EDM_ANDROID_KEY_PASSWORD: ${{ secrets.EDM_ANDROID_KEY_PASSWORD }}
+      EDM_ANDROID_KEYSTORE: ${{ secrets.DM_ANDROID_KEYSTORE }}
+      EDM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.DM_ANDROID_KEYSTORE_PASSWORD }}
+      EDM_ANDROID_KEY_ALIAS: ${{ secrets.DM_ANDROID_KEY_ALIAS }}
+      EDM_ANDROID_KEY_PASSWORD: ${{ secrets.DM_ANDROID_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable

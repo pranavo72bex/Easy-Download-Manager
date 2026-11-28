@@ -28,8 +28,8 @@
 "3" 352 527.5 367 566.5
 "Finished" 80 580 215 625.5
 "Queues" 32 655 119 672
-"Add EDM to your browser:" 472 197 859 242.5
-"Microsoft Edge" 904 197 1140 242.5
+"Add EDM to your browser:" 472 197 876 242.5
+"Microsoft Edge" 921 197 1157 242.5
 "Firefox" 501 277 619 322.5
 "Chrome and others" 693 277 979 322.5
 "Not now" 1109 277 1227 322.5

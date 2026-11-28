@@ -2109,7 +2109,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "edm-android"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "android-activity",
  "base64 0.22.1",
@@ -2126,7 +2126,7 @@ dependencies = [
 
 [[package]]
 name = "edm-assets"
-version = "0.11.0"
+version = "0.10.4"
 
 [[package]]
 name = "edm-catcher"
@@ -2147,7 +2147,7 @@ dependencies = [
 
 [[package]]
 name = "edm-core"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "aes 0.9.4",
  "axum",
@@ -2195,7 +2195,7 @@ dependencies = [
 
 [[package]]
 name = "edm-desktop-base"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "async-channel",
  "auto-launch",
@@ -2223,7 +2223,7 @@ dependencies = [
 
 [[package]]
 name = "edm-gpui"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "arboard",
  "async-channel",
@@ -2261,11 +2261,11 @@ dependencies = [
 
 [[package]]
 name = "edm-js"
-version = "0.11.0"
+version = "0.10.4"
 
 [[package]]
 name = "edm-media"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "aes 0.9.4",
  "cbc 0.2.1",
@@ -2283,7 +2283,7 @@ dependencies = [
 
 [[package]]
 name = "edm-net"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2314,7 +2314,7 @@ dependencies = [
 
 [[package]]
 name = "edm-protocol"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "edm-test-support",
  "proptest",
@@ -2325,7 +2325,7 @@ dependencies = [
 
 [[package]]
 name = "edm-safari"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "libc",
  "objc2 0.6.5",
@@ -2333,7 +2333,7 @@ dependencies = [
 
 [[package]]
 name = "edm-shell"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2357,14 +2357,14 @@ dependencies = [
 
 [[package]]
 name = "edm-test-support"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "edm-torrent"
-version = "0.11.0"
+version = "0.10.4"
 dependencies = [
  "bytes",
  "librqbit",

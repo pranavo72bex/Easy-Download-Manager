@@ -32,10 +32,10 @@
 "Haupt-Warteschlange" 40 353.5 167 376
 "3" 175 355 183 374.5
 "Prüf-Warteschlange" 40 381.5 175 404
-"EDM zum Browser hinzufügen:" 236 98.5 455 121
-"Microsoft Edge" 478 98.5 596 121
-"Firefox" 634 98.5 693 121
-"Chrome und andere" 731 98.5 874 121
+"EDM zum Browser hinzufügen:" 236 98.5 463 121
+"Microsoft Edge" 486 98.5 604 121
+"Firefox" 642 98.5 701 121
+"Chrome und andere" 739 98.5 882 121
 "Nicht jetzt" 1160 98.5 1253 121
 "Dateiname" 212 136.5 277 156
 "Größe" 629 136.5 665 156

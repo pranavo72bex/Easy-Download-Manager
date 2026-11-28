@@ -65,7 +65,7 @@ It prints two lines:
   offline (a password manager). Never commit it or paste it anywhere else.
 
 ```sh
-gh secret set EDM_UPDATE_SIGNING_KEY       # paste the private line
+gh secret set DM_UPDATE_SIGNING_KEY        # paste the private line
 ```
 
 The `release` job runs `cargo xtask sign-manifest ../installers/latest.json`

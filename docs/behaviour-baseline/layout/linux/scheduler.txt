@@ -23,10 +23,10 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add EDM to your browser:" 236 99.5 430 122
-"Microsoft Edge" 453 99.5 571 122
-"Firefox" 609 99.5 668 122
-"Chrome and others" 706 99.5 849 122
+"Add EDM to your browser:" 236 99.5 438 122
+"Microsoft Edge" 461 99.5 579 122
+"Firefox" 617 99.5 676 122
+"Chrome and others" 714 99.5 857 122
 "Not now" 1194 99.5 1253 122
 "File name" 212 138.5 277 158
 "Size" 676 138.5 705 158
@@ -73,9 +73,9 @@
 "2030" 441 328 475 350.5
 "When the scheduled downloads are done" 223 386.5 702 409
 "Do nothing" 245 417 330 439.5
-"Exit EDM" 366 417 425 439.5
-"Sleep" 461 417 503 439.5
-"Hibernate" 539 417 615 439.5
+"Exit EDM" 366 417 434 439.5
+"Sleep" 470 417 512 439.5
+"Hibernate" 548 417 624 439.5
 "Turn off computer" 245 453.5 388 476
 "Try a failed download again this many times (0 for none)" 223 488 644 533
 "0" 652 493.5 702 527.5

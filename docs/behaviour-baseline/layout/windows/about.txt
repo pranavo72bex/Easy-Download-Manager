@@ -23,10 +23,10 @@
 "Queues" 16 243.5 60 263
 "Main queue" 40 269.5 125 292
 "Recheck queue" 40 297.5 150 320
-"Add EDM to your browser:" 236 98.5 430 121
-"Microsoft Edge" 453 98.5 571 121
-"Firefox" 609 98.5 668 121
-"Chrome and others" 706 98.5 849 121
+"Add EDM to your browser:" 236 98.5 438 121
+"Microsoft Edge" 461 98.5 579 121
+"Firefox" 617 98.5 676 121
+"Chrome and others" 714 98.5 857 121
 "Not now" 1194 98.5 1253 121
 "File name" 212 136.5 277 156
 "Size" 676 136.5 705 156
@@ -43,7 +43,7 @@
 "· Speed limiter" 256 698.5 364 718
 
 [dialog "About EDM" 420x288]
-"EDM" 198 24 222 56.5
+"EDM" 192 24 228 56.5
 "Version <version>" somewhere
 "A free download manager, written in Rust." 37.5 92 382.5 114.5
 "Source code" 90 124.5 183 147
