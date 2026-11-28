@@ -510,7 +510,7 @@ jobs:
           deb=$(find installers -name '*.deb' | head -1)
           package=$(dpkg-deb -f "$deb" Package)
           sudo apt-get install -y "./$deb"
-          binary=$(dpkg -L "$package" | grep '/bin/' | head -1)
+          binary=$(dpkg -L "$package" | grep '/bin/edm-gpui$')
           xvfb-run -a -s '-screen 0 1280x800x24' python3 scripts/smoke.py "$binary"
           sudo apt-get remove -y "$package"
           test ! -e "$binary"
@@ -533,7 +533,7 @@ jobs:
             set -e
             dnf install -y -q python3 xorg-x11-server-Xvfb installers/*.rpm >/dev/null
             xvfb-run -a -s "-screen 0 1280x800x24" python3 scripts/smoke.py /usr/bin/EDM
-            dnf remove -y -q EDM >/dev/null
+            dnf remove -y -q edm >/dev/null
             test ! -e /usr/bin/EDM'
 
       - name: The Windows installer, silently

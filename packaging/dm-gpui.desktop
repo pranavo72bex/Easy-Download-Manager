@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=EDM
+GenericName=Download Manager
+Comment=Download files over many connections, with resume and a queue
+Exec=edm-gpui %u
+Icon=dm-desktop
+Terminal=false
+NoDisplay=true
+StartupWMClass=EDM
+MimeType=x-scheme-handler/magnet;application/x-bittorrent;

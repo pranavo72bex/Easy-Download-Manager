@@ -2,13 +2,16 @@
 #
 # Built from source rather than repackaging a .deb, so it links against
 # Arch's own libraries rather than an older runner's.
-pkgname=EDM
+pkgname=edm
 pkgver=0.10.4
 pkgrel=1
 pkgdesc="A download manager: many connections, resume, and a queue"
 arch=('x86_64' 'aarch64')
 url="https://github.com/pranavo72bex/Easy-Download-Manager"
 license=('GPL-3.0-or-later')
+# An earlier dm's package, by its own name.
+replaces=('dm')
+conflicts=('dm')
 
 # The window is drawn in Rust (GPUI, docs/gaps.md G9) with no web view. Its
 # tray is a StatusNotifier item over the session D-Bus. It links X11 through
@@ -67,6 +70,8 @@ package() {
   cd "$srcdir/$_srcdir"
 
   install -Dm755 "target/release/edm-gpui" "$pkgdir/usr/bin/EDM"
+  # The command an earlier dm installed: what it wrote (a login item, a browser's host) names it.
+  ln -s EDM "$pkgdir/usr/bin/dm"
   install -Dm644 "packaging/EDM.desktop" "$pkgdir/usr/share/applications/EDM.desktop"
   install -Dm644 "assets/app-icons/icon.png" \
     "$pkgdir/usr/share/icons/hicolor/512x512/apps/EDM.png"

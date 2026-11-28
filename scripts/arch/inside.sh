@@ -50,7 +50,7 @@ done
 echo "== built: $pkg"
 echo "== namcap-free install with pacman"
 pacman -U --noconfirm "$pkg" >/dev/null
-pacman -Ql EDM | grep -E 'bin/|\.desktop$|icons'
+pacman -Ql edm | grep -E 'bin/|\.desktop$|icons'
 echo "== the installed EDM answers a browser hand-off"
 printf '\053\000\000\000{"protocolVersion":1,"type":"engine.hello"}' \
   | EDM_HOME=/tmp/edm-home /usr/bin/EDM --native-host | head -c 300 | tail -c +5

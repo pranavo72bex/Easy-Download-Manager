@@ -4,7 +4,10 @@
 #   VERSION=0.1.0 ARCH=amd64 nfpm package -f packaging/nfpm.yaml -p rpm -t dist/
 #
 # Run from the repository root; ARCH is nfpm's name (amd64, arm64).
-name: EDM
+# `edm`, replacing the package an earlier dm installed under its own name (rpm: Obsoletes).
+name: edm
+replaces:
+  - dm
 version: ${VERSION}
 arch: ${ARCH}
 platform: linux
@@ -55,6 +58,11 @@ recommends:
 contents:
   - src: target/release/nfpm/EDM
     dst: /usr/bin/EDM
+  # The command an earlier dm installed: a login item or a browser's host it wrote names it,
+  # until EDM writes them again as it starts.
+  - src: /usr/bin/EDM
+    dst: /usr/bin/dm
+    type: symlink
     file_info:
       mode: 0755
   - src: packaging/EDM.desktop
@@ -64,6 +72,6 @@ contents:
   - src: assets/app-icons/128x128.png
     dst: /usr/share/icons/hicolor/128x128/apps/EDM.png
   - src: LICENSE
-    dst: /usr/share/licenses/EDM/LICENSE
+    dst: /usr/share/licenses/edm/LICENSE
   - src: NOTICE
-    dst: /usr/share/licenses/EDM/NOTICE
+    dst: /usr/share/licenses/edm/NOTICE

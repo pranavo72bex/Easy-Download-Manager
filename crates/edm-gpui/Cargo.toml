@@ -47,21 +47,21 @@ icons = [
   "../../assets/app-icons/icon.ico",
 ]
 
-# The .deb: the package is still `EDM`, so it upgrades an earlier EDM's in place.
+# The .deb: the package is still `dm`, so it upgrades an earlier dm's in place (cargo-packager
+# writes no Replaces field for a package of another name; Debian's names are lowercase anyway).
 [package.metadata.packager.deb]
+packageName = "dm"
 # EDM's own entry rather than the one generated from the binary's name: the
 # window's app id is "EDM", and a launcher without StartupWMClass=EDM is not
 # matched to its window on Wayland (a second, generic icon in the dock).
 # It also makes EDM the handler for magnet links.
 desktopTemplate = "../../packaging/deb.desktop"
-# `/usr/bin/edm-desktop`, the name an earlier EDM's program had, running this
-# window: the command the README and the extension's popup give, and what a
-# login item or a browser's host written by an earlier EDM names, until EDM
-# writes them again for this binary as it starts.
-# Its icon and a hidden launcher under the old name too: a login entry
-# and a magnet or .torrent default saved by an earlier EDM name them, and
-# lost them with the upgrade (the new launcher is edm-gpui.desktop).
-files = { "../../packaging/edm-desktop" = "usr/bin/edm-desktop", "../../assets/app-icons/128x128.png" = "usr/share/icons/hicolor/128x128/apps/edm-desktop.png", "../../packaging/edm-desktop.desktop" = "usr/share/applications/edm-desktop.desktop" }
+# What an earlier dm wrote names its own program: a login item or a browser's host names
+# `/usr/bin/dm-gpui` (0.10.x) or `/usr/bin/dm-desktop` (before), a magnet or .torrent default
+# `dm-gpui.desktop` or `dm-desktop.desktop`. Each is kept, running this window, until EDM
+# writes them again for this binary as it starts; the launchers hidden, the new one being
+# edm-gpui.desktop.
+files = { "../../packaging/edm-desktop" = "usr/bin/dm-desktop", "../../packaging/dm-gpui" = "usr/bin/dm-gpui", "../../assets/app-icons/128x128.png" = "usr/share/icons/hicolor/128x128/apps/dm-desktop.png", "../../packaging/edm-desktop.desktop" = "usr/share/applications/dm-desktop.desktop", "../../packaging/dm-gpui.desktop" = "usr/share/applications/dm-gpui.desktop" }
 depends = [
   # Linked: X11 through xcb, the keyboard's layout, the font rasteriser.
   "libxcb1",
