@@ -1,17 +1,16 @@
 <!-- Copyright (C) 2026 pranavo72bex and the EDM contributors. SPDX-License-Identifier: GPL-3.0-or-later -->
 <!-- EDM's icon, the one source of every icon EDM ships (desktop, browser extension, Android):
-     a white arrow over a download's progress bar, on the accent blue.
+     a solid arrow over a file in three parts, two arrived and the last still coming (a download
+     over several connections that resumes), white on the window's accent (#0A5FD8), flat.
      Drawn in Android's adaptive-icon units (108 wide, the visible tile the middle 72), so
      the Android layers use the same numbers. After changing it run scripts/app-icons.py. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72" width="1024" height="1024">
-  <defs>
-    <linearGradient id="bg" x1="18" y1="18" x2="54" y2="90" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#4F98FF"/>
-      <stop offset="1" stop-color="#1A55CF"/>
-    </linearGradient>
-  </defs>
-  <rect id="tile" x="18" y="18" width="72" height="72" rx="16" fill="url(#bg)"/>
-  <path d="M54,30 V55 M42,43.5 L54,55.5 L66,43.5" fill="none" stroke="#FFFFFF" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="34" y="66" width="40" height="8" rx="4" fill="#FFFFFF" fill-opacity="0.35"/>
-  <rect x="34" y="66" width="27" height="8" rx="4" fill="#FFFFFF"/>
+  <rect x="18" y="18" width="72" height="72" rx="16" fill="#0A5FD8"/>
+  <g fill="#FFFFFF">
+    <rect x="47" y="30" width="14" height="22" rx="3"/>
+    <path d="M37,49 H71 L54,66 Z" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round"/>
+    <rect x="36" y="71" width="11" height="6" rx="3"/>
+    <rect x="48.5" y="71" width="11" height="6" rx="3"/>
+    <rect x="61" y="71" width="11" height="6" rx="3" fill-opacity="0.45"/>
+  </g>
 </svg>

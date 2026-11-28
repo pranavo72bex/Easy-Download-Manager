@@ -9362,11 +9362,18 @@ the window's goldens changed with it, at that approval. What is kept, and why:
 At the maintainer's words ("Make a better Icon and improve branding … it is still easy
 download manager", "Icon should be consistent for android desktop and extension"): the
 desktop's dark tile with a green arrow, the extension's blue tile and Android's arrow into a
-tray were three icons. Now `assets/app-icons/icon.svg` is the one source: a white arrow over a
-progress bar two thirds full (a download that comes in parts and resumes), on the accent blue.
+tray were three icons. Now `assets/app-icons/icon.svg` is the one source: a solid white arrow
+over a file in three parts, two arrived and the last still coming (a download over several
+connections that resumes), on the window's accent (#0A5FD8), flat.
 It is drawn in Android's adaptive-icon units (108, the tile the middle 72), so the launcher's
 two vector layers carry the same numbers; `scripts/app-icons.py` (rsvg-convert, ImageMagick,
 iconutil) writes every PNG, the `.ico`, the `.icns` (macOS's grid: the tile 824 of 1024 with a
 shadow) and the extension's sizes. A plain arrow into a tray was tried first and dropped: it
 was every system's stock download picture. The extension's name in every store language is the
 product's proper name, "EDM — Easy Download Manager", untranslated.
+
+The same day, at the maintainer's /unslop ("it does not looking good"): the first version's
+blue gradient tile and thin-stroked arrow over a progress bar read as a stock icon. The tile is
+now flat in the window's own accent, the arrow solid, and the bar three parts. Three strands
+joining into one arrow (many connections, one file) were drawn and dropped: they read as a
+trident.
